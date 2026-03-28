@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/heartgryphon/dsp/internal/antifraud"
 	"github.com/heartgryphon/dsp/internal/bidder"
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/config"
@@ -56,8 +57,10 @@ func main() {
 
 	// Initialize services
 	budgetSvc = budget.New(rdb)
+	fraudFilter := antifraud.NewFilter(rdb)
 	loader = bidder.NewCampaignLoader(db, rdb)
-	engine = bidder.NewEngine(loader, budgetSvc, producer)
+	engine = bidder.NewEngine(loader, budgetSvc, producer, fraudFilter)
+	log.Printf("Anti-fraud filter initialized (%v)", fraudFilter.Stats())
 
 	// Load campaigns from DB
 	if err := loader.Start(ctx); err != nil {

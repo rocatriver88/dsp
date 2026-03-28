@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/heartgryphon/dsp/internal/antifraud"
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/events"
@@ -15,14 +16,16 @@ import (
 type Engine struct {
 	loader   *CampaignLoader
 	budget   *budget.Service
-	producer *events.Producer // nil if Kafka unavailable
+	producer *events.Producer       // nil if Kafka unavailable
+	fraud    *antifraud.Filter      // nil to skip fraud checks
 }
 
-func NewEngine(loader *CampaignLoader, budgetSvc *budget.Service, producer *events.Producer) *Engine {
+func NewEngine(loader *CampaignLoader, budgetSvc *budget.Service, producer *events.Producer, fraud *antifraud.Filter) *Engine {
 	return &Engine{
 		loader:   loader,
 		budget:   budgetSvc,
 		producer: producer,
+		fraud:    fraud,
 	}
 }
 
@@ -45,6 +48,19 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 			geoCountry = req.Device.Geo.Country
 		}
 		userID = req.Device.IFA // use IDFA/GAID as user ID
+	}
+
+	// Anti-fraud Layer 1 check
+	if e.fraud != nil {
+		var ip, ua string
+		if req.Device != nil {
+			ip = req.Device.IP
+			ua = req.Device.UA
+		}
+		result := e.fraud.Check(ctx, ip, ua, userID)
+		if !result.Allowed {
+			return nil, nil // silently no-bid on fraud
+		}
 	}
 
 	// GDPR check
