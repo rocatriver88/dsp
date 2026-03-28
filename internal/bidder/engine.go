@@ -7,19 +7,22 @@ import (
 
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/campaign"
+	"github.com/heartgryphon/dsp/internal/events"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
 // Engine is the production bidder that uses CampaignLoader + Redis budget/freq.
 type Engine struct {
-	loader *CampaignLoader
-	budget *budget.Service
+	loader   *CampaignLoader
+	budget   *budget.Service
+	producer *events.Producer // nil if Kafka unavailable
 }
 
-func NewEngine(loader *CampaignLoader, budgetSvc *budget.Service) *Engine {
+func NewEngine(loader *CampaignLoader, budgetSvc *budget.Service, producer *events.Producer) *Engine {
 	return &Engine{
-		loader: loader,
-		budget: budgetSvc,
+		loader:   loader,
+		budget:   budgetSvc,
+		producer: producer,
 	}
 }
 
@@ -110,6 +113,19 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 			Seat: fmt.Sprintf("campaign-%d", best.ID),
 		}},
 		Cur: "USD",
+	}
+
+	// Emit bid event to Kafka (async, non-blocking)
+	if e.producer != nil {
+		go e.producer.SendBid(ctx, events.Event{
+			CampaignID:   best.ID,
+			CreativeID:   creative.ID,
+			AdvertiserID: best.AdvertiserID,
+			RequestID:    req.ID,
+			BidPrice:     bidPrice,
+			GeoCountry:   geoCountry,
+			DeviceOS:     deviceOS,
+		})
 	}
 
 	return resp, nil

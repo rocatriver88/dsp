@@ -7,20 +7,23 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/bidder"
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/config"
+	"github.com/heartgryphon/dsp/internal/events"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prebid/openrtb/v20/openrtb2"
 	"github.com/redis/go-redis/v9"
 )
 
 var (
-	engine   *bidder.Engine
+	engine    *bidder.Engine
 	budgetSvc *budget.Service
-	loader   *bidder.CampaignLoader
+	loader    *bidder.CampaignLoader
+	producer  *events.Producer
 )
 
 func main() {
@@ -45,10 +48,16 @@ func main() {
 	}
 	log.Println("Connected to Redis")
 
+	// Initialize Kafka producer (optional)
+	brokers := strings.Split(cfg.KafkaBrokers, ",")
+	producer = events.NewProducer(brokers, "/tmp/dsp-kafka-buffer")
+	defer producer.Close()
+	log.Printf("Kafka producer initialized (brokers: %s)", cfg.KafkaBrokers)
+
 	// Initialize services
 	budgetSvc = budget.New(rdb)
 	loader = bidder.NewCampaignLoader(db, rdb)
-	engine = bidder.NewEngine(loader, budgetSvc)
+	engine = bidder.NewEngine(loader, budgetSvc, producer)
 
 	// Load campaigns from DB
 	if err := loader.Start(ctx); err != nil {
@@ -143,6 +152,16 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("[WIN] campaign_id=%d clear_price=%.6f remaining_cents=%d", campaignID, price, remaining)
+
+	// Emit win event to Kafka
+	if producer != nil {
+		go producer.SendWin(r.Context(), events.Event{
+			CampaignID: campaignID,
+			RequestID:  r.URL.Query().Get("request_id"),
+			ClearPrice: price,
+		})
+	}
+
 	fmt.Fprintf(w, `{"status":"ok","remaining_cents":%d}`, remaining)
 }
 
