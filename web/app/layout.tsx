@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import ApiKeyGate from "./components/ApiKeyGate";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -72,9 +73,11 @@ export default function RootLayout({
 
         {/* Main content */}
         <main id="main-content" className="flex-1 overflow-auto" role="main">
-          <div className="max-w-6xl mx-auto px-4 py-4 md:px-8 md:py-6">
-            {children}
-          </div>
+          <ApiKeyGate>
+            <div className="max-w-6xl mx-auto px-4 py-4 md:px-8 md:py-6">
+              {children}
+            </div>
+          </ApiKeyGate>
         </main>
       </body>
     </html>

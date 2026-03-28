@@ -19,6 +19,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/config"
 	"github.com/heartgryphon/dsp/internal/events"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prebid/openrtb/v20/openrtb2"
 	"github.com/redis/go-redis/v9"
@@ -79,6 +80,7 @@ func main() {
 	mux.HandleFunc("GET /click", handleClick)
 	mux.HandleFunc("GET /stats", handleStats)
 	mux.HandleFunc("GET /health", handleHealth)
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	addr := ":" + cfg.BidderPort
 	srv := &http.Server{Addr: addr, Handler: withLogging(mux)}

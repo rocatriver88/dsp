@@ -16,8 +16,10 @@ import (
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/auth"
+	"github.com/heartgryphon/dsp/internal/autopause"
 	"github.com/heartgryphon/dsp/internal/bidder"
 	"github.com/heartgryphon/dsp/internal/billing"
+	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/config"
 	"github.com/heartgryphon/dsp/internal/observability"
@@ -25,6 +27,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/registration"
 	"github.com/heartgryphon/dsp/internal/reporting"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -34,6 +37,7 @@ var (
 	reportStore *reporting.Store
 	billingSvc  *billing.Service
 	regSvc      *registration.Service
+	budgetSvc   *budget.Service
 )
 
 func main() {
@@ -63,6 +67,9 @@ func main() {
 	store = campaign.NewStore(db)
 	billingSvc = billing.New(db)
 	regSvc = registration.New(db)
+	if rdb != nil {
+		budgetSvc = budget.New(rdb)
+	}
 	log.Println("Billing + Registration services initialized")
 
 	// Connect ClickHouse (optional for Phase 2 reports)
@@ -73,6 +80,10 @@ func main() {
 		reportStore = rs
 		log.Println("Connected to ClickHouse")
 	}
+
+	// Start auto-pause background service
+	autoPauseSvc := autopause.New(store, reportStore, rdb)
+	go autoPauseSvc.Start(ctx)
 
 	// API Key lookup function for auth middleware
 	apiKeyLookup := func(ctx context.Context, key string) (int64, string, string, error) {
@@ -128,6 +139,7 @@ func main() {
 
 	// --- Internal routes (separate port, not exposed externally) ---
 	internalMux := http.NewServeMux()
+	internalMux.Handle("GET /metrics", promhttp.Handler())
 	internalMux.HandleFunc("GET /internal/active-campaigns", handleActiveCampaigns)
 	internalMux.HandleFunc("GET /api/v1/admin/registrations", handleListRegistrations)
 	internalMux.HandleFunc("POST /api/v1/admin/registrations/{id}/approve", handleApproveRegistration)
@@ -380,10 +392,37 @@ func handleStartCampaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	advID := auth.AdvertiserIDFromContext(r.Context())
+
+	// Validate before starting
+	c, err := store.GetCampaignForAdvertiser(r.Context(), id, advID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "campaign not found")
+		return
+	}
+	creatives, _ := store.GetCreativesByCampaign(r.Context(), id)
+	if len(creatives) == 0 {
+		writeError(w, http.StatusUnprocessableEntity, "campaign has no creatives, add at least one before starting")
+		return
+	}
+	if c.EndDate != nil && c.EndDate.Before(time.Now()) {
+		writeError(w, http.StatusUnprocessableEntity, "campaign end_date is in the past")
+		return
+	}
+	if c.BudgetTotalCents < c.BudgetDailyCents {
+		writeError(w, http.StatusUnprocessableEntity, "budget_total must be >= budget_daily")
+		return
+	}
+
 	if err := store.TransitionStatus(r.Context(), id, advID, campaign.StatusActive); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
+
+	// Initialize daily budget in Redis so bidder can deduct
+	if budgetSvc != nil {
+		budgetSvc.InitDailyBudget(r.Context(), id, c.BudgetDailyCents)
+	}
+
 	if rdb != nil {
 		bidder.NotifyCampaignUpdate(r.Context(), rdb, id, "activated")
 	}
