@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/bidder"
+	"github.com/heartgryphon/dsp/internal/billing"
 	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/config"
+	"github.com/heartgryphon/dsp/internal/registration"
 	"github.com/heartgryphon/dsp/internal/reporting"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -23,6 +25,8 @@ var (
 	store       *campaign.Store
 	rdb         *redis.Client
 	reportStore *reporting.Store
+	billingSvc  *billing.Service
+	regSvc      *registration.Service
 )
 
 func main() {
@@ -49,6 +53,9 @@ func main() {
 	}
 
 	store = campaign.NewStore(db)
+	billingSvc = billing.New(db)
+	regSvc = registration.New(db)
+	log.Println("Billing + Registration services initialized")
 
 	// Connect ClickHouse (optional for Phase 2 reports)
 	rs, chErr := reporting.NewStore(cfg.ClickHouseAddr)
@@ -81,6 +88,17 @@ func main() {
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/hourly", handleHourlyStats)
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/geo", handleGeoBreakdown)
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/bids", handleBidTransparency)
+
+	// Billing endpoints (Phase 4)
+	mux.HandleFunc("POST /api/v1/billing/topup", handleTopUp)
+	mux.HandleFunc("GET /api/v1/billing/transactions", handleTransactions)
+	mux.HandleFunc("GET /api/v1/billing/balance/{id}", handleBalance)
+
+	// Registration endpoints (Phase 4)
+	mux.HandleFunc("POST /api/v1/register", handleRegister)
+	mux.HandleFunc("GET /api/v1/admin/registrations", handleListRegistrations)
+	mux.HandleFunc("POST /api/v1/admin/registrations/{id}/approve", handleApproveRegistration)
+	mux.HandleFunc("POST /api/v1/admin/registrations/{id}/reject", handleRejectRegistration)
 
 	// Internal: active campaigns for bidder
 	mux.HandleFunc("GET /internal/active-campaigns", handleActiveCampaigns)
@@ -323,6 +341,126 @@ func handleActiveCampaigns(w http.ResponseWriter, r *http.Request) {
 		campaigns = []*campaign.Campaign{}
 	}
 	writeJSON(w, http.StatusOK, campaigns)
+}
+
+// --- Billing handlers (Phase 4) ---
+
+func handleTopUp(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		AdvertiserID int64  `json:"advertiser_id"`
+		AmountCents  int64  `json:"amount_cents"`
+		Description  string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request")
+		return
+	}
+	if req.AmountCents <= 0 {
+		writeError(w, http.StatusBadRequest, "amount must be positive")
+		return
+	}
+	txn, err := billingSvc.TopUp(r.Context(), req.AdvertiserID, req.AmountCents, req.Description)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, txn)
+}
+
+func handleTransactions(w http.ResponseWriter, r *http.Request) {
+	advID, _ := strconv.ParseInt(r.URL.Query().Get("advertiser_id"), 10, 64)
+	if advID == 0 {
+		writeError(w, http.StatusBadRequest, "advertiser_id required")
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	txns, err := billingSvc.GetTransactions(r.Context(), advID, limit, offset)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if txns == nil {
+		txns = []billing.Transaction{}
+	}
+	writeJSON(w, http.StatusOK, txns)
+}
+
+func handleBalance(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	balance, billingType, err := billingSvc.GetBalance(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "advertiser not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"advertiser_id": id,
+		"balance_cents": balance,
+		"billing_type":  billingType,
+	})
+}
+
+// --- Registration handlers (Phase 4) ---
+
+func handleRegister(w http.ResponseWriter, r *http.Request) {
+	var req registration.Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request")
+		return
+	}
+	if req.CompanyName == "" || req.ContactEmail == "" {
+		writeError(w, http.StatusBadRequest, "company_name and contact_email required")
+		return
+	}
+	id, err := regSvc.Submit(r.Context(), &req)
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id":      id,
+		"status":  "pending",
+		"message": "Registration submitted. We will review within 7 business days.",
+	})
+}
+
+func handleListRegistrations(w http.ResponseWriter, r *http.Request) {
+	reqs, err := regSvc.ListPending(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if reqs == nil {
+		reqs = []registration.Request{}
+	}
+	writeJSON(w, http.StatusOK, reqs)
+}
+
+func handleApproveRegistration(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	advID, apiKey, err := regSvc.Approve(r.Context(), id, "admin")
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"advertiser_id": advID,
+		"api_key":       apiKey,
+		"message":       "Registration approved. Advertiser account created.",
+	})
+}
+
+func handleRejectRegistration(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	if err := regSvc.Reject(r.Context(), id, "admin", req.Reason); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "rejected"})
 }
 
 // --- Report handlers (Phase 2) ---
