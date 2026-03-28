@@ -19,6 +19,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
+    // 401: clear invalid API key and reload to show login screen
+    if (res.status === 401 && typeof window !== "undefined") {
+      localStorage.removeItem("dsp_api_key");
+      window.location.reload();
+      throw new Error("Authentication failed");
+    }
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `API error: ${res.status}`);
   }

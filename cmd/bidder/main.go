@@ -68,6 +68,11 @@ func main() {
 	engine = bidder.NewEngine(loader, budgetSvc, producer, fraudFilter)
 	log.Printf("Anti-fraud filter initialized (%v)", fraudFilter.Stats())
 
+	// Replay buffered Kafka events from prior outages
+	if err := producer.ReplayBuffer(ctx); err != nil {
+		log.Printf("Kafka replay: %v (continuing)", err)
+	}
+
 	// Load campaigns from DB
 	if err := loader.Start(ctx); err != nil {
 		log.Fatalf("campaign loader: %v", err)
@@ -193,32 +198,44 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Deduct from Redis budget
-	priceCents := int64(price * 100 * 1000) // dollars per impression → cents per mille
-	remaining, budgetErr := budgetSvc.CheckAndDeductBudget(r.Context(), campaignID, priceCents)
-	if budgetErr != nil {
-		log.Printf("[WIN-ERROR] campaign_id=%d: %v", campaignID, budgetErr)
-		http.Error(w, `{"error":"budget check failed"}`, http.StatusInternalServerError)
-		return
-	}
-	if remaining < 0 {
-		log.Printf("[WIN-REJECTED] campaign_id=%d (budget exhausted)", campaignID)
-		http.Error(w, `{"error":"budget exhausted"}`, http.StatusConflict)
-		return
+	// Check billing model: CPC campaigns are charged on click, not impression
+	c := loader.GetCampaign(campaignID)
+	isCPC := c != nil && c.BillingModel == "cpc"
+
+	var remaining int64
+	if !isCPC {
+		// CPM/oCPM: deduct budget on win (impression-based billing)
+		priceCents := int64(price * 100 * 1000) // dollars per impression → cents per mille
+		var budgetErr error
+		remaining, budgetErr = budgetSvc.CheckAndDeductBudget(r.Context(), campaignID, priceCents)
+		if budgetErr != nil {
+			log.Printf("[WIN-ERROR] campaign_id=%d: %v", campaignID, budgetErr)
+			http.Error(w, `{"error":"budget check failed"}`, http.StatusInternalServerError)
+			return
+		}
+		if remaining < 0 {
+			log.Printf("[WIN-REJECTED] campaign_id=%d (budget exhausted)", campaignID)
+			http.Error(w, `{"error":"budget exhausted"}`, http.StatusConflict)
+			return
+		}
 	}
 
-	log.Printf("[WIN] campaign_id=%d clear_price=%.6f remaining_cents=%d", campaignID, price, remaining)
+	log.Printf("[WIN] campaign_id=%d clear_price=%.6f billing=%s", campaignID, price, func() string {
+		if isCPC {
+			return "cpc(deferred to click)"
+		}
+		return fmt.Sprintf("cpm(remaining=%d)", remaining)
+	}())
 
 	// Emit win + impression events to Kafka
 	if producer != nil {
-		// Get original bid price from campaign config
 		var bidPrice float64
-		if c := loader.GetCampaign(campaignID); c != nil {
-			bidPrice = float64(c.BidCPMCents) / 100.0 / 1000.0 // CPM cents → dollars/impression
+		if c != nil {
+			bidPrice = float64(c.EffectiveBidCPMCents(0, 0)) / 100.0 / 1000.0
 		}
 		evt := events.Event{
 			CampaignID: campaignID,
-			RequestID:  r.URL.Query().Get("request_id"),
+			RequestID:  requestID,
 			BidPrice:   bidPrice,
 			ClearPrice: price,
 			GeoCountry: r.URL.Query().Get("geo"),
@@ -245,6 +262,26 @@ func handleClick(w http.ResponseWriter, r *http.Request) {
 	}
 
 	campaignID, _ := strconv.ParseInt(campaignIDStr, 10, 64)
+
+	// CPC campaigns: charge budget on click
+	if campaignID > 0 {
+		c := loader.GetCampaign(campaignID)
+		if c != nil && c.BillingModel == "cpc" {
+			clickCents := int64(c.BidCPCCents) // charge per click
+			remaining, err := budgetSvc.CheckAndDeductBudget(r.Context(), campaignID, clickCents)
+			if err != nil {
+				log.Printf("[CLICK-ERROR] campaign_id=%d: %v", campaignID, err)
+				http.Error(w, `{"error":"budget check failed"}`, http.StatusInternalServerError)
+				return
+			}
+			if remaining < 0 {
+				log.Printf("[CLICK-REJECTED] campaign_id=%d (budget exhausted)", campaignID)
+				http.Error(w, `{"error":"budget exhausted"}`, http.StatusConflict)
+				return
+			}
+			log.Printf("[CLICK-CPC] campaign_id=%d charged=%d remaining=%d", campaignID, clickCents, remaining)
+		}
+	}
 
 	if campaignID > 0 && producer != nil {
 		go producer.SendClick(r.Context(), events.Event{

@@ -151,12 +151,22 @@ func (p *Producer) bufferToDisk(topic string, data []byte) {
 }
 
 // SendToDeadLetter publishes a failed event to the dead-letter topic for retry.
+// Attempt count is embedded in the payload so it persists across process restarts.
 func (p *Producer) SendToDeadLetter(ctx context.Context, originalTopic string, data []byte, reason string) {
+	// Extract existing attempt count from payload (for re-queued DLQ events)
+	attempt := 1
+	var existing map[string]any
+	if json.Unmarshal(data, &existing) == nil {
+		if a, ok := existing["attempt"].(float64); ok {
+			attempt = int(a) + 1
+		}
+	}
+
 	dlqEvent := map[string]any{
 		"original_topic": originalTopic,
 		"data":           string(data),
 		"error":          reason,
-		"attempt":        1,
+		"attempt":        attempt,
 		"ts":             time.Now().UTC(),
 	}
 	payload, _ := json.Marshal(dlqEvent)
