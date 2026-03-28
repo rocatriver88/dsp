@@ -71,6 +71,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /bid", handleBid)
 	mux.HandleFunc("POST /win", handleWin)
+	mux.HandleFunc("GET /click", handleClick)
 	mux.HandleFunc("GET /stats", handleStats)
 	mux.HandleFunc("GET /health", handleHealth)
 
@@ -78,6 +79,7 @@ func main() {
 	log.Printf("DSP Bidder (Phase 1) listening on %s", addr)
 	log.Printf("  POST /bid   — OpenRTB bid request (DB campaigns + Redis budget/freq)")
 	log.Printf("  POST /win   — Win notice callback")
+	log.Printf("  GET  /click — Click tracking (redirects to destination)")
 	log.Printf("  GET  /stats — Loaded campaign stats")
 
 	if err := http.ListenAndServe(addr, withLogging(mux)); err != nil {
@@ -111,9 +113,18 @@ func handleBid(w http.ResponseWriter, r *http.Request) {
 
 	if len(resp.SeatBid) > 0 && len(resp.SeatBid[0].Bid) > 0 {
 		bid := resp.SeatBid[0].Bid[0]
-		// Add win notice URL
-		bid.NURL = fmt.Sprintf("http://localhost:%s/win?campaign_id=%s&price=${AUCTION_PRICE}",
-			config.Load().BidderPort, bid.CID)
+		port := config.Load().BidderPort
+		// Extract geo/os for tracking URLs
+		var geo, os string
+		if req.Device != nil {
+			os = req.Device.OS
+			if req.Device.Geo != nil {
+				geo = req.Device.Geo.Country
+			}
+		}
+		// Add win notice URL with geo/os for impression tracking
+		bid.NURL = fmt.Sprintf("http://localhost:%s/win?campaign_id=%s&price=${AUCTION_PRICE}&request_id=%s&geo=%s&os=%s",
+			port, bid.CID, req.ID, geo, os)
 		resp.SeatBid[0].Bid[0] = bid
 
 		log.Printf("[BID] request_id=%s campaign=%s bid=%.6f latency=%s",
@@ -156,16 +167,43 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[WIN] campaign_id=%d clear_price=%.6f remaining_cents=%d", campaignID, price, remaining)
 
-	// Emit win event to Kafka
+	// Emit win + impression events to Kafka
 	if producer != nil {
-		go producer.SendWin(r.Context(), events.Event{
+		evt := events.Event{
 			CampaignID: campaignID,
 			RequestID:  r.URL.Query().Get("request_id"),
 			ClearPrice: price,
-		})
+			GeoCountry: r.URL.Query().Get("geo"),
+			DeviceOS:   r.URL.Query().Get("os"),
+		}
+		go producer.SendWin(r.Context(), evt)
+		go producer.SendImpression(r.Context(), evt)
 	}
 
 	fmt.Fprintf(w, `{"status":"ok","remaining_cents":%d}`, remaining)
+}
+
+func handleClick(w http.ResponseWriter, r *http.Request) {
+	campaignID, _ := strconv.ParseInt(r.URL.Query().Get("campaign_id"), 10, 64)
+	requestID := r.URL.Query().Get("request_id")
+	dest := r.URL.Query().Get("dest")
+
+	if campaignID > 0 && producer != nil {
+		go producer.SendClick(r.Context(), events.Event{
+			CampaignID: campaignID,
+			RequestID:  requestID,
+			GeoCountry: r.URL.Query().Get("geo"),
+			DeviceOS:   r.URL.Query().Get("os"),
+		})
+	}
+
+	log.Printf("[CLICK] campaign_id=%d request_id=%s", campaignID, requestID)
+
+	if dest != "" {
+		http.Redirect(w, r, dest, http.StatusFound)
+		return
+	}
+	fmt.Fprintf(w, `{"status":"clicked"}`)
 }
 
 func handleStats(w http.ResponseWriter, r *http.Request) {
