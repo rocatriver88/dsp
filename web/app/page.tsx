@@ -93,7 +93,7 @@ export default function OverviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {campaigns.slice(0, 5).map((c) => (
+                {campaigns.map((c) => (
                   <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4">
                       <Link href={`/campaigns/${c.id}`} className="text-blue-600 hover:underline">{c.name}</Link>
