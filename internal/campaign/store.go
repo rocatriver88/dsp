@@ -109,9 +109,10 @@ func (s *Store) ListCampaigns(ctx context.Context, advertiserID int64) ([]*Campa
 	var campaigns []*Campaign
 	for rows.Next() {
 		c := &Campaign{}
-		if err := rows.Scan(&c.ID, &c.AdvertiserID, &c.Name, &c.Status, &c.BudgetTotalCents,
-			&c.BudgetDailyCents, &c.SpentCents, &c.BidCPMCents, &c.StartDate,
-			&c.EndDate, &c.Targeting, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.AdvertiserID, &c.Name, &c.Status, &c.BillingModel,
+			&c.BudgetTotalCents, &c.BudgetDailyCents, &c.SpentCents,
+			&c.BidCPMCents, &c.BidCPCCents, &c.OCPMTargetCPACents,
+			&c.StartDate, &c.EndDate, &c.Targeting, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		campaigns = append(campaigns, c)
@@ -164,9 +165,10 @@ func (s *Store) ListActiveCampaigns(ctx context.Context) ([]*Campaign, error) {
 	var campaigns []*Campaign
 	for rows.Next() {
 		c := &Campaign{}
-		if err := rows.Scan(&c.ID, &c.AdvertiserID, &c.Name, &c.Status, &c.BudgetTotalCents,
-			&c.BudgetDailyCents, &c.SpentCents, &c.BidCPMCents, &c.StartDate,
-			&c.EndDate, &c.Targeting, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.AdvertiserID, &c.Name, &c.Status, &c.BillingModel,
+			&c.BudgetTotalCents, &c.BudgetDailyCents, &c.SpentCents,
+			&c.BidCPMCents, &c.BidCPCCents, &c.OCPMTargetCPACents,
+			&c.StartDate, &c.EndDate, &c.Targeting, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		campaigns = append(campaigns, c)
