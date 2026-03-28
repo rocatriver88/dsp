@@ -55,7 +55,7 @@ export default function CampaignsPage() {
         </div>
       ) : (
         <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" role="table" aria-label="Campaign 列表">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left py-3 px-4 font-medium text-gray-500">ID</th>
@@ -89,18 +89,21 @@ export default function CampaignsPage() {
                   <td className="py-3 px-4 text-center">
                     {c.status === "draft" && (
                       <button onClick={() => handleAction(c.id, "start")}
+                        aria-label={`启动 ${c.name}`}
                         className="text-xs px-3 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100">
                         启动
                       </button>
                     )}
                     {c.status === "active" && (
                       <button onClick={() => handleAction(c.id, "pause")}
+                        aria-label={`暂停 ${c.name}`}
                         className="text-xs px-3 py-1 rounded bg-yellow-50 text-yellow-700 hover:bg-yellow-100">
                         暂停
                       </button>
                     )}
                     {c.status === "paused" && (
                       <button onClick={() => handleAction(c.id, "start")}
+                        aria-label={`恢复 ${c.name}`}
                         className="text-xs px-3 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100">
                         恢复
                       </button>
