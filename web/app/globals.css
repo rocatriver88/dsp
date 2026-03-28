@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+:root {
+  --sidebar-bg: #1a1a1a;
+  --sidebar-text: #a1a1aa;
+  --sidebar-active: #ffffff;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --success: #059669;
+  --warning: #d97706;
+  --error: #dc2626;
+  --bg: #f9fafb;
+  --card-bg: #ffffff;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --border: #e5e7eb;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: "IBM Plex Sans", -apple-system, sans-serif;
+  margin: 0;
+}
