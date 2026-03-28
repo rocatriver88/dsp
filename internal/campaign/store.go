@@ -151,8 +151,9 @@ func (s *Store) TransitionStatus(ctx context.Context, id int64, to Status) error
 // ListActiveCampaigns returns all active campaigns (for bidder loading).
 func (s *Store) ListActiveCampaigns(ctx context.Context) ([]*Campaign, error) {
 	rows, err := s.db.Query(ctx,
-		`SELECT c.id, c.advertiser_id, c.name, c.status, c.budget_total_cents, c.budget_daily_cents,
-		        c.spent_cents, c.bid_cpm_cents, c.start_date, c.end_date, c.targeting, c.created_at, c.updated_at
+		`SELECT c.id, c.advertiser_id, c.name, c.status, c.billing_model, c.budget_total_cents, c.budget_daily_cents,
+		        c.spent_cents, c.bid_cpm_cents, c.bid_cpc_cents, c.ocpm_target_cpa_cents,
+		        c.start_date, c.end_date, c.targeting, c.created_at, c.updated_at
 		 FROM campaigns c
 		 WHERE c.status = 'active'
 		 ORDER BY c.bid_cpm_cents DESC`,

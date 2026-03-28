@@ -8,18 +8,22 @@ const ADVERTISER_ID = 1;
 
 export default function OverviewPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [overview, setOverview] = useState<{ today_spend_cents: number; today_impressions: number; today_clicks: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.listCampaigns(ADVERTISER_ID)
-      .then(setCampaigns)
+    Promise.all([
+      api.listCampaigns(ADVERTISER_ID),
+      api.getOverviewStats(ADVERTISER_ID).catch(() => ({ today_spend_cents: 0, today_impressions: 0, today_clicks: 0 })),
+    ])
+      .then(([c, o]) => { setCampaigns(c); setOverview(o); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
   const active = campaigns.filter((c) => c.status === "active");
-  const totalSpent = campaigns.reduce((sum, c) => sum + c.spent_cents, 0);
+  const totalSpent = overview?.today_spend_cents || 0;
   const totalBudget = campaigns.reduce((sum, c) => sum + c.budget_total_cents, 0);
 
   if (loading) {

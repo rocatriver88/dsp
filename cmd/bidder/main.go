@@ -169,9 +169,15 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 
 	// Emit win + impression events to Kafka
 	if producer != nil {
+		// Get original bid price from campaign config
+		var bidPrice float64
+		if c := loader.GetCampaign(campaignID); c != nil {
+			bidPrice = float64(c.BidCPMCents) / 100.0 / 1000.0 // CPM cents → dollars/impression
+		}
 		evt := events.Event{
 			CampaignID: campaignID,
 			RequestID:  r.URL.Query().Get("request_id"),
+			BidPrice:   bidPrice,
 			ClearPrice: price,
 			GeoCountry: r.URL.Query().Get("geo"),
 			DeviceOS:   r.URL.Query().Get("os"),

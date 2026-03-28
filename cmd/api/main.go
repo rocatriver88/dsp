@@ -91,6 +91,8 @@ func main() {
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/geo", handleGeoBreakdown)
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/bids", handleBidTransparency)
 
+	mux.HandleFunc("GET /api/v1/reports/overview", handleOverviewStats)
+
 	// Billing endpoints (Phase 4)
 	mux.HandleFunc("POST /api/v1/billing/topup", handleTopUp)
 	mux.HandleFunc("GET /api/v1/billing/transactions", handleTransactions)
@@ -258,6 +260,17 @@ func handleListCampaigns(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	// Enrich with ClickHouse spend data
+	if reportStore != nil {
+		today := time.Now().UTC().Truncate(24 * time.Hour)
+		tomorrow := today.Add(24 * time.Hour)
+		for _, c := range campaigns {
+			stats, err := reportStore.GetCampaignStats(r.Context(), uint64(c.ID), today, tomorrow)
+			if err == nil && stats != nil {
+				c.SpentCents = int64(stats.SpendCents)
+			}
+		}
 	}
 	if campaigns == nil {
 		campaigns = []*campaign.Campaign{}
@@ -539,6 +552,42 @@ func handleRejectRegistration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "rejected"})
+}
+
+func handleOverviewStats(w http.ResponseWriter, r *http.Request) {
+	if reportStore == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"today_spend_cents": 0})
+		return
+	}
+	advIDStr := r.URL.Query().Get("advertiser_id")
+	advID, _ := strconv.ParseInt(advIDStr, 10, 64)
+
+	// Get all campaigns for this advertiser to sum their spend
+	campaigns, err := store.ListCampaigns(r.Context(), advID)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"today_spend_cents": 0})
+		return
+	}
+
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	tomorrow := today.Add(24 * time.Hour)
+	var totalSpend uint64
+	var totalImpressions, totalClicks uint64
+	for _, c := range campaigns {
+		stats, err := reportStore.GetCampaignStats(r.Context(), uint64(c.ID), today, tomorrow)
+		if err != nil || stats == nil {
+			continue
+		}
+		totalSpend += stats.SpendCents
+		totalImpressions += stats.Impressions
+		totalClicks += stats.Clicks
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"today_spend_cents":  totalSpend,
+		"today_impressions":  totalImpressions,
+		"today_clicks":       totalClicks,
+	})
 }
 
 // --- Report handlers (Phase 2) ---

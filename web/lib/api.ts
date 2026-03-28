@@ -98,6 +98,12 @@ export const api = {
   getAdvertiser: (id: number) =>
     request<Advertiser>(`/api/v1/advertisers/${id}`),
 
+  // Overview
+  getOverviewStats: (advertiserId: number) =>
+    request<{ today_spend_cents: number; today_impressions: number; today_clicks: number }>(
+      `/api/v1/reports/overview?advertiser_id=${advertiserId}`
+    ),
+
   // Campaigns
   listCampaigns: (advertiserId: number) =>
     request<Campaign[]>(`/api/v1/campaigns?advertiser_id=${advertiserId}`),
