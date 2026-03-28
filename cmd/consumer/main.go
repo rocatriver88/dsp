@@ -28,8 +28,12 @@ func main() {
 	defer store.Close()
 	log.Println("Connected to ClickHouse")
 
-	// Kafka readers for all 3 topics
+	// Kafka producer for dead-letter queue
 	brokers := strings.Split(cfg.KafkaBrokers, ",")
+	dlqProducer := events.NewProducer(brokers, "/tmp/dsp-kafka-buffer-consumer")
+	defer dlqProducer.Close()
+
+	// Kafka readers for all 3 topics
 	topics := []string{"dsp.bids", "dsp.impressions", "dsp.billing"}
 
 	for _, topic := range topics {
@@ -78,7 +82,8 @@ func main() {
 				}
 
 				if err := store.InsertEvent(ctx, bidEvt); err != nil {
-					log.Printf("[CONSUMER] %s insert error: %v", t, err)
+					log.Printf("[CONSUMER] %s insert error: %v (sending to DLQ)", t, err)
+					dlqProducer.SendToDeadLetter(ctx, t, msg.Value, err.Error())
 					continue
 				}
 			}

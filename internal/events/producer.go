@@ -52,7 +52,7 @@ func NewProducer(brokers []string, bufferDir string) *Producer {
 		kafkaOK:   true,
 	}
 
-	topics := []string{"dsp.bids", "dsp.impressions", "dsp.billing"}
+	topics := []string{"dsp.bids", "dsp.impressions", "dsp.billing", "dsp.dead-letter"}
 	for _, topic := range topics {
 		p.writers[topic] = &kafka.Writer{
 			Addr:         kafka.TCP(brokers...),
@@ -148,6 +148,94 @@ func (p *Producer) bufferToDisk(topic string, data []byte) {
 
 	f.Write(data)
 	f.Write([]byte("\n"))
+}
+
+// SendToDeadLetter publishes a failed event to the dead-letter topic for retry.
+func (p *Producer) SendToDeadLetter(ctx context.Context, originalTopic string, data []byte, reason string) {
+	dlqEvent := map[string]any{
+		"original_topic": originalTopic,
+		"data":           string(data),
+		"error":          reason,
+		"attempt":        1,
+		"ts":             time.Now().UTC(),
+	}
+	payload, _ := json.Marshal(dlqEvent)
+
+	writer, ok := p.writers["dsp.dead-letter"]
+	if !ok {
+		log.Printf("[DLQ] dead-letter writer not available, buffering to disk")
+		p.bufferToDisk("dsp.dead-letter", payload)
+		return
+	}
+	if err := writer.WriteMessages(ctx, kafka.Message{Value: payload}); err != nil {
+		log.Printf("[DLQ] write error: %v", err)
+		p.bufferToDisk("dsp.dead-letter", payload)
+	}
+}
+
+// ReplayBuffer replays buffered events from disk to Kafka.
+// Called at startup to recover events from prior Kafka outages.
+func (p *Producer) ReplayBuffer(ctx context.Context) error {
+	entries, err := os.ReadDir(p.bufferDir)
+	if err != nil {
+		return nil // no buffer directory
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".jsonl" {
+			continue
+		}
+		topic := entry.Name()[:len(entry.Name())-6] // strip .jsonl
+		path := filepath.Join(p.bufferDir, entry.Name())
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			log.Printf("[REPLAY] read error %s: %v", path, err)
+			continue
+		}
+
+		writer, ok := p.writers[topic]
+		if !ok {
+			log.Printf("[REPLAY] unknown topic %s, skipping", topic)
+			continue
+		}
+
+		lines := 0
+		for _, line := range splitLines(data) {
+			if len(line) == 0 {
+				continue
+			}
+			if err := writer.WriteMessages(ctx, kafka.Message{Value: line}); err != nil {
+				log.Printf("[REPLAY] send error on %s (stopping replay): %v", topic, err)
+				return err
+			}
+			lines++
+		}
+		os.Rename(path, path+".replayed")
+		log.Printf("[REPLAY] replayed %d events from %s", lines, entry.Name())
+	}
+	return nil
+}
+
+func splitLines(data []byte) [][]byte {
+	var lines [][]byte
+	for len(data) > 0 {
+		idx := -1
+		for i, b := range data {
+			if b == '\n' {
+				idx = i
+				break
+			}
+		}
+		if idx == -1 {
+			if len(data) > 0 {
+				lines = append(lines, data)
+			}
+			break
+		}
+		lines = append(lines, data[:idx])
+		data = data[idx+1:]
+	}
+	return lines
 }
 
 // Close closes all Kafka writers.

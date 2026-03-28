@@ -82,7 +82,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		if len(c.Creatives) == 0 {
 			continue
 		}
-		if best == nil || c.BidCPMCents > best.BidCPMCents {
+		if best == nil || c.EffectiveBidCPMCents(0, 0) > best.EffectiveBidCPMCents(0, 0) {
 			best = c
 		}
 	}
@@ -92,7 +92,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 	}
 
 	// Redis pipeline: budget + frequency check (single RTT)
-	bidAmountCents := int64(best.BidCPMCents) // deduct full CPM per win (simplified)
+	bidAmountCents := int64(best.EffectiveBidCPMCents(0, 0))
 	freqCap := 0
 	freqPeriod := 24
 	if best.Targeting.FrequencyCap != nil {
@@ -111,7 +111,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 
 	// Pick first creative
 	creative := best.Creatives[0]
-	bidPrice := float64(best.BidCPMCents) / 100.0 / 1000.0 // cents to dollars per impression
+	bidPrice := float64(best.EffectiveBidCPMCents(0, 0)) / 100.0 / 1000.0 // CPM cents → dollars per impression
 	bidID := fmt.Sprintf("bid-%d-%d", best.ID, time.Now().UnixNano())
 
 	resp := &openrtb2.BidResponse{

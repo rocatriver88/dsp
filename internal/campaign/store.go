@@ -80,12 +80,12 @@ func (s *Store) GetCampaign(ctx context.Context, id int64) (*Campaign, error) {
 	err := s.db.QueryRow(ctx,
 		`SELECT id, advertiser_id, name, status, billing_model, budget_total_cents, budget_daily_cents,
 		        spent_cents, bid_cpm_cents, bid_cpc_cents, ocpm_target_cpa_cents,
-		        start_date, end_date, targeting, created_at, updated_at
+		        start_date, end_date, targeting, pause_reason, paused_at, created_at, updated_at
 		 FROM campaigns WHERE id = $1 AND status != 'deleted'`, id,
 	).Scan(&c.ID, &c.AdvertiserID, &c.Name, &c.Status, &c.BillingModel,
 		&c.BudgetTotalCents, &c.BudgetDailyCents, &c.SpentCents,
 		&c.BidCPMCents, &c.BidCPCCents, &c.OCPMTargetCPACents,
-		&c.StartDate, &c.EndDate, &c.Targeting, &c.CreatedAt, &c.UpdatedAt)
+		&c.StartDate, &c.EndDate, &c.Targeting, &c.PauseReason, &c.PausedAt, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func (s *Store) ListCampaigns(ctx context.Context, advertiserID int64) ([]*Campa
 	rows, err := s.db.Query(ctx,
 		`SELECT id, advertiser_id, name, status, billing_model, budget_total_cents, budget_daily_cents,
 		        spent_cents, bid_cpm_cents, bid_cpc_cents, ocpm_target_cpa_cents,
-		        start_date, end_date, targeting, created_at, updated_at
+		        start_date, end_date, targeting, pause_reason, paused_at, created_at, updated_at
 		 FROM campaigns WHERE advertiser_id = $1 AND status != 'deleted'
 		 ORDER BY created_at DESC`, advertiserID,
 	)
@@ -112,7 +112,7 @@ func (s *Store) ListCampaigns(ctx context.Context, advertiserID int64) ([]*Campa
 		if err := rows.Scan(&c.ID, &c.AdvertiserID, &c.Name, &c.Status, &c.BillingModel,
 			&c.BudgetTotalCents, &c.BudgetDailyCents, &c.SpentCents,
 			&c.BidCPMCents, &c.BidCPCCents, &c.OCPMTargetCPACents,
-			&c.StartDate, &c.EndDate, &c.Targeting, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			&c.StartDate, &c.EndDate, &c.Targeting, &c.PauseReason, &c.PausedAt, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		campaigns = append(campaigns, c)
@@ -126,12 +126,12 @@ func (s *Store) GetCampaignForAdvertiser(ctx context.Context, id, advertiserID i
 	err := s.db.QueryRow(ctx,
 		`SELECT id, advertiser_id, name, status, billing_model, budget_total_cents, budget_daily_cents,
 		        spent_cents, bid_cpm_cents, bid_cpc_cents, ocpm_target_cpa_cents,
-		        start_date, end_date, targeting, created_at, updated_at
+		        start_date, end_date, targeting, pause_reason, paused_at, created_at, updated_at
 		 FROM campaigns WHERE id = $1 AND advertiser_id = $2 AND status != 'deleted'`, id, advertiserID,
 	).Scan(&c.ID, &c.AdvertiserID, &c.Name, &c.Status, &c.BillingModel,
 		&c.BudgetTotalCents, &c.BudgetDailyCents, &c.SpentCents,
 		&c.BidCPMCents, &c.BidCPCCents, &c.OCPMTargetCPACents,
-		&c.StartDate, &c.EndDate, &c.Targeting, &c.CreatedAt, &c.UpdatedAt)
+		&c.StartDate, &c.EndDate, &c.Targeting, &c.PauseReason, &c.PausedAt, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -188,12 +188,28 @@ func (s *Store) TransitionStatusInternal(ctx context.Context, id int64, to Statu
 	return err
 }
 
+// AutoPause pauses a campaign with a reason (for anomaly detection).
+func (s *Store) AutoPause(ctx context.Context, id int64, reason string) error {
+	tag, err := s.db.Exec(ctx,
+		`UPDATE campaigns SET status = 'paused', pause_reason = $2, paused_at = NOW(), updated_at = NOW()
+		 WHERE id = $1 AND status = 'active'`,
+		id, reason,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("campaign %d not active or not found", id)
+	}
+	return nil
+}
+
 // ListActiveCampaigns returns all active campaigns (for bidder loading).
 func (s *Store) ListActiveCampaigns(ctx context.Context) ([]*Campaign, error) {
 	rows, err := s.db.Query(ctx,
 		`SELECT c.id, c.advertiser_id, c.name, c.status, c.billing_model, c.budget_total_cents, c.budget_daily_cents,
 		        c.spent_cents, c.bid_cpm_cents, c.bid_cpc_cents, c.ocpm_target_cpa_cents,
-		        c.start_date, c.end_date, c.targeting, c.created_at, c.updated_at
+		        c.start_date, c.end_date, c.targeting, c.pause_reason, c.paused_at, c.created_at, c.updated_at
 		 FROM campaigns c
 		 WHERE c.status = 'active'
 		 ORDER BY c.bid_cpm_cents DESC`,
@@ -209,7 +225,7 @@ func (s *Store) ListActiveCampaigns(ctx context.Context) ([]*Campaign, error) {
 		if err := rows.Scan(&c.ID, &c.AdvertiserID, &c.Name, &c.Status, &c.BillingModel,
 			&c.BudgetTotalCents, &c.BudgetDailyCents, &c.SpentCents,
 			&c.BidCPMCents, &c.BidCPCCents, &c.OCPMTargetCPACents,
-			&c.StartDate, &c.EndDate, &c.Targeting, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			&c.StartDate, &c.EndDate, &c.Targeting, &c.PauseReason, &c.PausedAt, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		campaigns = append(campaigns, c)
@@ -243,6 +259,37 @@ func (s *Store) GetCreativesByCampaign(ctx context.Context, campaignID int64) ([
 		creatives = append(creatives, cr)
 	}
 	return creatives, nil
+}
+
+// GetCreativesByCampaigns returns creatives for multiple campaigns in a single query (batch load).
+func (s *Store) GetCreativesByCampaigns(ctx context.Context, campaignIDs []int64) (map[int64][]*Creative, error) {
+	if len(campaignIDs) == 0 {
+		return make(map[int64][]*Creative), nil
+	}
+	rows, err := s.db.Query(ctx,
+		`SELECT id, campaign_id, name, ad_type, format, size, ad_markup, destination_url, status,
+		        COALESCE(native_title,''), COALESCE(native_desc,''), COALESCE(native_icon_url,''),
+		        COALESCE(native_image_url,''), COALESCE(native_cta,''), created_at
+		 FROM creatives WHERE campaign_id = ANY($1) AND status = 'approved'`,
+		campaignIDs,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int64][]*Creative)
+	for rows.Next() {
+		cr := &Creative{}
+		if err := rows.Scan(&cr.ID, &cr.CampaignID, &cr.Name, &cr.AdType, &cr.Format, &cr.Size,
+			&cr.AdMarkup, &cr.DestinationURL, &cr.Status,
+			&cr.NativeTitle, &cr.NativeDesc, &cr.NativeIconURL,
+			&cr.NativeImageURL, &cr.NativeCTA, &cr.CreatedAt); err != nil {
+			return nil, err
+		}
+		result[cr.CampaignID] = append(result[cr.CampaignID], cr)
+	}
+	return result, nil
 }
 
 // CreateCreative creates a new creative.

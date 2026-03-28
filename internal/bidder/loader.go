@@ -3,6 +3,7 @@ package bidder
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -30,13 +31,38 @@ type CampaignLoader struct {
 
 // LoadedCampaign is a campaign ready for bidding with parsed targeting.
 type LoadedCampaign struct {
-	ID               int64
-	AdvertiserID     int64
-	Name             string
-	BidCPMCents      int
-	BudgetDailyCents int64
-	Targeting        campaign.Targeting
-	Creatives        []*campaign.Creative
+	ID                 int64
+	AdvertiserID       int64
+	Name               string
+	BillingModel       string
+	BidCPMCents        int
+	BidCPCCents        int
+	OCPMTargetCPACents int
+	BudgetDailyCents   int64
+	StartDate          *time.Time
+	Targeting          campaign.Targeting
+	Creatives          []*campaign.Creative
+}
+
+// EffectiveBidCPMCents returns the CPM-equivalent bid for auction ranking.
+func (lc *LoadedCampaign) EffectiveBidCPMCents(predictedCTR, predictedCVR float64) int {
+	switch lc.BillingModel {
+	case campaign.BillingCPC:
+		if predictedCTR <= 0 {
+			predictedCTR = 0.01
+		}
+		return int(float64(lc.BidCPCCents) * predictedCTR * 1000)
+	case campaign.BillingOCPM:
+		if predictedCTR <= 0 {
+			predictedCTR = 0.01
+		}
+		if predictedCVR <= 0 {
+			predictedCVR = 0.05
+		}
+		return int(float64(lc.OCPMTargetCPACents) * predictedCTR * predictedCVR * 1000)
+	default:
+		return lc.BidCPMCents
+	}
 }
 
 func NewCampaignLoader(db *pgxpool.Pool, rdb *redis.Client) *CampaignLoader {
@@ -95,14 +121,38 @@ func (cl *CampaignLoader) fullLoad(ctx context.Context) error {
 		return err
 	}
 
+	// Batch-load all creatives in a single query (fixes N+1)
+	ids := make([]int64, len(dbCampaigns))
+	for i, c := range dbCampaigns {
+		ids[i] = c.ID
+	}
+	creativesMap, err := cl.store.GetCreativesByCampaigns(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("batch load creatives: %w", err)
+	}
+
 	newMap := make(map[int64]*LoadedCampaign, len(dbCampaigns))
 	for _, c := range dbCampaigns {
-		loaded, err := cl.toCampaignWithCreatives(ctx, c)
-		if err != nil {
-			log.Printf("[LOADER] skip campaign %d: %v", c.ID, err)
-			continue
+		var targeting campaign.Targeting
+		if len(c.Targeting) > 0 {
+			if err := json.Unmarshal(c.Targeting, &targeting); err != nil {
+				log.Printf("[LOADER] skip campaign %d: %v", c.ID, err)
+				continue
+			}
 		}
-		newMap[c.ID] = loaded
+		newMap[c.ID] = &LoadedCampaign{
+			ID:                 c.ID,
+			AdvertiserID:       c.AdvertiserID,
+			Name:               c.Name,
+			BillingModel:       c.BillingModel,
+			BidCPMCents:        c.BidCPMCents,
+			BidCPCCents:        c.BidCPCCents,
+			OCPMTargetCPACents: c.OCPMTargetCPACents,
+			BudgetDailyCents:   c.BudgetDailyCents,
+			StartDate:          c.StartDate,
+			Targeting:          targeting,
+			Creatives:          creativesMap[c.ID],
+		}
 	}
 
 	cl.mu.Lock()
@@ -126,13 +176,17 @@ func (cl *CampaignLoader) toCampaignWithCreatives(ctx context.Context, c *campai
 	}
 
 	return &LoadedCampaign{
-		ID:               c.ID,
-		AdvertiserID:     c.AdvertiserID,
-		Name:             c.Name,
-		BidCPMCents:      c.BidCPMCents,
-		BudgetDailyCents: c.BudgetDailyCents,
-		Targeting:        targeting,
-		Creatives:        creatives,
+		ID:                 c.ID,
+		AdvertiserID:       c.AdvertiserID,
+		Name:               c.Name,
+		BillingModel:       c.BillingModel,
+		BidCPMCents:        c.BidCPMCents,
+		BidCPCCents:        c.BidCPCCents,
+		OCPMTargetCPACents: c.OCPMTargetCPACents,
+		BudgetDailyCents:   c.BudgetDailyCents,
+		StartDate:          c.StartDate,
+		Targeting:          targeting,
+		Creatives:          creatives,
 	}, nil
 }
 

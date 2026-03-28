@@ -94,6 +94,8 @@ type Campaign struct {
 	StartDate          *time.Time      `json:"start_date,omitempty" db:"start_date"`
 	EndDate            *time.Time      `json:"end_date,omitempty" db:"end_date"`
 	Targeting          json.RawMessage `json:"targeting" db:"targeting"`
+	PauseReason        *string         `json:"pause_reason,omitempty" db:"pause_reason"`
+	PausedAt           *time.Time      `json:"paused_at,omitempty" db:"paused_at"`
 	CreatedAt          time.Time       `json:"created_at" db:"created_at"`
 	UpdatedAt          time.Time       `json:"updated_at" db:"updated_at"`
 }

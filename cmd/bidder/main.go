@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/antifraud"
@@ -26,6 +29,7 @@ var (
 	budgetSvc *budget.Service
 	loader    *bidder.CampaignLoader
 	producer  *events.Producer
+	rdb       *redis.Client
 )
 
 func main() {
@@ -44,7 +48,7 @@ func main() {
 	log.Println("Connected to PostgreSQL")
 
 	// Connect Redis
-	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
+	rdb = redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		log.Fatalf("connect redis: %v (bidder requires Redis for budget/freq control)", err)
 	}
@@ -77,15 +81,27 @@ func main() {
 	mux.HandleFunc("GET /health", handleHealth)
 
 	addr := ":" + cfg.BidderPort
-	log.Printf("DSP Bidder (Phase 1) listening on %s", addr)
-	log.Printf("  POST /bid   — OpenRTB bid request (DB campaigns + Redis budget/freq)")
-	log.Printf("  POST /win   — Win notice callback")
-	log.Printf("  GET  /click — Click tracking (redirects to destination)")
-	log.Printf("  GET  /stats — Loaded campaign stats")
+	srv := &http.Server{Addr: addr, Handler: withLogging(mux)}
 
-	if err := http.ListenAndServe(addr, withLogging(mux)); err != nil {
-		log.Fatal(err)
-	}
+	go func() {
+		log.Printf("DSP Bidder listening on %s", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("bidder server: %v", err)
+		}
+	}()
+
+	// Graceful shutdown: drain in-flight requests, flush Kafka, close connections
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+	<-quit
+	log.Println("Shutting down bidder...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	srv.Shutdown(shutdownCtx)
+	loader.Stop()
+	producer.Close()
+	log.Println("Bidder stopped")
 }
 
 func handleBid(w http.ResponseWriter, r *http.Request) {
@@ -149,6 +165,17 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 	hmacSecret := config.Load().BidderHMACSecret
 	if !auth.ValidateToken(hmacSecret, token, campaignIDStr, requestID) {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
+		return
+	}
+
+	// Win dedup: prevent double budget deduction from exchange retries
+	dedupKey := fmt.Sprintf("win:dedup:%s", requestID)
+	wasNew, dedupErr := rdb.SetNX(r.Context(), dedupKey, 1, 5*time.Minute).Result()
+	if dedupErr != nil {
+		log.Printf("[WIN-DEDUP] Redis error (proceeding): %v", dedupErr)
+	} else if !wasNew {
+		log.Printf("[WIN-DEDUP] duplicate win for request_id=%s", requestID)
+		fmt.Fprintf(w, `{"status":"duplicate"}`)
 		return
 	}
 
