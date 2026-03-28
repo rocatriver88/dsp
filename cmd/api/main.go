@@ -15,10 +15,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/heartgryphon/dsp/internal/auth"
 	"github.com/heartgryphon/dsp/internal/bidder"
 	"github.com/heartgryphon/dsp/internal/billing"
 	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/config"
+	"github.com/heartgryphon/dsp/internal/ratelimit"
 	"github.com/heartgryphon/dsp/internal/registration"
 	"github.com/heartgryphon/dsp/internal/reporting"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -69,6 +71,18 @@ func main() {
 		reportStore = rs
 		log.Println("Connected to ClickHouse")
 	}
+
+	// API Key lookup function for auth middleware
+	apiKeyLookup := func(ctx context.Context, key string) (int64, string, string, error) {
+		adv, err := store.GetAdvertiserByAPIKey(ctx, key)
+		if err != nil {
+			return 0, "", "", err
+		}
+		return adv.ID, adv.CompanyName, adv.ContactEmail, nil
+	}
+
+	// Rate limiter (fail-open if Redis unavailable)
+	limiter := ratelimit.New(rdb)
 
 	// --- Public API routes ---
 	publicMux := http.NewServeMux()
@@ -124,7 +138,13 @@ func main() {
 	publicAddr := ":" + cfg.APIPort
 	internalAddr := ":" + cfg.InternalPort
 
-	publicSrv := &http.Server{Addr: publicAddr, Handler: withCORS(cfg, withLogging(publicMux))}
+	// Middleware chain: CORS → Rate Limit → API Key Auth → Logging → Routes
+	// Public endpoints that skip auth: /health, POST /api/v1/register
+	authedHandler := auth.APIKeyMiddleware(apiKeyLookup)(publicMux)
+	rateLimited := ratelimit.Middleware(limiter, ratelimit.APIKeyFunc, 100, time.Minute)(authedHandler)
+	// Wrap with auth-exempt routes
+	publicHandler := withAuthExemption(rateLimited, publicMux)
+	publicSrv := &http.Server{Addr: publicAddr, Handler: withCORS(cfg, withLogging(publicHandler))}
 	internalSrv := &http.Server{Addr: internalAddr, Handler: withLogging(internalMux)}
 
 	go func() {
@@ -222,6 +242,11 @@ func handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	// Use authenticated advertiser_id, ignore request body advertiser_id
+	advID := auth.AdvertiserIDFromContext(r.Context())
+	if advID != 0 {
+		req.AdvertiserID = advID
+	}
 	if req.Name == "" || req.AdvertiserID == 0 {
 		writeError(w, http.StatusBadRequest, "name and advertiser_id required")
 		return
@@ -279,14 +304,9 @@ func handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleListCampaigns(w http.ResponseWriter, r *http.Request) {
-	advIDStr := r.URL.Query().Get("advertiser_id")
-	if advIDStr == "" {
-		writeError(w, http.StatusBadRequest, "advertiser_id query param required")
-		return
-	}
-	advID, err := strconv.ParseInt(advIDStr, 10, 64)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid advertiser_id")
+	advID := auth.AdvertiserIDFromContext(r.Context())
+	if advID == 0 {
+		writeError(w, http.StatusUnauthorized, "not authenticated")
 		return
 	}
 
@@ -318,7 +338,8 @@ func handleGetCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	c, err := store.GetCampaign(r.Context(), id)
+	advID := auth.AdvertiserIDFromContext(r.Context())
+	c, err := store.GetCampaignForAdvertiser(r.Context(), id, advID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "campaign not found")
 		return
@@ -332,6 +353,7 @@ func handleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
+	advID := auth.AdvertiserIDFromContext(r.Context())
 	var req struct {
 		Name             string          `json:"name"`
 		BidCPMCents      int             `json:"bid_cpm_cents"`
@@ -342,7 +364,7 @@ func handleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := store.UpdateCampaign(r.Context(), id, req.Name, req.BidCPMCents, req.BudgetDailyCents, req.Targeting); err != nil {
+	if err := store.UpdateCampaign(r.Context(), id, advID, req.Name, req.BidCPMCents, req.BudgetDailyCents, req.Targeting); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -355,7 +377,8 @@ func handleStartCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := store.TransitionStatus(r.Context(), id, campaign.StatusActive); err != nil {
+	advID := auth.AdvertiserIDFromContext(r.Context())
+	if err := store.TransitionStatus(r.Context(), id, advID, campaign.StatusActive); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
@@ -371,7 +394,8 @@ func handlePauseCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := store.TransitionStatus(r.Context(), id, campaign.StatusPaused); err != nil {
+	advID := auth.AdvertiserIDFromContext(r.Context())
+	if err := store.TransitionStatus(r.Context(), id, advID, campaign.StatusPaused); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
@@ -593,8 +617,7 @@ func handleOverviewStats(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"today_spend_cents": 0})
 		return
 	}
-	advIDStr := r.URL.Query().Get("advertiser_id")
-	advID, _ := strconv.ParseInt(advIDStr, 10, 64)
+	advID := auth.AdvertiserIDFromContext(r.Context())
 
 	// Get all campaigns for this advertiser to sum their spend
 	campaigns, err := store.ListCampaigns(r.Context(), advID)
@@ -754,6 +777,18 @@ func generateAPIKey() string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	return "dsp_" + hex.EncodeToString(b)
+}
+
+// withAuthExemption routes unauthenticated paths directly to the mux, bypassing auth middleware.
+func withAuthExemption(authed http.Handler, publicMux *http.ServeMux) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Skip auth for health check and self-registration
+		if r.URL.Path == "/health" || (r.Method == "POST" && r.URL.Path == "/api/v1/register") {
+			publicMux.ServeHTTP(w, r)
+			return
+		}
+		authed.ServeHTTP(w, r)
+	})
 }
 
 func withLogging(next http.Handler) http.Handler {

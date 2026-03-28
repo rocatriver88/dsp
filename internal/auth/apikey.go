@@ -1,0 +1,66 @@
+package auth
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+)
+
+type contextKey string
+
+const advertiserKey contextKey = "advertiser"
+
+// Advertiser is the minimal advertiser info stored in request context.
+type Advertiser struct {
+	ID           int64
+	CompanyName  string
+	ContactEmail string
+}
+
+// AdvertiserFromContext extracts the authenticated advertiser from the request context.
+// Returns nil if no advertiser is set (unauthenticated request).
+func AdvertiserFromContext(ctx context.Context) *Advertiser {
+	adv, _ := ctx.Value(advertiserKey).(*Advertiser)
+	return adv
+}
+
+// AdvertiserIDFromContext returns the authenticated advertiser ID, or 0 if unauthenticated.
+func AdvertiserIDFromContext(ctx context.Context) int64 {
+	if adv := AdvertiserFromContext(ctx); adv != nil {
+		return adv.ID
+	}
+	return 0
+}
+
+// APIKeyLookup is the function signature for looking up an advertiser by API key.
+type APIKeyLookup func(ctx context.Context, key string) (id int64, companyName, email string, err error)
+
+// APIKeyMiddleware returns middleware that validates X-API-Key header.
+// Requests without a valid key get 401. The lookup function queries the database.
+func APIKeyMiddleware(lookup APIKeyLookup) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			key := r.Header.Get("X-API-Key")
+			if key == "" {
+				writeAuthError(w, http.StatusUnauthorized, "missing X-API-Key header")
+				return
+			}
+
+			id, name, email, err := lookup(r.Context(), key)
+			if err != nil {
+				writeAuthError(w, http.StatusUnauthorized, "invalid API key")
+				return
+			}
+
+			adv := &Advertiser{ID: id, CompanyName: name, ContactEmail: email}
+			ctx := context.WithValue(r.Context(), advertiserKey, adv)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func writeAuthError(w http.ResponseWriter, status int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}

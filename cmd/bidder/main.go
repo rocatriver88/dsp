@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/antifraud"
+	"github.com/heartgryphon/dsp/internal/auth"
 	"github.com/heartgryphon/dsp/internal/bidder"
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/config"
@@ -113,7 +114,8 @@ func handleBid(w http.ResponseWriter, r *http.Request) {
 
 	if len(resp.SeatBid) > 0 && len(resp.SeatBid[0].Bid) > 0 {
 		bid := resp.SeatBid[0].Bid[0]
-		port := config.Load().BidderPort
+		baseURL := config.Load().BidderPublicURL
+		hmacSecret := config.Load().BidderHMACSecret
 		// Extract geo/os for tracking URLs
 		var geo, os string
 		if req.Device != nil {
@@ -122,9 +124,11 @@ func handleBid(w http.ResponseWriter, r *http.Request) {
 				geo = req.Device.Geo.Country
 			}
 		}
-		// Add win notice URL with geo/os for impression tracking
-		bid.NURL = fmt.Sprintf("http://localhost:%s/win?campaign_id=%s&price=${AUCTION_PRICE}&request_id=%s&geo=%s&os=%s",
-			port, bid.CID, req.ID, geo, os)
+		// Generate HMAC token for win/click URL authentication
+		token := auth.GenerateToken(hmacSecret, bid.CID, req.ID)
+		// Add win notice URL with HMAC token
+		bid.NURL = fmt.Sprintf("%s/win?campaign_id=%s&price=${AUCTION_PRICE}&request_id=%s&geo=%s&os=%s&token=%s",
+			baseURL, bid.CID, req.ID, geo, os, token)
 		resp.SeatBid[0].Bid[0] = bid
 
 		log.Printf("[BID] request_id=%s campaign=%s bid=%.6f latency=%s",
@@ -138,6 +142,15 @@ func handleBid(w http.ResponseWriter, r *http.Request) {
 func handleWin(w http.ResponseWriter, r *http.Request) {
 	campaignIDStr := r.URL.Query().Get("campaign_id")
 	priceStr := r.URL.Query().Get("price")
+	requestID := r.URL.Query().Get("request_id")
+	token := r.URL.Query().Get("token")
+
+	// Validate HMAC token
+	hmacSecret := config.Load().BidderHMACSecret
+	if !auth.ValidateToken(hmacSecret, token, campaignIDStr, requestID) {
+		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
+		return
+	}
 
 	campaignID, err := strconv.ParseInt(campaignIDStr, 10, 64)
 	if err != nil {
@@ -190,9 +203,19 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleClick(w http.ResponseWriter, r *http.Request) {
-	campaignID, _ := strconv.ParseInt(r.URL.Query().Get("campaign_id"), 10, 64)
+	campaignIDStr := r.URL.Query().Get("campaign_id")
 	requestID := r.URL.Query().Get("request_id")
+	token := r.URL.Query().Get("token")
 	dest := r.URL.Query().Get("dest")
+
+	// Validate HMAC token
+	hmacSecret := config.Load().BidderHMACSecret
+	if !auth.ValidateToken(hmacSecret, token, campaignIDStr, requestID) {
+		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
+		return
+	}
+
+	campaignID, _ := strconv.ParseInt(campaignIDStr, 10, 64)
 
 	if campaignID > 0 && producer != nil {
 		go producer.SendClick(r.Context(), events.Event{

@@ -120,19 +120,43 @@ func (s *Store) ListCampaigns(ctx context.Context, advertiserID int64) ([]*Campa
 	return campaigns, nil
 }
 
-// UpdateCampaign updates mutable fields (only allowed fields based on status).
-func (s *Store) UpdateCampaign(ctx context.Context, id int64, name string, bidCPM int, budgetDaily int64, targeting json.RawMessage) error {
-	_, err := s.db.Exec(ctx,
-		`UPDATE campaigns SET name = $2, bid_cpm_cents = $3, budget_daily_cents = $4, targeting = $5, updated_at = NOW()
-		 WHERE id = $1 AND status != 'deleted'`,
-		id, name, bidCPM, budgetDaily, targeting,
-	)
-	return err
+// GetCampaignForAdvertiser returns a campaign scoped to an advertiser (IDOR-safe).
+func (s *Store) GetCampaignForAdvertiser(ctx context.Context, id, advertiserID int64) (*Campaign, error) {
+	c := &Campaign{}
+	err := s.db.QueryRow(ctx,
+		`SELECT id, advertiser_id, name, status, billing_model, budget_total_cents, budget_daily_cents,
+		        spent_cents, bid_cpm_cents, bid_cpc_cents, ocpm_target_cpa_cents,
+		        start_date, end_date, targeting, created_at, updated_at
+		 FROM campaigns WHERE id = $1 AND advertiser_id = $2 AND status != 'deleted'`, id, advertiserID,
+	).Scan(&c.ID, &c.AdvertiserID, &c.Name, &c.Status, &c.BillingModel,
+		&c.BudgetTotalCents, &c.BudgetDailyCents, &c.SpentCents,
+		&c.BidCPMCents, &c.BidCPCCents, &c.OCPMTargetCPACents,
+		&c.StartDate, &c.EndDate, &c.Targeting, &c.CreatedAt, &c.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
-// TransitionStatus changes campaign status with validation.
-func (s *Store) TransitionStatus(ctx context.Context, id int64, to Status) error {
-	c, err := s.GetCampaign(ctx, id)
+// UpdateCampaign updates mutable fields, scoped to advertiser (IDOR-safe).
+func (s *Store) UpdateCampaign(ctx context.Context, id, advertiserID int64, name string, bidCPM int, budgetDaily int64, targeting json.RawMessage) error {
+	tag, err := s.db.Exec(ctx,
+		`UPDATE campaigns SET name = $2, bid_cpm_cents = $3, budget_daily_cents = $4, targeting = $5, updated_at = NOW()
+		 WHERE id = $1 AND advertiser_id = $6 AND status != 'deleted'`,
+		id, name, bidCPM, budgetDaily, targeting, advertiserID,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("campaign not found")
+	}
+	return nil
+}
+
+// TransitionStatus changes campaign status with validation, scoped to advertiser (IDOR-safe).
+func (s *Store) TransitionStatus(ctx context.Context, id, advertiserID int64, to Status) error {
+	c, err := s.GetCampaignForAdvertiser(ctx, id, advertiserID)
 	if err != nil {
 		return fmt.Errorf("campaign not found: %w", err)
 	}
@@ -141,6 +165,22 @@ func (s *Store) TransitionStatus(ctx context.Context, id int64, to Status) error
 		return err
 	}
 
+	_, err = s.db.Exec(ctx,
+		`UPDATE campaigns SET status = $2, updated_at = NOW() WHERE id = $1 AND advertiser_id = $3`,
+		id, to, advertiserID,
+	)
+	return err
+}
+
+// TransitionStatusInternal changes campaign status without advertiser scoping (for internal use only).
+func (s *Store) TransitionStatusInternal(ctx context.Context, id int64, to Status) error {
+	c, err := s.GetCampaign(ctx, id)
+	if err != nil {
+		return fmt.Errorf("campaign not found: %w", err)
+	}
+	if err := ValidateTransition(c.Status, to); err != nil {
+		return err
+	}
 	_, err = s.db.Exec(ctx,
 		`UPDATE campaigns SET status = $2, updated_at = NOW() WHERE id = $1`,
 		id, to,
