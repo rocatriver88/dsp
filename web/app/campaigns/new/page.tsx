@@ -4,8 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 
-const ADVERTISER_ID = 1;
-
 export default function NewCampaignPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -40,7 +38,7 @@ export default function NewCampaignPage() {
     setError(null);
     try {
       const result = await api.createCampaign({
-        advertiser_id: ADVERTISER_ID,
+        advertiser_id: 0, // backend uses auth context
         name,
         budget_total_cents: Math.round(parseFloat(budgetTotal) * 100),
         budget_daily_cents: Math.round(parseFloat(budgetDaily) * 100),

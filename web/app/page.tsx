@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
 
-const ADVERTISER_ID = 1;
-
 export default function OverviewPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [overview, setOverview] = useState<{ today_spend_cents: number; today_impressions: number; today_clicks: number } | null>(null);
@@ -14,8 +12,8 @@ export default function OverviewPage() {
 
   useEffect(() => {
     Promise.all([
-      api.listCampaigns(ADVERTISER_ID),
-      api.getOverviewStats(ADVERTISER_ID).catch(() => ({ today_spend_cents: 0, today_impressions: 0, today_clicks: 0 })),
+      api.listCampaigns(),
+      api.getOverviewStats().catch(() => ({ today_spend_cents: 0, today_impressions: 0, today_clicks: 0 })),
     ])
       .then(([c, o]) => { setCampaigns(c); setOverview(o); })
       .catch((e) => setError(e.message))

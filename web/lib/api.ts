@@ -1,10 +1,20 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 
+// API Key: read from env or localStorage (set on first visit via key input UI)
+function getAPIKey(): string {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("dsp_api_key") || "";
+  }
+  return process.env.NEXT_PUBLIC_API_KEY || "";
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const apiKey = getAPIKey();
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(apiKey ? { "X-API-Key": apiKey } : {}),
       ...options?.headers,
     },
   });
@@ -101,15 +111,15 @@ export const api = {
   getAdvertiser: (id: number) =>
     request<Advertiser>(`/api/v1/advertisers/${id}`),
 
-  // Overview
-  getOverviewStats: (advertiserId: number) =>
+  // Overview (backend scopes by API key)
+  getOverviewStats: () =>
     request<{ today_spend_cents: number; today_impressions: number; today_clicks: number }>(
-      `/api/v1/reports/overview?advertiser_id=${advertiserId}`
+      `/api/v1/reports/overview`
     ),
 
-  // Campaigns
-  listCampaigns: (advertiserId: number) =>
-    request<Campaign[]>(`/api/v1/campaigns?advertiser_id=${advertiserId}`),
+  // Campaigns (backend scopes by API key)
+  listCampaigns: () =>
+    request<Campaign[]>(`/api/v1/campaigns`),
 
   getCampaign: (id: number) =>
     request<Campaign>(`/api/v1/campaigns/${id}`),
@@ -184,4 +194,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // Billing
+  getBalance: (advertiserId: number) =>
+    request<{ advertiser_id: number; balance_cents: number; billing_type: string }>(
+      `/api/v1/billing/balance/${advertiserId}`
+    ),
+
+  getTransactions: (advertiserId: number, limit = 50, offset = 0) =>
+    request<Array<{
+      id: number; type: string; amount_cents: number;
+      balance_after: number; description: string; created_at: string;
+    }>>(`/api/v1/billing/transactions?advertiser_id=${advertiserId}&limit=${limit}&offset=${offset}`),
 };

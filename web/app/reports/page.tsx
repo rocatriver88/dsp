@@ -4,14 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
 
-const ADVERTISER_ID = 1;
-
 export default function ReportsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.listCampaigns(ADVERTISER_ID)
+    api.listCampaigns()
       .then(setCampaigns)
       .catch(() => {})
       .finally(() => setLoading(false));

@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 
-const ADVERTISER_ID = 1;
-
 interface Transaction {
   id: number;
   type: string;
@@ -21,9 +19,10 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Use api client with X-API-Key header (advertiser scoped by backend)
     Promise.all([
-      fetch(`http://localhost:8181/api/v1/billing/balance/${ADVERTISER_ID}`).then(r => r.json()),
-      fetch(`http://localhost:8181/api/v1/billing/transactions?advertiser_id=${ADVERTISER_ID}`).then(r => r.json()),
+      api.getBalance(1),
+      api.getTransactions(1),
     ])
       .then(([b, t]) => {
         setBalance(b.balance_cents);

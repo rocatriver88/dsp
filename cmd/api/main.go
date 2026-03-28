@@ -20,6 +20,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/billing"
 	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/config"
+	"github.com/heartgryphon/dsp/internal/observability"
 	"github.com/heartgryphon/dsp/internal/ratelimit"
 	"github.com/heartgryphon/dsp/internal/registration"
 	"github.com/heartgryphon/dsp/internal/reporting"
@@ -36,6 +37,7 @@ var (
 )
 
 func main() {
+	observability.InitLogger()
 	cfg := config.Load()
 	ctx := context.Background()
 
@@ -144,8 +146,8 @@ func main() {
 	rateLimited := ratelimit.Middleware(limiter, ratelimit.APIKeyFunc, 100, time.Minute)(authedHandler)
 	// Wrap with auth-exempt routes
 	publicHandler := withAuthExemption(rateLimited, publicMux)
-	publicSrv := &http.Server{Addr: publicAddr, Handler: withCORS(cfg, withLogging(publicHandler))}
-	internalSrv := &http.Server{Addr: internalAddr, Handler: withLogging(internalMux)}
+	publicSrv := &http.Server{Addr: publicAddr, Handler: withCORS(cfg, observability.RequestIDMiddleware(observability.LoggingMiddleware(publicHandler)))}
+	internalSrv := &http.Server{Addr: internalAddr, Handler: observability.LoggingMiddleware(internalMux)}
 
 	go func() {
 		log.Printf("DSP API Server (public) listening on %s", publicAddr)
@@ -788,16 +790,6 @@ func withAuthExemption(authed http.Handler, publicMux *http.ServeMux) http.Handl
 			return
 		}
 		authed.ServeHTTP(w, r)
-	})
-}
-
-func withLogging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		if r.URL.Path != "/health" {
-			log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
-		}
 	})
 }
 
