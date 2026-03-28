@@ -3,30 +3,44 @@ package config
 import "os"
 
 type Config struct {
-	DBHost         string
-	DBPort         string
-	DBUser         string
-	DBPassword     string
-	DBName         string
-	RedisAddr      string
-	KafkaBrokers   string
-	ClickHouseAddr string
-	APIPort        string
-	BidderPort     string
+	DBHost             string
+	DBPort             string
+	DBUser             string
+	DBPassword         string
+	DBName             string
+	RedisAddr          string
+	RedisPassword      string
+	KafkaBrokers       string
+	ClickHouseAddr     string
+	ClickHouseUser     string
+	ClickHousePassword string
+	APIPort            string
+	BidderPort         string
+	InternalPort       string
+	CORSAllowedOrigins string
+	BidderPublicURL    string
+	BidderHMACSecret   string
 }
 
 func Load() *Config {
 	return &Config{
-		DBHost:         getEnv("DB_HOST", "localhost"),
-		DBPort:         getEnv("DB_PORT", "5432"),
-		DBUser:         getEnv("DB_USER", "dsp"),
-		DBPassword:     getEnv("DB_PASSWORD", "dsp_dev_password"),
-		DBName:         getEnv("DB_NAME", "dsp"),
-		RedisAddr:      getEnv("REDIS_ADDR", "localhost:6380"),
-		KafkaBrokers:   getEnv("KAFKA_BROKERS", "localhost:9094"),
-		ClickHouseAddr: getEnv("CLICKHOUSE_ADDR", "localhost:9001"),
-		APIPort:        getEnv("API_PORT", "8181"),
-		BidderPort:     getEnv("BIDDER_PORT", "8180"),
+		DBHost:             getEnv("DB_HOST", "localhost"),
+		DBPort:             getEnv("DB_PORT", "5432"),
+		DBUser:             getEnv("DB_USER", "dsp"),
+		DBPassword:         getEnv("DB_PASSWORD", "dsp_dev_password"),
+		DBName:             getEnv("DB_NAME", "dsp"),
+		RedisAddr:          getEnv("REDIS_ADDR", "localhost:6380"),
+		RedisPassword:      getEnv("REDIS_PASSWORD", ""),
+		KafkaBrokers:       getEnv("KAFKA_BROKERS", "localhost:9094"),
+		ClickHouseAddr:     getEnv("CLICKHOUSE_ADDR", "localhost:9001"),
+		ClickHouseUser:     getEnv("CLICKHOUSE_USER", "default"),
+		ClickHousePassword: getEnv("CLICKHOUSE_PASSWORD", ""),
+		APIPort:            getEnv("API_PORT", "8181"),
+		BidderPort:         getEnv("BIDDER_PORT", "8180"),
+		InternalPort:       getEnv("INTERNAL_PORT", "8182"),
+		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:4000"),
+		BidderPublicURL:    getEnv("BIDDER_PUBLIC_URL", "http://localhost:8180"),
+		BidderHMACSecret:   getEnv("BIDDER_HMAC_SECRET", "dev-hmac-secret-change-in-production"),
 	}
 }
 

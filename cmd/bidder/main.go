@@ -43,7 +43,7 @@ func main() {
 	log.Println("Connected to PostgreSQL")
 
 	// Connect Redis
-	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		log.Fatalf("connect redis: %v (bidder requires Redis for budget/freq control)", err)
 	}

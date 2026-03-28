@@ -21,7 +21,7 @@ func main() {
 	defer cancel()
 
 	// Connect ClickHouse
-	store, err := reporting.NewStore(cfg.ClickHouseAddr)
+	store, err := reporting.NewStore(cfg.ClickHouseAddr, cfg.ClickHouseUser, cfg.ClickHousePassword)
 	if err != nil {
 		log.Fatalf("connect clickhouse: %v", err)
 	}

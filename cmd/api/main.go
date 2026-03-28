@@ -8,7 +8,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/bidder"
@@ -44,7 +48,7 @@ func main() {
 	}
 	log.Println("Connected to PostgreSQL")
 
-	rdb = redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	rdb = redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		log.Printf("Warning: Redis not available (%v), pub/sub notifications disabled", err)
 		rdb = nil
@@ -58,7 +62,7 @@ func main() {
 	log.Println("Billing + Registration services initialized")
 
 	// Connect ClickHouse (optional for Phase 2 reports)
-	rs, chErr := reporting.NewStore(cfg.ClickHouseAddr)
+	rs, chErr := reporting.NewStore(cfg.ClickHouseAddr, cfg.ClickHouseUser, cfg.ClickHousePassword)
 	if chErr != nil {
 		log.Printf("Warning: ClickHouse not available (%v), reports disabled", chErr)
 	} else {
@@ -66,57 +70,87 @@ func main() {
 		log.Println("Connected to ClickHouse")
 	}
 
-	mux := http.NewServeMux()
+	// --- Public API routes ---
+	publicMux := http.NewServeMux()
 
 	// Advertiser endpoints
-	mux.HandleFunc("POST /api/v1/advertisers", handleCreateAdvertiser)
-	mux.HandleFunc("GET /api/v1/advertisers/{id}", handleGetAdvertiser)
+	publicMux.HandleFunc("POST /api/v1/advertisers", handleCreateAdvertiser)
+	publicMux.HandleFunc("GET /api/v1/advertisers/{id}", handleGetAdvertiser)
 
 	// Campaign endpoints
-	mux.HandleFunc("POST /api/v1/campaigns", handleCreateCampaign)
-	mux.HandleFunc("GET /api/v1/campaigns", handleListCampaigns)
-	mux.HandleFunc("GET /api/v1/campaigns/{id}", handleGetCampaign)
-	mux.HandleFunc("PUT /api/v1/campaigns/{id}", handleUpdateCampaign)
-	mux.HandleFunc("POST /api/v1/campaigns/{id}/start", handleStartCampaign)
-	mux.HandleFunc("POST /api/v1/campaigns/{id}/pause", handlePauseCampaign)
+	publicMux.HandleFunc("POST /api/v1/campaigns", handleCreateCampaign)
+	publicMux.HandleFunc("GET /api/v1/campaigns", handleListCampaigns)
+	publicMux.HandleFunc("GET /api/v1/campaigns/{id}", handleGetCampaign)
+	publicMux.HandleFunc("PUT /api/v1/campaigns/{id}", handleUpdateCampaign)
+	publicMux.HandleFunc("POST /api/v1/campaigns/{id}/start", handleStartCampaign)
+	publicMux.HandleFunc("POST /api/v1/campaigns/{id}/pause", handlePauseCampaign)
 
 	// Creative endpoints
-	mux.HandleFunc("POST /api/v1/creatives", handleCreateCreative)
-	mux.HandleFunc("GET /api/v1/ad-types", handleAdTypes)
-	mux.HandleFunc("GET /api/v1/billing-models", handleBillingModels)
+	publicMux.HandleFunc("POST /api/v1/creatives", handleCreateCreative)
+	publicMux.HandleFunc("GET /api/v1/ad-types", handleAdTypes)
+	publicMux.HandleFunc("GET /api/v1/billing-models", handleBillingModels)
 
 	// Report endpoints (Phase 2)
-	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/stats", handleCampaignStats)
-	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/hourly", handleHourlyStats)
-	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/geo", handleGeoBreakdown)
-	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/bids", handleBidTransparency)
-
-	mux.HandleFunc("GET /api/v1/reports/overview", handleOverviewStats)
+	publicMux.HandleFunc("GET /api/v1/reports/campaign/{id}/stats", handleCampaignStats)
+	publicMux.HandleFunc("GET /api/v1/reports/campaign/{id}/hourly", handleHourlyStats)
+	publicMux.HandleFunc("GET /api/v1/reports/campaign/{id}/geo", handleGeoBreakdown)
+	publicMux.HandleFunc("GET /api/v1/reports/campaign/{id}/bids", handleBidTransparency)
+	publicMux.HandleFunc("GET /api/v1/reports/overview", handleOverviewStats)
 
 	// Billing endpoints (Phase 4)
-	mux.HandleFunc("POST /api/v1/billing/topup", handleTopUp)
-	mux.HandleFunc("GET /api/v1/billing/transactions", handleTransactions)
-	mux.HandleFunc("GET /api/v1/billing/balance/{id}", handleBalance)
+	publicMux.HandleFunc("POST /api/v1/billing/topup", handleTopUp)
+	publicMux.HandleFunc("GET /api/v1/billing/transactions", handleTransactions)
+	publicMux.HandleFunc("GET /api/v1/billing/balance/{id}", handleBalance)
 
-	// Registration endpoints (Phase 4)
-	mux.HandleFunc("POST /api/v1/register", handleRegister)
-	mux.HandleFunc("GET /api/v1/admin/registrations", handleListRegistrations)
-	mux.HandleFunc("POST /api/v1/admin/registrations/{id}/approve", handleApproveRegistration)
-	mux.HandleFunc("POST /api/v1/admin/registrations/{id}/reject", handleRejectRegistration)
-
-	// Internal: active campaigns for bidder
-	mux.HandleFunc("GET /internal/active-campaigns", handleActiveCampaigns)
+	// Registration (public: self-register only)
+	publicMux.HandleFunc("POST /api/v1/register", handleRegister)
 
 	// Health
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+	publicMux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"status":"ok","time":"%s"}`, time.Now().UTC().Format(time.RFC3339))
 	})
 
-	addr := ":" + cfg.APIPort
-	log.Printf("DSP API Server listening on %s", addr)
-	if err := http.ListenAndServe(addr, withCORS(withLogging(mux))); err != nil {
-		log.Fatal(err)
-	}
+	// --- Internal routes (separate port, not exposed externally) ---
+	internalMux := http.NewServeMux()
+	internalMux.HandleFunc("GET /internal/active-campaigns", handleActiveCampaigns)
+	internalMux.HandleFunc("GET /api/v1/admin/registrations", handleListRegistrations)
+	internalMux.HandleFunc("POST /api/v1/admin/registrations/{id}/approve", handleApproveRegistration)
+	internalMux.HandleFunc("POST /api/v1/admin/registrations/{id}/reject", handleRejectRegistration)
+	internalMux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"status":"ok","port":"internal","time":"%s"}`, time.Now().UTC().Format(time.RFC3339))
+	})
+
+	// Start both servers
+	publicAddr := ":" + cfg.APIPort
+	internalAddr := ":" + cfg.InternalPort
+
+	publicSrv := &http.Server{Addr: publicAddr, Handler: withCORS(cfg, withLogging(publicMux))}
+	internalSrv := &http.Server{Addr: internalAddr, Handler: withLogging(internalMux)}
+
+	go func() {
+		log.Printf("DSP API Server (public) listening on %s", publicAddr)
+		if err := publicSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("public server: %v", err)
+		}
+	}()
+	go func() {
+		log.Printf("DSP API Server (internal) listening on %s", internalAddr)
+		if err := internalSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("internal server: %v", err)
+		}
+	}()
+
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+	<-quit
+	log.Println("Shutting down API server...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer shutdownCancel()
+	publicSrv.Shutdown(shutdownCtx)
+	internalSrv.Shutdown(shutdownCtx)
+	log.Println("API server stopped")
 }
 
 func handleCreateAdvertiser(w http.ResponseWriter, r *http.Request) {
@@ -732,9 +766,20 @@ func withLogging(next http.Handler) http.Handler {
 	})
 }
 
-func withCORS(next http.Handler) http.Handler {
+func withCORS(cfg *config.Config, next http.Handler) http.Handler {
+	allowed := make(map[string]bool)
+	for _, origin := range strings.Split(cfg.CORSAllowedOrigins, ",") {
+		origin = strings.TrimSpace(origin)
+		if origin != "" {
+			allowed[origin] = true
+		}
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		if allowed[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
 		if r.Method == "OPTIONS" {

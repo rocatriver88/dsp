@@ -13,10 +13,10 @@ type Store struct {
 	conn driver.Conn
 }
 
-func NewStore(addr string) (*Store, error) {
+func NewStore(addr, user, password string) (*Store, error) {
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{addr},
-		Auth: clickhouse.Auth{Database: "default"},
+		Auth: clickhouse.Auth{Database: "default", Username: user, Password: password},
 		Settings: clickhouse.Settings{
 			"max_execution_time": 60,
 		},
