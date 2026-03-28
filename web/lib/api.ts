@@ -32,7 +32,10 @@ export interface Campaign {
   budget_total_cents: number;
   budget_daily_cents: number;
   spent_cents: number;
+  billing_model: string;
   bid_cpm_cents: number;
+  bid_cpc_cents: number;
+  ocpm_target_cpa_cents: number;
   start_date: string | null;
   end_date: string | null;
   targeting: Record<string, unknown>;
