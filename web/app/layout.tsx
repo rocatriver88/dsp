@@ -21,9 +21,26 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" className="h-full">
-      <body className="h-full flex">
-        {/* Sidebar */}
-        <nav className="w-56 min-h-screen flex-shrink-0 flex flex-col"
+      <body className="h-full flex flex-col md:flex-row">
+        {/* Mobile top nav */}
+        <nav className="md:hidden flex items-center gap-1 px-3 py-2 overflow-x-auto"
+          style={{ background: "var(--sidebar-bg)" }}>
+          <span className="text-white font-semibold text-sm mr-2 flex-shrink-0">DSP</span>
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-full flex-shrink-0 transition-colors hover:bg-gray-800"
+              style={{ color: "var(--sidebar-text)" }}
+            >
+              <span>{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Desktop sidebar */}
+        <nav className="hidden md:flex w-56 min-h-screen flex-shrink-0 flex-col"
           style={{ background: "var(--sidebar-bg)" }}>
           <div className="px-5 py-5 border-b border-gray-800">
             <h1 className="text-lg font-semibold text-white tracking-tight">DSP Platform</h1>
@@ -49,7 +66,7 @@ export default function RootLayout({
 
         {/* Main content */}
         <main className="flex-1 overflow-auto">
-          <div className="max-w-6xl mx-auto px-8 py-6">
+          <div className="max-w-6xl mx-auto px-4 py-4 md:px-8 md:py-6">
             {children}
           </div>
         </main>

@@ -30,7 +30,7 @@ export default function OverviewPage() {
     return (
       <div>
         <h2 className="text-xl font-semibold mb-6">概览</h2>
-        <div className="grid grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="rounded-lg border border-gray-200 bg-white p-5 animate-pulse">
               <div className="h-3 w-20 bg-gray-200 rounded mb-3" />
@@ -59,7 +59,7 @@ export default function OverviewPage() {
     <div>
       <h2 className="text-xl font-semibold mb-6">概览</h2>
 
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
         <StatCard label="活跃 Campaigns" value={String(active.length)} />
         <StatCard label="今日花费" value={`¥${(totalSpent / 100).toLocaleString()}`} />
         <StatCard label="总预算" value={`¥${(totalBudget / 100).toLocaleString()}`} />
@@ -81,7 +81,7 @@ export default function OverviewPage() {
             <h3 className="text-sm font-medium text-gray-500">最近的 Campaigns</h3>
             <Link href="/campaigns" className="text-sm text-blue-600">查看全部</Link>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+          <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
