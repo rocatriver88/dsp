@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: dsp_test
+          POSTGRES_USER: dsp
+          POSTGRES_PASSWORD: dsp_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dsp"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      - name: Test
+        run: go test ./internal/... -v -count=1 -race
+        env:
+          DB_HOST: localhost
+          DB_USER: dsp
+          DB_PASSWORD: dsp_test_password
+          DB_NAME: dsp_test
+          REDIS_ADDR: localhost:6379
+
+      - name: Build
+        run: |
+          go build -o bin/bidder ./cmd/bidder
+          go build -o bin/api ./cmd/api
+          go build -o bin/consumer ./cmd/consumer
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker images
+        run: |
+          docker build -f deploy/Dockerfile.bidder -t dsp-bidder:${{ github.sha }} .
+          docker build -f deploy/Dockerfile.api -t dsp-api:${{ github.sha }} .
+          docker build -f deploy/Dockerfile.consumer -t dsp-consumer:${{ github.sha }} .
+
+      # Push to registry when configured:
+      # - name: Push
+      #   run: |
+      #     docker tag dsp-bidder:${{ github.sha }} $REGISTRY/dsp-bidder:latest
+      #     docker push $REGISTRY/dsp-bidder:latest
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install
+        working-directory: web
+        run: npm ci
+
+      - name: Build
+        working-directory: web
+        run: npm run build
