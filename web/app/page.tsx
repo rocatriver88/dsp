@@ -87,7 +87,7 @@ export default function OverviewPage() {
                 <tr>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">名称</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">状态</th>
-                  <th className="text-right py-3 px-4 font-medium text-gray-500">CPM</th>
+                  <th className="text-right py-3 px-4 font-medium text-gray-500">出价</th>
                   <th className="text-right py-3 px-4 font-medium text-gray-500">花费</th>
                   <th className="text-right py-3 px-4 font-medium text-gray-500">预算</th>
                 </tr>
@@ -99,7 +99,13 @@ export default function OverviewPage() {
                       <Link href={`/campaigns/${c.id}`} className="text-blue-600 hover:underline">{c.name}</Link>
                     </td>
                     <td className="py-3 px-4"><StatusBadge status={c.status} /></td>
-                    <td className="py-3 px-4 text-right font-mono">¥{(c.bid_cpm_cents / 100).toFixed(2)}</td>
+                    <td className="py-3 px-4 text-right font-mono">
+                      {c.billing_model === "cpc"
+                        ? `¥${(c.bid_cpc_cents / 100).toFixed(2)} CPC`
+                        : c.billing_model === "ocpm"
+                        ? `¥${(c.ocpm_target_cpa_cents / 100).toFixed(2)} oCPM`
+                        : `¥${(c.bid_cpm_cents / 100).toFixed(2)} CPM`}
+                    </td>
                     <td className="py-3 px-4 text-right font-mono">¥{(c.spent_cents / 100).toLocaleString()}</td>
                     <td className="py-3 px-4 text-right font-mono">¥{(c.budget_total_cents / 100).toLocaleString()}</td>
                   </tr>
