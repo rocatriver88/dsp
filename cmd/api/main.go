@@ -83,6 +83,7 @@ func main() {
 	// Creative endpoints
 	mux.HandleFunc("POST /api/v1/creatives", handleCreateCreative)
 	mux.HandleFunc("GET /api/v1/ad-types", handleAdTypes)
+	mux.HandleFunc("GET /api/v1/billing-models", handleBillingModels)
 
 	// Report endpoints (Phase 2)
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/stats", handleCampaignStats)
@@ -169,14 +170,17 @@ func handleGetAdvertiser(w http.ResponseWriter, r *http.Request) {
 
 func handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		AdvertiserID     int64           `json:"advertiser_id"`
-		Name             string          `json:"name"`
-		BudgetTotalCents int64           `json:"budget_total_cents"`
-		BudgetDailyCents int64           `json:"budget_daily_cents"`
-		BidCPMCents      int             `json:"bid_cpm_cents"`
-		StartDate        *time.Time      `json:"start_date"`
-		EndDate          *time.Time      `json:"end_date"`
-		Targeting        json.RawMessage `json:"targeting"`
+		AdvertiserID       int64           `json:"advertiser_id"`
+		Name               string          `json:"name"`
+		BillingModel       string          `json:"billing_model"`
+		BudgetTotalCents   int64           `json:"budget_total_cents"`
+		BudgetDailyCents   int64           `json:"budget_daily_cents"`
+		BidCPMCents        int             `json:"bid_cpm_cents"`
+		BidCPCCents        int             `json:"bid_cpc_cents"`
+		OCPMTargetCPACents int             `json:"ocpm_target_cpa_cents"`
+		StartDate          *time.Time      `json:"start_date"`
+		EndDate            *time.Time      `json:"end_date"`
+		Targeting          json.RawMessage `json:"targeting"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -186,20 +190,47 @@ func handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "name and advertiser_id required")
 		return
 	}
-	if req.BudgetTotalCents <= 0 || req.BudgetDailyCents <= 0 || req.BidCPMCents <= 0 {
-		writeError(w, http.StatusBadRequest, "budget and bid must be positive")
+	if req.BillingModel == "" {
+		req.BillingModel = "cpm"
+	}
+	if _, ok := campaign.BillingModelConfig[req.BillingModel]; !ok {
+		writeError(w, http.StatusBadRequest, "invalid billing_model: must be cpm, cpc, or ocpm")
 		return
+	}
+	if req.BudgetTotalCents <= 0 || req.BudgetDailyCents <= 0 {
+		writeError(w, http.StatusBadRequest, "budget must be positive")
+		return
+	}
+	switch req.BillingModel {
+	case "cpm":
+		if req.BidCPMCents <= 0 {
+			writeError(w, http.StatusBadRequest, "bid_cpm_cents required for CPM billing")
+			return
+		}
+	case "cpc":
+		if req.BidCPCCents <= 0 {
+			writeError(w, http.StatusBadRequest, "bid_cpc_cents required for CPC billing")
+			return
+		}
+	case "ocpm":
+		if req.OCPMTargetCPACents <= 0 {
+			writeError(w, http.StatusBadRequest, "ocpm_target_cpa_cents required for oCPM billing")
+			return
+		}
 	}
 
 	c := &campaign.Campaign{
-		AdvertiserID:     req.AdvertiserID,
-		Name:             req.Name,
-		BudgetTotalCents: req.BudgetTotalCents,
-		BudgetDailyCents: req.BudgetDailyCents,
-		BidCPMCents:      req.BidCPMCents,
-		StartDate:        req.StartDate,
-		EndDate:          req.EndDate,
-		Targeting:        req.Targeting,
+		AdvertiserID:       req.AdvertiserID,
+		Name:               req.Name,
+		BillingModel:       req.BillingModel,
+		BudgetTotalCents:   req.BudgetTotalCents,
+		BudgetDailyCents:   req.BudgetDailyCents,
+		BidCPMCents:        req.BidCPMCents,
+		BidCPCCents:        req.BidCPCCents,
+		OCPMTargetCPACents: req.OCPMTargetCPACents,
+		StartDate:          req.StartDate,
+		EndDate:            req.EndDate,
+		Targeting:          req.Targeting,
 	}
 
 	id, err := store.CreateCampaign(r.Context(), c)
@@ -375,6 +406,19 @@ func handleAdTypes(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, types)
+}
+
+func handleBillingModels(w http.ResponseWriter, r *http.Request) {
+	models := make([]map[string]any, 0)
+	for key, cfg := range campaign.BillingModelConfig {
+		models = append(models, map[string]any{
+			"model":       key,
+			"label":       cfg.Label,
+			"charge_on":   cfg.ChargeOn,
+			"description": cfg.Description,
+		})
+	}
+	writeJSON(w, http.StatusOK, models)
 }
 
 // --- Billing handlers (Phase 4) ---

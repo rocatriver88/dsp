@@ -60,12 +60,16 @@ func (s *Store) CreateCampaign(ctx context.Context, c *Campaign) (int64, error) 
 	if c.Targeting == nil {
 		c.Targeting = json.RawMessage(`{}`)
 	}
+	if c.BillingModel == "" {
+		c.BillingModel = BillingCPM
+	}
 	var id int64
 	err := s.db.QueryRow(ctx,
-		`INSERT INTO campaigns (advertiser_id, name, status, budget_total_cents, budget_daily_cents, bid_cpm_cents, start_date, end_date, targeting)
-		 VALUES ($1, $2, 'draft', $3, $4, $5, $6, $7, $8) RETURNING id`,
-		c.AdvertiserID, c.Name, c.BudgetTotalCents, c.BudgetDailyCents,
-		c.BidCPMCents, c.StartDate, c.EndDate, c.Targeting,
+		`INSERT INTO campaigns (advertiser_id, name, status, billing_model, budget_total_cents, budget_daily_cents,
+		  bid_cpm_cents, bid_cpc_cents, ocpm_target_cpa_cents, start_date, end_date, targeting)
+		 VALUES ($1, $2, 'draft', $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+		c.AdvertiserID, c.Name, c.BillingModel, c.BudgetTotalCents, c.BudgetDailyCents,
+		c.BidCPMCents, c.BidCPCCents, c.OCPMTargetCPACents, c.StartDate, c.EndDate, c.Targeting,
 	).Scan(&id)
 	return id, err
 }
@@ -74,12 +78,14 @@ func (s *Store) CreateCampaign(ctx context.Context, c *Campaign) (int64, error) 
 func (s *Store) GetCampaign(ctx context.Context, id int64) (*Campaign, error) {
 	c := &Campaign{}
 	err := s.db.QueryRow(ctx,
-		`SELECT id, advertiser_id, name, status, budget_total_cents, budget_daily_cents,
-		        spent_cents, bid_cpm_cents, start_date, end_date, targeting, created_at, updated_at
+		`SELECT id, advertiser_id, name, status, billing_model, budget_total_cents, budget_daily_cents,
+		        spent_cents, bid_cpm_cents, bid_cpc_cents, ocpm_target_cpa_cents,
+		        start_date, end_date, targeting, created_at, updated_at
 		 FROM campaigns WHERE id = $1 AND status != 'deleted'`, id,
-	).Scan(&c.ID, &c.AdvertiserID, &c.Name, &c.Status, &c.BudgetTotalCents,
-		&c.BudgetDailyCents, &c.SpentCents, &c.BidCPMCents, &c.StartDate,
-		&c.EndDate, &c.Targeting, &c.CreatedAt, &c.UpdatedAt)
+	).Scan(&c.ID, &c.AdvertiserID, &c.Name, &c.Status, &c.BillingModel,
+		&c.BudgetTotalCents, &c.BudgetDailyCents, &c.SpentCents,
+		&c.BidCPMCents, &c.BidCPCCents, &c.OCPMTargetCPACents,
+		&c.StartDate, &c.EndDate, &c.Targeting, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +95,9 @@ func (s *Store) GetCampaign(ctx context.Context, id int64) (*Campaign, error) {
 // ListCampaigns returns all campaigns for an advertiser.
 func (s *Store) ListCampaigns(ctx context.Context, advertiserID int64) ([]*Campaign, error) {
 	rows, err := s.db.Query(ctx,
-		`SELECT id, advertiser_id, name, status, budget_total_cents, budget_daily_cents,
-		        spent_cents, bid_cpm_cents, start_date, end_date, targeting, created_at, updated_at
+		`SELECT id, advertiser_id, name, status, billing_model, budget_total_cents, budget_daily_cents,
+		        spent_cents, bid_cpm_cents, bid_cpc_cents, ocpm_target_cpa_cents,
+		        start_date, end_date, targeting, created_at, updated_at
 		 FROM campaigns WHERE advertiser_id = $1 AND status != 'deleted'
 		 ORDER BY created_at DESC`, advertiserID,
 	)

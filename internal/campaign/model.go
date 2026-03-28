@@ -61,20 +61,74 @@ type FreqCap struct {
 	PeriodHours int `json:"period_hours"`
 }
 
+// Billing model constants
+const (
+	BillingCPM  = "cpm"  // 按千次曝光计费
+	BillingCPC  = "cpc"  // 按点击计费
+	BillingOCPM = "ocpm" // 按目标转化成本出价, 按曝光计费 (优化CPM)
+)
+
+// BillingModelConfig describes each billing model.
+var BillingModelConfig = map[string]struct {
+	Label       string
+	ChargeOn    string // impression or click
+	Description string
+}{
+	BillingCPM:  {Label: "CPM", ChargeOn: "impression", Description: "按千次曝光计费，适合品牌曝光"},
+	BillingCPC:  {Label: "CPC", ChargeOn: "click", Description: "按点击计费，适合效果导向"},
+	BillingOCPM: {Label: "oCPM", ChargeOn: "impression", Description: "按目标转化成本智能出价，按曝光计费"},
+}
+
 type Campaign struct {
-	ID               int64           `json:"id" db:"id"`
-	AdvertiserID     int64           `json:"advertiser_id" db:"advertiser_id"`
-	Name             string          `json:"name" db:"name"`
-	Status           Status          `json:"status" db:"status"`
-	BudgetTotalCents int64           `json:"budget_total_cents" db:"budget_total_cents"`
-	BudgetDailyCents int64           `json:"budget_daily_cents" db:"budget_daily_cents"`
-	SpentCents       int64           `json:"spent_cents" db:"spent_cents"`
-	BidCPMCents      int             `json:"bid_cpm_cents" db:"bid_cpm_cents"`
-	StartDate        *time.Time      `json:"start_date,omitempty" db:"start_date"`
-	EndDate          *time.Time      `json:"end_date,omitempty" db:"end_date"`
-	Targeting        json.RawMessage `json:"targeting" db:"targeting"`
-	CreatedAt        time.Time       `json:"created_at" db:"created_at"`
-	UpdatedAt        time.Time       `json:"updated_at" db:"updated_at"`
+	ID                 int64           `json:"id" db:"id"`
+	AdvertiserID       int64           `json:"advertiser_id" db:"advertiser_id"`
+	Name               string          `json:"name" db:"name"`
+	Status             Status          `json:"status" db:"status"`
+	BillingModel       string          `json:"billing_model" db:"billing_model"`
+	BudgetTotalCents   int64           `json:"budget_total_cents" db:"budget_total_cents"`
+	BudgetDailyCents   int64           `json:"budget_daily_cents" db:"budget_daily_cents"`
+	SpentCents         int64           `json:"spent_cents" db:"spent_cents"`
+	BidCPMCents        int             `json:"bid_cpm_cents" db:"bid_cpm_cents"`
+	BidCPCCents        int             `json:"bid_cpc_cents" db:"bid_cpc_cents"`
+	OCPMTargetCPACents int             `json:"ocpm_target_cpa_cents" db:"ocpm_target_cpa_cents"`
+	StartDate          *time.Time      `json:"start_date,omitempty" db:"start_date"`
+	EndDate            *time.Time      `json:"end_date,omitempty" db:"end_date"`
+	Targeting          json.RawMessage `json:"targeting" db:"targeting"`
+	CreatedAt          time.Time       `json:"created_at" db:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at" db:"updated_at"`
+}
+
+// EffectiveBidCPMCents returns the CPM-equivalent bid for auction ranking.
+// CPM: use bid_cpm_cents directly
+// CPC: estimate CPM from CPC * predicted CTR (default 1% if unknown)
+// oCPM: estimate CPM from target CPA * predicted CVR * 1000
+func (c *Campaign) EffectiveBidCPMCents(predictedCTR, predictedCVR float64) int {
+	switch c.BillingModel {
+	case BillingCPC:
+		if predictedCTR <= 0 {
+			predictedCTR = 0.01 // 1% default
+		}
+		return int(float64(c.BidCPCCents) * predictedCTR * 1000)
+	case BillingOCPM:
+		if predictedCTR <= 0 {
+			predictedCTR = 0.01
+		}
+		if predictedCVR <= 0 {
+			predictedCVR = 0.05 // 5% default
+		}
+		return int(float64(c.OCPMTargetCPACents) * predictedCTR * predictedCVR * 1000)
+	default: // CPM
+		return c.BidCPMCents
+	}
+}
+
+// ChargeEvent returns what triggers a charge for this billing model.
+func (c *Campaign) ChargeEvent() string {
+	cfg, ok := BillingModelConfig[c.BillingModel]
+	if !ok {
+		return "impression"
+	}
+	return cfg.ChargeOn
 }
 
 // AdType constants
