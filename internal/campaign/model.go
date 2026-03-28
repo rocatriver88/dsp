@@ -77,15 +77,44 @@ type Campaign struct {
 	UpdatedAt        time.Time       `json:"updated_at" db:"updated_at"`
 }
 
+// AdType constants
+const (
+	AdTypeSplash       = "splash"       // 开屏广告: 全屏, app启动时展示, 3-5秒
+	AdTypeInterstitial = "interstitial" // 插屏广告: 全屏, 页面切换时展示
+	AdTypeNative       = "native"       // 原生广告: 结构化数据(标题+描述+图标+图片+CTA), 融入内容流
+	AdTypeBanner       = "banner"       // 横幅广告: 固定尺寸(300x250, 728x90等)
+)
+
+// AdTypeConfig defines format-specific constraints.
+var AdTypeConfig = map[string]struct {
+	Label       string
+	Sizes       []string // allowed sizes, empty = flexible
+	FullScreen  bool
+	HasNative   bool // uses native fields instead of ad_markup
+	MaxDuration int  // seconds, 0 = static
+}{
+	AdTypeSplash:       {Label: "开屏", Sizes: []string{"1080x1920", "1242x2208"}, FullScreen: true, MaxDuration: 5},
+	AdTypeInterstitial: {Label: "插屏", Sizes: []string{"320x480", "768x1024"}, FullScreen: true, MaxDuration: 15},
+	AdTypeNative:       {Label: "原生", HasNative: true},
+	AdTypeBanner:       {Label: "横幅", Sizes: []string{"300x250", "728x90", "320x50", "300x600"}},
+}
+
 type Creative struct {
 	ID             int64     `json:"id" db:"id"`
 	CampaignID     int64     `json:"campaign_id" db:"campaign_id"`
 	Name           string    `json:"name" db:"name"`
+	AdType         string    `json:"ad_type" db:"ad_type"`
 	Format         string    `json:"format" db:"format"`
 	Size           string    `json:"size" db:"size"`
-	AdMarkup       string    `json:"ad_markup" db:"ad_markup"`
+	AdMarkup       string    `json:"ad_markup,omitempty" db:"ad_markup"`
 	DestinationURL string    `json:"destination_url" db:"destination_url"`
 	Status         string    `json:"status" db:"status"`
+	// Native ad fields (used when ad_type = "native")
+	NativeTitle    string    `json:"native_title,omitempty" db:"native_title"`
+	NativeDesc     string    `json:"native_desc,omitempty" db:"native_desc"`
+	NativeIconURL  string    `json:"native_icon_url,omitempty" db:"native_icon_url"`
+	NativeImageURL string    `json:"native_image_url,omitempty" db:"native_image_url"`
+	NativeCTA      string    `json:"native_cta,omitempty" db:"native_cta"`
 	CreatedAt      time.Time `json:"created_at" db:"created_at"`
 }
 

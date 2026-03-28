@@ -82,6 +82,7 @@ func main() {
 
 	// Creative endpoints
 	mux.HandleFunc("POST /api/v1/creatives", handleCreateCreative)
+	mux.HandleFunc("GET /api/v1/ad-types", handleAdTypes)
 
 	// Report endpoints (Phase 2)
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/stats", handleCampaignStats)
@@ -306,22 +307,41 @@ func handleCreateCreative(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CampaignID     int64  `json:"campaign_id"`
 		Name           string `json:"name"`
+		AdType         string `json:"ad_type"`
 		Format         string `json:"format"`
 		Size           string `json:"size"`
 		AdMarkup       string `json:"ad_markup"`
 		DestinationURL string `json:"destination_url"`
+		NativeTitle    string `json:"native_title"`
+		NativeDesc     string `json:"native_desc"`
+		NativeIconURL  string `json:"native_icon_url"`
+		NativeImageURL string `json:"native_image_url"`
+		NativeCTA      string `json:"native_cta"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	if req.AdType == "" {
+		req.AdType = "banner"
+	}
+	if _, ok := campaign.AdTypeConfig[req.AdType]; !ok {
+		writeError(w, http.StatusBadRequest, "invalid ad_type: must be splash, interstitial, native, or banner")
+		return
+	}
 	cr := &campaign.Creative{
 		CampaignID:     req.CampaignID,
 		Name:           req.Name,
+		AdType:         req.AdType,
 		Format:         req.Format,
 		Size:           req.Size,
 		AdMarkup:       req.AdMarkup,
 		DestinationURL: req.DestinationURL,
+		NativeTitle:    req.NativeTitle,
+		NativeDesc:     req.NativeDesc,
+		NativeIconURL:  req.NativeIconURL,
+		NativeImageURL: req.NativeImageURL,
+		NativeCTA:      req.NativeCTA,
 	}
 	id, err := store.CreateCreative(r.Context(), cr)
 	if err != nil {
@@ -341,6 +361,20 @@ func handleActiveCampaigns(w http.ResponseWriter, r *http.Request) {
 		campaigns = []*campaign.Campaign{}
 	}
 	writeJSON(w, http.StatusOK, campaigns)
+}
+
+func handleAdTypes(w http.ResponseWriter, r *http.Request) {
+	types := make([]map[string]any, 0)
+	for key, cfg := range campaign.AdTypeConfig {
+		types = append(types, map[string]any{
+			"type":        key,
+			"label":       cfg.Label,
+			"sizes":       cfg.Sizes,
+			"full_screen": cfg.FullScreen,
+			"has_native":  cfg.HasNative,
+		})
+	}
+	writeJSON(w, http.StatusOK, types)
 }
 
 // --- Billing handlers (Phase 4) ---

@@ -170,7 +170,9 @@ func (s *Store) ListActiveCampaigns(ctx context.Context) ([]*Campaign, error) {
 // GetCreativesByCampaign returns all approved creatives for a campaign.
 func (s *Store) GetCreativesByCampaign(ctx context.Context, campaignID int64) ([]*Creative, error) {
 	rows, err := s.db.Query(ctx,
-		`SELECT id, campaign_id, name, format, size, ad_markup, destination_url, status, created_at
+		`SELECT id, campaign_id, name, ad_type, format, size, ad_markup, destination_url, status,
+		        COALESCE(native_title,''), COALESCE(native_desc,''), COALESCE(native_icon_url,''),
+		        COALESCE(native_image_url,''), COALESCE(native_cta,''), created_at
 		 FROM creatives WHERE campaign_id = $1 AND status = 'approved'`,
 		campaignID,
 	)
@@ -182,8 +184,10 @@ func (s *Store) GetCreativesByCampaign(ctx context.Context, campaignID int64) ([
 	var creatives []*Creative
 	for rows.Next() {
 		cr := &Creative{}
-		if err := rows.Scan(&cr.ID, &cr.CampaignID, &cr.Name, &cr.Format, &cr.Size,
-			&cr.AdMarkup, &cr.DestinationURL, &cr.Status, &cr.CreatedAt); err != nil {
+		if err := rows.Scan(&cr.ID, &cr.CampaignID, &cr.Name, &cr.AdType, &cr.Format, &cr.Size,
+			&cr.AdMarkup, &cr.DestinationURL, &cr.Status,
+			&cr.NativeTitle, &cr.NativeDesc, &cr.NativeIconURL,
+			&cr.NativeImageURL, &cr.NativeCTA, &cr.CreatedAt); err != nil {
 			return nil, err
 		}
 		creatives = append(creatives, cr)
@@ -193,11 +197,16 @@ func (s *Store) GetCreativesByCampaign(ctx context.Context, campaignID int64) ([
 
 // CreateCreative creates a new creative.
 func (s *Store) CreateCreative(ctx context.Context, cr *Creative) (int64, error) {
+	if cr.AdType == "" {
+		cr.AdType = AdTypeBanner
+	}
 	var id int64
 	err := s.db.QueryRow(ctx,
-		`INSERT INTO creatives (campaign_id, name, format, size, ad_markup, destination_url, status)
-		 VALUES ($1, $2, $3, $4, $5, $6, 'approved') RETURNING id`,
-		cr.CampaignID, cr.Name, cr.Format, cr.Size, cr.AdMarkup, cr.DestinationURL,
+		`INSERT INTO creatives (campaign_id, name, ad_type, format, size, ad_markup, destination_url, status,
+		  native_title, native_desc, native_icon_url, native_image_url, native_cta)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved', $8, $9, $10, $11, $12) RETURNING id`,
+		cr.CampaignID, cr.Name, cr.AdType, cr.Format, cr.Size, cr.AdMarkup, cr.DestinationURL,
+		cr.NativeTitle, cr.NativeDesc, cr.NativeIconURL, cr.NativeImageURL, cr.NativeCTA,
 	).Scan(&id)
 	return id, err
 }
