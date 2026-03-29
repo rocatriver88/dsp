@@ -92,7 +92,11 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 	}
 
 	// Redis pipeline: budget + frequency check (single RTT)
-	bidAmountCents := int64(best.EffectiveBidCPMCents(0, 0))
+	// Budget amounts are in per-impression cents (not CPM cents)
+	bidAmountCents := int64(best.EffectiveBidCPMCents(0, 0)) / 1000 // CPM cents → per-impression cents
+	if bidAmountCents < 1 {
+		bidAmountCents = 1 // minimum 1 cent per impression
+	}
 	freqCap := 0
 	freqPeriod := 24
 	if best.Targeting.FrequencyCap != nil {

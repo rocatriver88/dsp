@@ -205,7 +205,7 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 	var remaining int64
 	if !isCPC {
 		// CPM/oCPM: deduct budget on win (impression-based billing)
-		priceCents := int64(price * 100 * 1000) // dollars per impression → cents per mille
+		priceCents := int64(price * 100) // dollars per impression → cents per impression
 		var budgetErr error
 		remaining, budgetErr = budgetSvc.CheckAndDeductBudget(r.Context(), campaignID, priceCents)
 		if budgetErr != nil {
