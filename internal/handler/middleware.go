@@ -10,6 +10,12 @@ import (
 // WithAuthExemption routes unauthenticated paths directly to the mux, bypassing auth middleware.
 func WithAuthExemption(authed http.Handler, publicMux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// SSE endpoints can't set custom headers from EventSource, so accept api_key in query params
+		if strings.HasPrefix(r.URL.Path, "/api/v1/analytics/") {
+			if apiKey := r.URL.Query().Get("api_key"); apiKey != "" {
+				r.Header.Set("X-API-Key", apiKey)
+			}
+		}
 		if r.URL.Path == "/health" || r.URL.Path == "/api/v1/docs" || (r.Method == "POST" && r.URL.Path == "/api/v1/register") {
 			publicMux.ServeHTTP(w, r)
 			return
