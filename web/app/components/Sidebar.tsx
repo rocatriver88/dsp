@@ -1,0 +1,60 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const navItems = [
+  { href: "/", label: "概览", icon: "概" },
+  { href: "/campaigns", label: "Campaigns", icon: "投" },
+  { href: "/reports", label: "报表", icon: "表" },
+  { href: "/billing", label: "账户", icon: "账" },
+];
+
+export default function Sidebar() {
+  const pathname = usePathname();
+
+  return (
+    <>
+      {/* Mobile top nav */}
+      <nav aria-label="移动端导航"
+        className="md:hidden flex items-center gap-1 px-3 py-2 overflow-x-auto"
+        style={{ background: "var(--sidebar-bg)" }}>
+        <span className="text-white font-semibold text-sm mr-2 flex-shrink-0">DSP</span>
+        {navItems.map((item) => {
+          const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+          return (
+            <Link key={item.href} href={item.href}
+              className={`flex items-center gap-1 px-3 py-1.5 text-xs rounded-full flex-shrink-0 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${isActive ? "bg-blue-600 text-white" : "hover:bg-gray-800"}`}
+              style={isActive ? {} : { color: "var(--sidebar-text)" }}>
+              <span className="font-medium">{item.icon}</span>
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Desktop sidebar */}
+      <nav aria-label="主导航"
+        className="hidden md:flex w-56 min-h-screen flex-shrink-0 flex-col"
+        style={{ background: "var(--sidebar-bg)" }}>
+        <div className="px-5 py-5 border-b border-gray-800">
+          <h1 className="text-lg font-semibold text-white tracking-tight">DSP Platform</h1>
+          <p className="text-xs mt-0.5" style={{ color: "var(--sidebar-text)" }}>广告投放管理平台</p>
+        </div>
+        <div className="flex-1 py-3" role="list">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+            return (
+              <Link key={item.href} href={item.href} role="listitem"
+                className={`flex items-center gap-3 px-5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-inset ${isActive ? "bg-blue-600/20 text-blue-400 border-r-2 border-blue-400" : "hover:bg-gray-800"}`}
+                style={isActive ? {} : { color: "var(--sidebar-text)" }}>
+                <span className="text-xs font-bold w-5 h-5 flex items-center justify-center rounded bg-gray-800 text-gray-400">{item.icon}</span>
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </>
+  );
+}

@@ -55,6 +55,8 @@ export interface Campaign {
   start_date: string | null;
   end_date: string | null;
   targeting: Record<string, unknown>;
+  pause_reason?: string;
+  paused_at?: string;
   created_at: string;
   updated_at: string;
 }

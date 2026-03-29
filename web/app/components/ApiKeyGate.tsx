@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export default function ApiKeyGate({ children }: { children: React.ReactNode }) {
+export default function ApiKeyGate({ children, sidebar }: { children: React.ReactNode; sidebar?: React.ReactNode }) {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [checking, setChecking] = useState(true);
@@ -59,5 +59,5 @@ export default function ApiKeyGate({ children }: { children: React.ReactNode }) 
     );
   }
 
-  return <>{children}</>;
+  return <>{sidebar}{children}</>;
 }

@@ -55,6 +55,11 @@ export default function CampaignDetailPage() {
         <Link href="/campaigns" className="text-gray-400 hover:text-gray-600">← Campaigns</Link>
         <h2 className="text-xl font-semibold">{campaign.name}</h2>
         <StatusBadge status={campaign.status} />
+        {campaign.status === "paused" && campaign.pause_reason && (
+          <span className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded">
+            自动暂停: {campaign.pause_reason}
+          </span>
+        )}
         {campaign.status === "draft" && (
           <button onClick={() => handleAction("start")} className="ml-auto text-sm px-4 py-1.5 rounded bg-green-50 text-green-700 hover:bg-green-100">启动</button>
         )}

@@ -58,9 +58,12 @@ export default function OverviewPage() {
       <h2 className="text-xl font-semibold mb-6">概览</h2>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
+        <div className="col-span-2 rounded-lg border border-gray-200 bg-white p-6">
+          <p className="text-xs font-medium mb-1 text-gray-500">今日花费</p>
+          <p className="text-4xl font-bold tracking-tight">¥{(totalSpent / 100).toLocaleString()}</p>
+          <p className="text-xs text-gray-400 mt-1">总预算 ¥{(totalBudget / 100).toLocaleString()}</p>
+        </div>
         <StatCard label="活跃 Campaigns" value={String(active.length)} />
-        <StatCard label="今日花费" value={`¥${(totalSpent / 100).toLocaleString()}`} />
-        <StatCard label="总预算" value={`¥${(totalBudget / 100).toLocaleString()}`} />
         <StatCard label="全部 Campaigns" value={String(campaigns.length)} />
       </div>
 
