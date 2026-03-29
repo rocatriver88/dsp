@@ -135,9 +135,12 @@ export const api = {
   createCampaign: (data: {
     advertiser_id: number;
     name: string;
+    billing_model?: string;
     budget_total_cents: number;
     budget_daily_cents: number;
-    bid_cpm_cents: number;
+    bid_cpm_cents?: number;
+    bid_cpc_cents?: number;
+    ocpm_target_cpa_cents?: number;
     targeting?: Record<string, unknown>;
   }) =>
     request<{ id: number }>("/api/v1/campaigns", {
@@ -193,10 +196,16 @@ export const api = {
   createCreative: (data: {
     campaign_id: number;
     name: string;
-    format: string;
-    size: string;
-    ad_markup: string;
+    ad_type?: string;
+    format?: string;
+    size?: string;
+    ad_markup?: string;
     destination_url: string;
+    native_title?: string;
+    native_desc?: string;
+    native_icon_url?: string;
+    native_image_url?: string;
+    native_cta?: string;
   }) =>
     request<{ id: number }>("/api/v1/creatives", {
       method: "POST",
