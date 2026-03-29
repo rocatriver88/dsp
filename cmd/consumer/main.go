@@ -76,6 +76,7 @@ func main() {
 					RequestID:       evt.RequestID,
 					GeoCountry:      evt.GeoCountry,
 					DeviceOS:        evt.DeviceOS,
+					DeviceID:        evt.DeviceID,
 					BidPriceCents:   uint32(evt.BidPrice * 100),
 					ClearPriceCents: uint32(evt.ClearPrice * 100),          // ADX cost
 					ChargeCents:     uint32(evt.AdvertiserCharge * 100),    // advertiser charge

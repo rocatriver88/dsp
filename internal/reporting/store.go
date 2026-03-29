@@ -34,12 +34,12 @@ func NewStore(addr, user, password string) (*Store, error) {
 func (s *Store) InsertEvent(ctx context.Context, evt BidEvent) error {
 	return s.conn.Exec(ctx,
 		`INSERT INTO bid_log (event_date, event_time, campaign_id, creative_id, advertiser_id,
-		  exchange_id, request_id, geo_country, device_os, bid_price_cents, clear_price_cents,
-		  charge_cents, event_type, loss_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  exchange_id, request_id, geo_country, device_os, device_id, bid_price_cents, clear_price_cents,
+		  charge_cents, event_type, loss_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		evt.EventTime, evt.EventTime,
 		evt.CampaignID, evt.CreativeID, evt.AdvertiserID,
 		evt.ExchangeID, evt.RequestID,
-		evt.GeoCountry, evt.DeviceOS,
+		evt.GeoCountry, evt.DeviceOS, evt.DeviceID,
 		evt.BidPriceCents, evt.ClearPriceCents, evt.ChargeCents,
 		evt.EventType, evt.LossReason,
 	)
@@ -55,6 +55,7 @@ type BidEvent struct {
 	RequestID       string
 	GeoCountry      string
 	DeviceOS        string
+	DeviceID        string // IDFA/GAID/OAID for attribution
 	BidPriceCents   uint32
 	ClearPriceCents uint32 // ADX cost (per impression, cents)
 	ChargeCents     uint32 // Advertiser charge (per event, cents)

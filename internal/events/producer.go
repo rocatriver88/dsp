@@ -43,6 +43,7 @@ type Event struct {
 	AdvertiserCharge float64   `json:"advertiser_charge,omitempty"` // What we bill the advertiser (per event, dollars)
 	GeoCountry       string    `json:"geo_country,omitempty"`
 	DeviceOS         string    `json:"device_os,omitempty"`
+	DeviceID         string    `json:"device_id,omitempty"`         // IDFA/GAID/OAID for attribution
 	Timestamp        time.Time `json:"ts"`
 }
 

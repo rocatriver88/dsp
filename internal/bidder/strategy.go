@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -143,12 +144,21 @@ func today() string {
 	return time.Now().UTC().Format("2006-01-02")
 }
 
-// Simple fast pseudo-random (avoids sync overhead of math/rand)
-var randState uint32 = uint32(time.Now().UnixNano())
+// Thread-safe fast pseudo-random using atomic operations.
+var randState atomic.Uint64
+
+func init() {
+	randState.Store(uint64(time.Now().UnixNano()))
+}
 
 func fastRand() int {
-	randState ^= randState << 13
-	randState ^= randState >> 17
-	randState ^= randState << 5
-	return int(randState)
+	for {
+		old := randState.Load()
+		next := old ^ (old << 13)
+		next = next ^ (next >> 7)
+		next = next ^ (next << 17)
+		if randState.CompareAndSwap(old, next) {
+			return int(next)
+		}
+	}
 }

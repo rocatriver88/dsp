@@ -26,11 +26,12 @@ import (
 )
 
 var (
-	engine    *bidder.Engine
-	budgetSvc *budget.Service
-	loader    *bidder.CampaignLoader
-	producer  *events.Producer
-	rdb       *redis.Client
+	engine      *bidder.Engine
+	budgetSvc   *budget.Service
+	strategySvc *bidder.BidStrategy
+	loader      *bidder.CampaignLoader
+	producer    *events.Producer
+	rdb         *redis.Client
 )
 
 func main() {
@@ -63,10 +64,12 @@ func main() {
 
 	// Initialize services
 	budgetSvc = budget.New(rdb)
+	strategySvc = bidder.NewBidStrategy(rdb)
 	fraudFilter := antifraud.NewFilter(rdb)
 	loader = bidder.NewCampaignLoader(db, rdb)
-	engine = bidder.NewEngine(loader, budgetSvc, producer, fraudFilter)
+	engine = bidder.NewEngine(loader, budgetSvc, strategySvc, producer, fraudFilter)
 	log.Printf("Anti-fraud filter initialized (%v)", fraudFilter.Stats())
+	log.Println("BidStrategy initialized (pacing + win-rate adjustment)")
 
 	// Replay buffered Kafka events from prior outages
 	if err := producer.ReplayBuffer(ctx); err != nil {
@@ -227,6 +230,15 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 		}
 		return fmt.Sprintf("cpm(remaining=%d)", remaining)
 	}())
+
+	// Record win + spend for bid strategy (pacing + win-rate tracking)
+	if strategySvc != nil {
+		go strategySvc.RecordWin(r.Context(), campaignID)
+		if !isCPC {
+			spendCents := int64(price / 0.90 * 100) // advertiser charge in cents
+			go strategySvc.RecordSpend(r.Context(), campaignID, spendCents)
+		}
+	}
 
 	// Emit win + impression events to Kafka
 	if producer != nil {

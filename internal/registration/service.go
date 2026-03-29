@@ -46,16 +46,23 @@ var blockedDomains = map[string]bool{
 	"yopmail.com": true,
 }
 
-// Submit creates a new registration request. Returns error if rate limited or blocked.
-func (s *Service) Submit(ctx context.Context, req *Request) (int64, error) {
-	// Validate email domain
-	parts := strings.Split(req.ContactEmail, "@")
-	if len(parts) != 2 {
-		return 0, fmt.Errorf("invalid email")
+// validateEmail checks email format and blocked domains.
+func validateEmail(email string) error {
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 || parts[0] == "" {
+		return fmt.Errorf("invalid email")
 	}
 	domain := strings.ToLower(parts[1])
 	if blockedDomains[domain] {
-		return 0, fmt.Errorf("email domain not allowed")
+		return fmt.Errorf("email domain not allowed")
+	}
+	return nil
+}
+
+// Submit creates a new registration request. Returns error if rate limited or blocked.
+func (s *Service) Submit(ctx context.Context, req *Request) (int64, error) {
+	if err := validateEmail(req.ContactEmail); err != nil {
+		return 0, err
 	}
 
 	// Check for duplicate email

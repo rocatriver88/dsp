@@ -7,23 +7,29 @@ import (
 
 	"github.com/heartgryphon/dsp/internal/antifraud"
 	"github.com/heartgryphon/dsp/internal/budget"
-	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/events"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
 // Engine is the production bidder that uses CampaignLoader + Redis budget/freq.
+//
+// Bid flow:
+//   BidRequest → Device check → Fraud check → GDPR → Campaign match
+//   → Pacing check (ShouldBid) → Budget+Freq pipeline → AdjustedBid
+//   → BidResponse + async Kafka event
 type Engine struct {
 	loader   *CampaignLoader
 	budget   *budget.Service
-	producer *events.Producer       // nil if Kafka unavailable
-	fraud    *antifraud.Filter      // nil to skip fraud checks
+	strategy *BidStrategy             // pacing + win-rate bid adjustment
+	producer *events.Producer         // nil if Kafka unavailable
+	fraud    *antifraud.Filter        // nil to skip fraud checks
 }
 
-func NewEngine(loader *CampaignLoader, budgetSvc *budget.Service, producer *events.Producer, fraud *antifraud.Filter) *Engine {
+func NewEngine(loader *CampaignLoader, budgetSvc *budget.Service, strategy *BidStrategy, producer *events.Producer, fraud *antifraud.Filter) *Engine {
 	return &Engine{
 		loader:   loader,
 		budget:   budgetSvc,
+		strategy: strategy,
 		producer: producer,
 		fraud:    fraud,
 	}
@@ -40,24 +46,22 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		return nil, nil
 	}
 
+	// No device info = likely bot or malformed request, no-bid
+	if req.Device == nil {
+		return nil, nil
+	}
+
 	// Extract request signals
-	var geoCountry, deviceOS, userID string
-	if req.Device != nil {
-		deviceOS = req.Device.OS
-		if req.Device.Geo != nil {
-			geoCountry = req.Device.Geo.Country
-		}
-		userID = req.Device.IFA // use IDFA/GAID as user ID
+	geoCountry := ""
+	deviceOS := req.Device.OS
+	userID := req.Device.IFA // IDFA/GAID
+	if req.Device.Geo != nil {
+		geoCountry = req.Device.Geo.Country
 	}
 
 	// Anti-fraud Layer 1 check
 	if e.fraud != nil {
-		var ip, ua string
-		if req.Device != nil {
-			ip = req.Device.IP
-			ua = req.Device.UA
-		}
-		result := e.fraud.Check(ctx, ip, ua, userID)
+		result := e.fraud.Check(ctx, req.Device.IP, req.Device.UA, userID)
 		if !result.Allowed {
 			return nil, nil // silently no-bid on fraud
 		}
@@ -75,6 +79,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 	// Find matching campaigns from in-memory cache
 	candidates := e.loader.GetActiveCampaigns()
 	var best *LoadedCampaign
+	var bestBidCPM int
 	for _, c := range candidates {
 		if !matchesTargeting(c, geoCountry, deviceOS) {
 			continue
@@ -82,8 +87,16 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		if len(c.Creatives) == 0 {
 			continue
 		}
-		if best == nil || c.EffectiveBidCPMCents(0, 0) > best.EffectiveBidCPMCents(0, 0) {
+
+		// Use strategy-adjusted bid for ranking if available
+		bidCPM := c.EffectiveBidCPMCents(0, 0) // base bid (defaults for now)
+		if e.strategy != nil {
+			bidCPM = e.strategy.AdjustedBid(ctx, c.ID, bidCPM, c.BudgetDailyCents)
+		}
+
+		if best == nil || bidCPM > bestBidCPM {
 			best = c
+			bestBidCPM = bidCPM
 		}
 	}
 
@@ -91,9 +104,14 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		return nil, nil
 	}
 
+	// Pacing check: should we participate in this auction?
+	if e.strategy != nil && !e.strategy.ShouldBid(ctx, best.ID, best.BudgetDailyCents) {
+		return nil, nil
+	}
+
 	// Redis pipeline: budget + frequency check (single RTT)
 	// Budget amounts are in per-impression cents (not CPM cents)
-	bidAmountCents := int64(best.EffectiveBidCPMCents(0, 0)) / 1000 // CPM cents → per-impression cents
+	bidAmountCents := int64(bestBidCPM) / 1000 // CPM cents → per-impression cents
 	if bidAmountCents < 1 {
 		bidAmountCents = 1 // minimum 1 cent per impression
 	}
@@ -113,10 +131,15 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		return nil, nil
 	}
 
+	// Record bid for strategy tracking
+	if e.strategy != nil {
+		go e.strategy.RecordBid(ctx, best.ID)
+	}
+
 	// Pick first creative
 	creative := best.Creatives[0]
-	// Markup: bid to ADX at 90% of advertiser's bid (platform keeps 10%)
-	bidPrice := float64(best.EffectiveBidCPMCents(0, 0)) * 0.90 / 100.0 / 1000.0 // CPM cents × 0.90 → dollars per impression
+	// Markup: bid to ADX at 90% of adjusted bid (platform keeps 10%)
+	bidPrice := float64(bestBidCPM) * 0.90 / 100.0 / 1000.0 // CPM cents × 0.90 → dollars per impression
 	bidID := fmt.Sprintf("bid-%d-%d", best.ID, time.Now().UnixNano())
 
 	resp := &openrtb2.BidResponse{
@@ -146,6 +169,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 			BidPrice:     bidPrice,
 			GeoCountry:   geoCountry,
 			DeviceOS:     deviceOS,
+			DeviceID:     userID, // IDFA/GAID for attribution
 		})
 	}
 
@@ -181,19 +205,4 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
-}
-
-// matchesTargetingForCampaign is used by the original Bidder (Phase 0 compat).
-func matchesCampaignTargeting(c *campaign.Targeting, geo, os string) bool {
-	if len(c.Geo) > 0 && geo != "" {
-		if !contains(c.Geo, geo) {
-			return false
-		}
-	}
-	if len(c.OS) > 0 && os != "" {
-		if !contains(c.OS, os) {
-			return false
-		}
-	}
-	return true
 }
