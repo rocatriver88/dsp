@@ -43,12 +43,21 @@ func ValidateTransition(from, to Status) error {
 }
 
 type Targeting struct {
-	Geo          []string   `json:"geo,omitempty"`
-	Device       []string   `json:"device,omitempty"`
-	OS           []string   `json:"os,omitempty"`
-	Browser      []string   `json:"browser,omitempty"`
-	TimeSchedule []Schedule `json:"time_schedule,omitempty"`
-	FrequencyCap *FreqCap   `json:"frequency_cap,omitempty"`
+	Geo              []string   `json:"geo,omitempty"`
+	Device           []string   `json:"device,omitempty"`
+	OS               []string   `json:"os,omitempty"`
+	Browser          []string   `json:"browser,omitempty"`
+	TimeSchedule     []Schedule `json:"time_schedule,omitempty"`
+	FrequencyCap     *FreqCap   `json:"frequency_cap,omitempty"`
+	AudienceSegments []string   `json:"audience_segments,omitempty"` // user segment IDs for behavioral targeting
+	ExcludeSegments  []string   `json:"exclude_segments,omitempty"` // segments to exclude
+	AgeRange         *AgeRange  `json:"age_range,omitempty"`
+	Gender           string     `json:"gender,omitempty"`           // "male", "female", or "" (all)
+}
+
+type AgeRange struct {
+	Min int `json:"min"` // 0 = no minimum
+	Max int `json:"max"` // 0 = no maximum
 }
 
 type Schedule struct {
