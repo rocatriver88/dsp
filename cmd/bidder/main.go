@@ -19,6 +19,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/config"
 	"github.com/heartgryphon/dsp/internal/events"
+	"github.com/heartgryphon/dsp/internal/reporting"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prebid/openrtb/v20/openrtb2"
@@ -29,6 +30,7 @@ var (
 	engine      *bidder.Engine
 	budgetSvc   *budget.Service
 	strategySvc *bidder.BidStrategy
+	statsCache  *bidder.StatsCache
 	loader      *bidder.CampaignLoader
 	producer    *events.Producer
 	rdb         *redis.Client
@@ -67,9 +69,24 @@ func main() {
 	strategySvc = bidder.NewBidStrategy(rdb)
 	fraudFilter := antifraud.NewFilter(rdb)
 	loader = bidder.NewCampaignLoader(db, rdb)
-	engine = bidder.NewEngine(loader, budgetSvc, strategySvc, producer, fraudFilter)
+
+	// Connect ClickHouse for stats cache (optional — falls back to defaults)
+	var reportStore *reporting.Store
+	rs, chErr := reporting.NewStore(cfg.ClickHouseAddr, cfg.ClickHouseUser, cfg.ClickHousePassword)
+	if chErr != nil {
+		log.Printf("Warning: ClickHouse not available (%v), using default CTR/CVR", chErr)
+	} else {
+		reportStore = rs
+		log.Println("Connected to ClickHouse (stats cache)")
+	}
+
+	// Stats cache: 24h rolling CTR/CVR from ClickHouse → Redis, refreshed every 5min
+	statsCache = bidder.NewStatsCache(rdb, reportStore, loader.GetActiveCampaigns)
+	go statsCache.Start(ctx)
+
+	engine = bidder.NewEngine(loader, budgetSvc, strategySvc, statsCache, producer, fraudFilter)
 	log.Printf("Anti-fraud filter initialized (%v)", fraudFilter.Stats())
-	log.Println("BidStrategy initialized (pacing + win-rate adjustment)")
+	log.Println("BidStrategy + StatsCache initialized (dynamic bidding active)")
 
 	// Replay buffered Kafka events from prior outages
 	if err := producer.ReplayBuffer(ctx); err != nil {
@@ -81,6 +98,7 @@ func main() {
 		log.Fatalf("campaign loader: %v", err)
 	}
 	defer loader.Stop()
+	defer statsCache.Stop()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /bid", handleBid)

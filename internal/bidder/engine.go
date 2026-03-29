@@ -18,20 +18,22 @@ import (
 //   → Pacing check (ShouldBid) → Budget+Freq pipeline → AdjustedBid
 //   → BidResponse + async Kafka event
 type Engine struct {
-	loader   *CampaignLoader
-	budget   *budget.Service
-	strategy *BidStrategy             // pacing + win-rate bid adjustment
-	producer *events.Producer         // nil if Kafka unavailable
-	fraud    *antifraud.Filter        // nil to skip fraud checks
+	loader     *CampaignLoader
+	budget     *budget.Service
+	strategy   *BidStrategy             // pacing + win-rate bid adjustment
+	statsCache *StatsCache              // ClickHouse CTR/CVR cache, nil if unavailable
+	producer   *events.Producer         // nil if Kafka unavailable
+	fraud      *antifraud.Filter        // nil to skip fraud checks
 }
 
-func NewEngine(loader *CampaignLoader, budgetSvc *budget.Service, strategy *BidStrategy, producer *events.Producer, fraud *antifraud.Filter) *Engine {
+func NewEngine(loader *CampaignLoader, budgetSvc *budget.Service, strategy *BidStrategy, statsCache *StatsCache, producer *events.Producer, fraud *antifraud.Filter) *Engine {
 	return &Engine{
-		loader:   loader,
-		budget:   budgetSvc,
-		strategy: strategy,
-		producer: producer,
-		fraud:    fraud,
+		loader:     loader,
+		budget:     budgetSvc,
+		strategy:   strategy,
+		statsCache: statsCache,
+		producer:   producer,
+		fraud:      fraud,
 	}
 }
 
@@ -88,8 +90,14 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 			continue
 		}
 
-		// Use strategy-adjusted bid for ranking if available
-		bidCPM := c.EffectiveBidCPMCents(0, 0) // base bid (defaults for now)
+		// Use real CTR/CVR from ClickHouse cache if available, else defaults
+		var predictedCTR, predictedCVR float64
+		if e.statsCache != nil {
+			cached := e.statsCache.Get(ctx, c.ID)
+			predictedCTR = cached.CTR
+			predictedCVR = cached.CVR
+		}
+		bidCPM := c.EffectiveBidCPMCents(predictedCTR, predictedCVR)
 		if e.strategy != nil {
 			bidCPM = e.strategy.AdjustedBid(ctx, c.ID, bidCPM, c.BudgetDailyCents)
 		}

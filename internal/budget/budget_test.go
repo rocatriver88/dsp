@@ -73,6 +73,8 @@ func TestCheckFrequency_UnderCap(t *testing.T) {
 	svc := New(rdb)
 	ctx := context.Background()
 
+	rdb.Del(ctx, "freq:-3:user-test-1")
+
 	ok, err := svc.CheckFrequency(ctx, -3, "user-test-1", 5, 24)
 	if err != nil {
 		t.Fatalf("freq check: %v", err)
@@ -120,6 +122,7 @@ func TestPipelineCheck_Happy(t *testing.T) {
 	ctx := context.Background()
 
 	campaignID := int64(-6)
+	rdb.Del(ctx, "freq:-6:user-test-3")
 	svc.InitDailyBudget(ctx, campaignID, 10000)
 
 	budgetOK, freqOK, err := svc.PipelineCheck(ctx, campaignID, "user-test-3", 100, 5, 24)
