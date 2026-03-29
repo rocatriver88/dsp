@@ -105,6 +105,31 @@ func (d *Deps) HandleBidTransparency(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, bids)
 }
 
+func (d *Deps) HandleAttribution(w http.ResponseWriter, r *http.Request) {
+	if d.ReportStore == nil {
+		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	from, to := ParseDateRange(r)
+	model := r.URL.Query().Get("model")
+	if model == "" {
+		model = "last_click"
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+
+	report, err := d.ReportStore.GetAttributionReport(r.Context(), uint64(id), from, to, model, limit)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	WriteJSON(w, http.StatusOK, report)
+}
+
 func (d *Deps) HandleOverviewStats(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
 		WriteJSON(w, http.StatusOK, map[string]any{"today_spend_cents": 0})
