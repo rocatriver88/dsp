@@ -205,8 +205,8 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 
 	var remaining int64
 	if !isCPC {
-		// CPM/oCPM: deduct budget on win (impression-based billing)
-		priceCents := int64(price * 100) // dollars per impression → cents per impression
+		// CPM/oCPM: deduct advertiser charge from budget (not ADX cost)
+		priceCents := int64(price / 0.90 * 100) // ADX clear price ÷ 0.9 → advertiser charge in cents
 		var budgetErr error
 		remaining, budgetErr = budgetSvc.CheckAndDeductBudget(r.Context(), campaignID, priceCents)
 		if budgetErr != nil {
@@ -233,11 +233,11 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 		var bidPrice float64
 		var advertiserCharge float64
 		if c != nil {
-			bidPrice = float64(c.EffectiveBidCPMCents(0, 0)) / 100.0 / 1000.0
+			bidPrice = float64(c.EffectiveBidCPMCents(0, 0)) * 0.90 / 100.0 / 1000.0
 			if isCPC {
 				advertiserCharge = 0 // CPC: charged on click, not impression
 			} else {
-				advertiserCharge = price * 1.10 // 10% markup on ADX clear price
+				advertiserCharge = price / 0.90 // ADX clear price ÷ 0.9 = advertiser pays (10% platform fee)
 			}
 		}
 		evt := events.Event{

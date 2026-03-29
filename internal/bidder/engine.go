@@ -115,7 +115,8 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 
 	// Pick first creative
 	creative := best.Creatives[0]
-	bidPrice := float64(best.EffectiveBidCPMCents(0, 0)) / 100.0 / 1000.0 // CPM cents → dollars per impression
+	// Markup: bid to ADX at 90% of advertiser's bid (platform keeps 10%)
+	bidPrice := float64(best.EffectiveBidCPMCents(0, 0)) * 0.90 / 100.0 / 1000.0 // CPM cents × 0.90 → dollars per impression
 	bidID := fmt.Sprintf("bid-%d-%d", best.ID, time.Now().UnixNano())
 
 	resp := &openrtb2.BidResponse{
