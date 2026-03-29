@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"log"
 	"sync"
+
+	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
 // Adapter defines the interface for connecting to an ad exchange.
-// Both the self-owned exchange and external exchanges implement this.
-// From the design doc: "接入外部 exchange 和接入自有 exchange 是完全一样的,
-// 都是遵循 OpenRTB 的协议标准"
+// Each exchange implements ParseBidRequest/FormatBidResponse to normalize
+// its protocol variant into standard OpenRTB used internally by the bidder.
+//
+//   Exchange (non-standard) → ParseBidRequest → Engine.Bid() → FormatBidResponse → Exchange
 type Adapter interface {
 	// ID returns a unique identifier for this exchange.
 	ID() string
@@ -19,6 +22,10 @@ type Adapter interface {
 	Endpoint() string
 	// Enabled returns whether this exchange is active.
 	Enabled() bool
+	// ParseBidRequest normalizes an exchange-specific bid request into standard OpenRTB.
+	ParseBidRequest(raw []byte) (*openrtb2.BidRequest, error)
+	// FormatBidResponse converts a standard OpenRTB bid response into exchange-specific format.
+	FormatBidResponse(resp *openrtb2.BidResponse) ([]byte, error)
 }
 
 // ExchangeConfig holds configuration for an exchange connection.
@@ -31,87 +38,67 @@ type ExchangeConfig struct {
 	TransparencyLevel string `json:"transparency_level"`
 }
 
-// exchange implements the Adapter interface.
-type exchange struct {
-	config ExchangeConfig
-}
-
-func (e *exchange) ID() string       { return e.config.ID }
-func (e *exchange) Name() string     { return e.config.Name }
-func (e *exchange) Endpoint() string { return e.config.Endpoint }
-func (e *exchange) Enabled() bool    { return e.config.Enabled }
-
 // Registry manages all connected exchanges.
 type Registry struct {
-	mu        sync.RWMutex
-	exchanges map[string]Adapter
+	mu       sync.RWMutex
+	adapters map[string]Adapter
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
-		exchanges: make(map[string]Adapter),
+		adapters: make(map[string]Adapter),
 	}
 }
 
-// Register adds an exchange to the registry.
-func (r *Registry) Register(config ExchangeConfig) error {
+// Register adds an exchange adapter to the registry.
+func (r *Registry) Register(adapter Adapter) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.exchanges[config.ID]; exists {
-		return fmt.Errorf("exchange %s already registered", config.ID)
+	if _, exists := r.adapters[adapter.ID()]; exists {
+		return fmt.Errorf("exchange %s already registered", adapter.ID())
 	}
 
-	r.exchanges[config.ID] = &exchange{config: config}
-	log.Printf("[EXCHANGE] Registered: %s (%s) transparency=%s",
-		config.Name, config.Endpoint, config.TransparencyLevel)
+	r.adapters[adapter.ID()] = adapter
+	log.Printf("[EXCHANGE] Registered: %s (%s)", adapter.Name(), adapter.Endpoint())
 	return nil
 }
 
-// Get returns an exchange by ID.
+// Get returns an exchange adapter by ID.
 func (r *Registry) Get(id string) (Adapter, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	e, ok := r.exchanges[id]
-	return e, ok
+	a, ok := r.adapters[id]
+	return a, ok
 }
 
-// ListEnabled returns all enabled exchanges.
+// ListEnabled returns all enabled exchange adapters.
 func (r *Registry) ListEnabled() []Adapter {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	var result []Adapter
-	for _, e := range r.exchanges {
-		if e.Enabled() {
-			result = append(result, e)
+	for _, a := range r.adapters {
+		if a.Enabled() {
+			result = append(result, a)
 		}
 	}
 	return result
 }
 
-// ListAll returns all registered exchanges.
+// ListAll returns all registered exchange configs.
 func (r *Registry) ListAll() []ExchangeConfig {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	var result []ExchangeConfig
-	for _, e := range r.exchanges {
-		ex := e.(*exchange)
-		result = append(result, ex.config)
+	for _, a := range r.adapters {
+		result = append(result, ExchangeConfig{
+			ID:       a.ID(),
+			Name:     a.Name(),
+			Endpoint: a.Endpoint(),
+			Enabled:  a.Enabled(),
+		})
 	}
 	return result
-}
-
-// DefaultRegistry creates a registry with the self-owned exchange pre-registered.
-func DefaultRegistry(selfEndpoint string) *Registry {
-	r := NewRegistry()
-	r.Register(ExchangeConfig{
-		ID:                "self",
-		Name:              "自有 Exchange",
-		Endpoint:          selfEndpoint,
-		Enabled:           true,
-		TransparencyLevel: "full",
-	})
-	return r
 }

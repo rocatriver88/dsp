@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/config"
 	"github.com/heartgryphon/dsp/internal/events"
+	"github.com/heartgryphon/dsp/internal/exchange"
 	"github.com/heartgryphon/dsp/internal/reporting"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -27,13 +29,14 @@ import (
 )
 
 var (
-	engine      *bidder.Engine
-	budgetSvc   *budget.Service
-	strategySvc *bidder.BidStrategy
-	statsCache  *bidder.StatsCache
-	loader      *bidder.CampaignLoader
-	producer    *events.Producer
-	rdb         *redis.Client
+	engine           *bidder.Engine
+	budgetSvc        *budget.Service
+	strategySvc      *bidder.BidStrategy
+	statsCache       *bidder.StatsCache
+	loader           *bidder.CampaignLoader
+	producer         *events.Producer
+	rdb              *redis.Client
+	exchangeRegistry *exchange.Registry
 )
 
 func main() {
@@ -100,8 +103,13 @@ func main() {
 	defer loader.Stop()
 	defer statsCache.Stop()
 
+	// Exchange registry: register self-owned + any configured external exchanges
+	exchangeRegistry = exchange.DefaultRegistry(cfg.BidderPublicURL)
+	log.Printf("[EXCHANGE] %d exchanges registered", len(exchangeRegistry.ListEnabled()))
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /bid", handleBid)
+	mux.HandleFunc("POST /bid", handleBid)                         // standard OpenRTB
+	mux.HandleFunc("POST /bid/{exchange_id}", handleExchangeBid)   // per-exchange protocol normalization
 	mux.HandleFunc("POST /win", handleWin)
 	mux.HandleFunc("GET /click", handleClick)
 	mux.HandleFunc("GET /convert", handleConvert)
@@ -182,6 +190,78 @@ func handleBid(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// handleExchangeBid handles bid requests from specific exchanges with protocol normalization.
+// Each exchange may have slight deviations from standard OpenRTB that the adapter normalizes.
+func handleExchangeBid(w http.ResponseWriter, r *http.Request) {
+	exchangeID := r.PathValue("exchange_id")
+	adapter, ok := exchangeRegistry.Get(exchangeID)
+	if !ok {
+		http.Error(w, fmt.Sprintf(`{"error":"unknown exchange: %s"}`, exchangeID), http.StatusBadRequest)
+		return
+	}
+
+	start := time.Now()
+
+	// Read raw body and parse via exchange-specific adapter
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1MB limit
+	if err != nil {
+		http.Error(w, `{"error":"read body failed"}`, http.StatusBadRequest)
+		return
+	}
+
+	req, err := adapter.ParseBidRequest(body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"error":"parse failed: %s"}`, err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	resp, err := engine.Bid(r.Context(), req)
+	latency := time.Since(start)
+
+	if err != nil {
+		log.Printf("[ERROR] exchange=%s request_id=%s error=%v latency=%s", exchangeID, req.ID, err, latency)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	if resp == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	// Add win notice URL (same as standard handler)
+	if len(resp.SeatBid) > 0 && len(resp.SeatBid[0].Bid) > 0 {
+		bid := resp.SeatBid[0].Bid[0]
+		baseURL := config.Load().BidderPublicURL
+		hmacSecret := config.Load().BidderHMACSecret
+		var geo, os string
+		if req.Device != nil {
+			os = req.Device.OS
+			if req.Device.Geo != nil {
+				geo = req.Device.Geo.Country
+			}
+		}
+		token := auth.GenerateToken(hmacSecret, bid.CID, req.ID)
+		bid.NURL = fmt.Sprintf("%s/win?campaign_id=%s&price=${AUCTION_PRICE}&request_id=%s&geo=%s&os=%s&token=%s",
+			baseURL, bid.CID, req.ID, geo, os, token)
+		resp.SeatBid[0].Bid[0] = bid
+
+		log.Printf("[BID] exchange=%s request_id=%s campaign=%s bid=%.6f latency=%s",
+			exchangeID, req.ID, bid.CID, bid.Price, latency)
+	}
+
+	// Format response via exchange-specific adapter
+	out, err := adapter.FormatBidResponse(resp)
+	if err != nil {
+		log.Printf("[ERROR] exchange=%s format error: %v", exchangeID, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(out)
 }
 
 func handleWin(w http.ResponseWriter, r *http.Request) {
