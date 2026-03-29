@@ -79,8 +79,8 @@ export default function OverviewPage() {
       ) : (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-medium text-gray-500">最近的 Campaigns</h3>
-            <Link href="/campaigns" className="text-sm text-blue-600">查看全部</Link>
+            <h3 className="text-base font-semibold text-gray-700">最近的 Campaigns</h3>
+            <Link href="/campaigns" className="text-sm text-blue-600 px-3 py-2 -mr-3 rounded hover:bg-blue-50">查看全部</Link>
           </div>
           <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">
             <table className="w-full text-sm">
@@ -97,7 +97,7 @@ export default function OverviewPage() {
                 {campaigns.map((c) => (
                   <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4">
-                      <Link href={`/campaigns/${c.id}`} className="text-blue-600 hover:underline">{c.name}</Link>
+                      <Link href={`/campaigns/${c.id}`} className="text-blue-600 hover:underline inline-block py-2">{c.name}</Link>
                     </td>
                     <td className="py-3 px-4"><StatusBadge status={c.status} /></td>
                     <td className="py-3 px-4 text-right font-mono">

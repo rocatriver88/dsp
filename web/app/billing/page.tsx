@@ -77,8 +77,10 @@ export default function BillingPage() {
       {/* Transaction history */}
       <h3 className="text-sm font-medium text-gray-500 mb-3">交易记录</h3>
       {transactions.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
-          <p className="text-sm text-gray-500">暂无交易记录</p>
+        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
+          <p className="text-2xl mb-2">📋</p>
+          <p className="text-sm font-medium text-gray-600 mb-1">暂无交易记录</p>
+          <p className="text-xs text-gray-400">Campaign 开始投放后，花费和充值记录会显示在这里</p>
         </div>
       ) : (
         <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
