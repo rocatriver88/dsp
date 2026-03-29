@@ -65,22 +65,14 @@ func (s *Service) checkAll(ctx context.Context) {
 			continue
 		}
 
-		// Check spend spike: hourly spend > 2x expected hourly budget
-		expectedHourly := float64(c.BudgetDailyCents) / 24.0
-		if expectedHourly > 0 && float64(stats.SpendCents) > expectedHourly*2 {
-			reason := "spend_spike: hourly spend exceeded 2x expected rate"
+		// Check anomaly rules (extracted for testability)
+		if reason := CheckSpendSpike(c.BudgetDailyCents, stats.SpendCents); reason != "" {
 			s.pause(ctx, c.ID, reason)
 			continue
 		}
-
-		// Check CTR anomaly: CTR > 5% over 1000+ impressions (CPM only)
-		if c.BillingModel == campaign.BillingCPM && stats.Impressions > 1000 {
-			ctr := float64(stats.Clicks) / float64(stats.Impressions)
-			if ctr > 0.05 {
-				reason := "ctr_anomaly: CTR exceeded 5% threshold"
-				s.pause(ctx, c.ID, reason)
-				continue
-			}
+		if reason := CheckCTRAnomaly(c.BillingModel, stats.Impressions, stats.Clicks); reason != "" {
+			s.pause(ctx, c.ID, reason)
+			continue
 		}
 	}
 }
