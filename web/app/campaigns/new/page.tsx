@@ -84,6 +84,7 @@ export default function NewCampaignPage() {
           campaign_id: result.id,
           name: creativeName || `${name}-原生素材`,
           ad_type: "native",
+          format: "native",
           destination_url: creativeURL || "https://example.com",
           native_title: nativeTitle,
           native_desc: nativeDesc,
