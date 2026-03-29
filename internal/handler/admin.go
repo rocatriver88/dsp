@@ -105,6 +105,51 @@ func (d *Deps) HandleSystemHealth(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, health)
 }
 
+// HandleListCreativesForReview returns all creatives pending review.
+func (d *Deps) HandleListCreativesForReview(w http.ResponseWriter, r *http.Request) {
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "pending"
+	}
+	creatives, err := d.Store.ListCreativesByStatus(r.Context(), status)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if creatives == nil {
+		creatives = []*campaign.Creative{}
+	}
+	WriteJSON(w, http.StatusOK, creatives)
+}
+
+// HandleApproveCreative approves a creative for serving.
+func (d *Deps) HandleApproveCreative(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := d.Store.UpdateCreativeStatus(r.Context(), id, "approved"); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	WriteJSON(w, http.StatusOK, map[string]string{"status": "approved"})
+}
+
+// HandleRejectCreative rejects a creative with a reason.
+func (d *Deps) HandleRejectCreative(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if err := d.Store.UpdateCreativeStatus(r.Context(), id, "rejected"); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	WriteJSON(w, http.StatusOK, map[string]string{"status": "rejected"})
+}
+
 func (d *Deps) HandleRejectRegistration(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {

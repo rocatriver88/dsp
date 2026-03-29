@@ -121,6 +121,9 @@ func main() {
 	adminMux.HandleFunc("POST /api/v1/admin/registrations/{id}/approve", h.HandleApproveRegistration)
 	adminMux.HandleFunc("POST /api/v1/admin/registrations/{id}/reject", h.HandleRejectRegistration)
 	adminMux.HandleFunc("GET /api/v1/admin/health", h.HandleSystemHealth)
+	adminMux.HandleFunc("GET /api/v1/admin/creatives", h.HandleListCreativesForReview)
+	adminMux.HandleFunc("POST /api/v1/admin/creatives/{id}/approve", h.HandleApproveCreative)
+	adminMux.HandleFunc("POST /api/v1/admin/creatives/{id}/reject", h.HandleRejectCreative)
 
 	internalMux := http.NewServeMux()
 	internalMux.Handle("GET /metrics", promhttp.Handler())

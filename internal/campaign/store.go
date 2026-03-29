@@ -307,3 +307,36 @@ func (s *Store) CreateCreative(ctx context.Context, cr *Creative) (int64, error)
 	).Scan(&id)
 	return id, err
 }
+
+// ListCreativesByStatus returns all creatives with the given status.
+func (s *Store) ListCreativesByStatus(ctx context.Context, status string) ([]*Creative, error) {
+	rows, err := s.db.Query(ctx,
+		`SELECT id, campaign_id, name, ad_type, format, size, ad_markup, destination_url, status,
+		  native_title, native_desc, native_icon_url, native_image_url, native_cta, created_at
+		 FROM creatives WHERE status = $1 ORDER BY created_at ASC`, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var creatives []*Creative
+	for rows.Next() {
+		cr := &Creative{}
+		if err := rows.Scan(&cr.ID, &cr.CampaignID, &cr.Name, &cr.AdType, &cr.Format, &cr.Size,
+			&cr.AdMarkup, &cr.DestinationURL, &cr.Status,
+			&cr.NativeTitle, &cr.NativeDesc, &cr.NativeIconURL,
+			&cr.NativeImageURL, &cr.NativeCTA, &cr.CreatedAt); err != nil {
+			return nil, err
+		}
+		creatives = append(creatives, cr)
+	}
+	return creatives, nil
+}
+
+// UpdateCreativeStatus changes a creative's review status (pending/approved/rejected).
+func (s *Store) UpdateCreativeStatus(ctx context.Context, creativeID int64, status string) error {
+	_, err := s.db.Exec(ctx,
+		`UPDATE creatives SET status = $1 WHERE id = $2`,
+		status, creativeID)
+	return err
+}
