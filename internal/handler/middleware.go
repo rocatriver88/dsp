@@ -10,7 +10,7 @@ import (
 // WithAuthExemption routes unauthenticated paths directly to the mux, bypassing auth middleware.
 func WithAuthExemption(authed http.Handler, publicMux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/health" || (r.Method == "POST" && r.URL.Path == "/api/v1/register") {
+		if r.URL.Path == "/health" || r.URL.Path == "/api/v1/docs" || (r.Method == "POST" && r.URL.Path == "/api/v1/register") {
 			publicMux.ServeHTTP(w, r)
 			return
 		}

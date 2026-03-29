@@ -110,6 +110,7 @@ func main() {
 	publicMux.HandleFunc("GET /api/v1/billing/transactions", h.HandleTransactions)
 	publicMux.HandleFunc("GET /api/v1/billing/balance/{id}", h.HandleBalance)
 	publicMux.HandleFunc("POST /api/v1/register", h.HandleRegister)
+	publicMux.HandleFunc("GET /api/v1/docs", h.HandleAPIDocs)
 	publicMux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"status":"ok","time":"%s"}`, time.Now().UTC().Format(time.RFC3339))
 	})
