@@ -104,6 +104,8 @@ func main() {
 	publicMux.HandleFunc("GET /api/v1/reports/campaign/{id}/bids", h.HandleBidTransparency)
 	publicMux.HandleFunc("GET /api/v1/reports/campaign/{id}/attribution", h.HandleAttribution)
 	publicMux.HandleFunc("GET /api/v1/reports/overview", h.HandleOverviewStats)
+	publicMux.HandleFunc("GET /api/v1/analytics/stream", h.HandleAnalyticsStream)
+	publicMux.HandleFunc("GET /api/v1/analytics/snapshot", h.HandleAnalyticsSnapshot)
 	publicMux.HandleFunc("POST /api/v1/billing/topup", h.HandleTopUp)
 	publicMux.HandleFunc("GET /api/v1/billing/transactions", h.HandleTransactions)
 	publicMux.HandleFunc("GET /api/v1/billing/balance/{id}", h.HandleBalance)

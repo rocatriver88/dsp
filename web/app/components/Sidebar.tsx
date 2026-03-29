@@ -7,6 +7,7 @@ const navItems = [
   { href: "/", label: "概览", icon: "概" },
   { href: "/campaigns", label: "Campaigns", icon: "投" },
   { href: "/reports", label: "报表", icon: "表" },
+  { href: "/analytics", label: "实时分析", icon: "析" },
   { href: "/billing", label: "账户", icon: "账" },
 ];
 
