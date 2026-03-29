@@ -16,11 +16,12 @@ import (
 )
 
 const (
-	bidderURL  = "http://localhost:8180"
-	totalBids  = 10000
-	targetQPS  = 200
-	workers    = 10
-	clickRate  = 0.03 // 3% CTR
+	bidderURL   = "http://localhost:8180"
+	totalBids   = 10000
+	targetQPS   = 200
+	workers     = 10
+	clickRate   = 0.03 // 3% CTR
+	convertRate = 0.30 // 30% of clicks convert
 )
 
 var (
@@ -28,11 +29,12 @@ var (
 	oses    = []string{"iOS", "Android", "iOS", "Android", "Windows", "macOS"}
 	devices = []string{"mobile", "mobile", "mobile", "desktop", "tablet"}
 
-	bidCount   int64
-	winCount   int64
-	clickCount int64
-	noBidCount int64
-	errCount   int64
+	bidCount     int64
+	winCount     int64
+	clickCount   int64
+	convertCount int64
+	noBidCount   int64
+	errCount     int64
 )
 
 type BidResponse struct {
@@ -66,8 +68,8 @@ func main() {
 			<-ticker.C
 			ch <- i
 			if (i+1)%1000 == 0 {
-				log.Printf("Progress: %d/%d bids sent, %d wins, %d clicks",
-					i+1, totalBids, atomic.LoadInt64(&winCount), atomic.LoadInt64(&clickCount))
+				log.Printf("Progress: %d/%d bids, %d wins, %d clicks, %d converts",
+					i+1, totalBids, atomic.LoadInt64(&winCount), atomic.LoadInt64(&clickCount), atomic.LoadInt64(&convertCount))
 			}
 		}
 		close(ch)
@@ -92,9 +94,11 @@ func main() {
 	log.Printf("No-bids:    %d", atomic.LoadInt64(&noBidCount))
 	log.Printf("Wins:       %d", atomic.LoadInt64(&winCount))
 	log.Printf("Clicks:     %d", atomic.LoadInt64(&clickCount))
+	log.Printf("Conversions:%d", atomic.LoadInt64(&convertCount))
 	log.Printf("Errors:     %d", atomic.LoadInt64(&errCount))
 	log.Printf("Win rate:   %.1f%%", float64(atomic.LoadInt64(&winCount))/float64(atomic.LoadInt64(&bidCount))*100)
 	log.Printf("CTR:        %.2f%%", float64(atomic.LoadInt64(&clickCount))/float64(atomic.LoadInt64(&winCount))*100)
+	log.Printf("CVR:        %.1f%%", float64(atomic.LoadInt64(&convertCount))/float64(atomic.LoadInt64(&clickCount))*100)
 	log.Printf("QPS:        %.0f", float64(totalBids)/elapsed.Seconds())
 }
 
@@ -169,6 +173,20 @@ func simulateBid(i int) {
 			clickResp.Body.Close()
 			if clickResp.StatusCode == 200 || clickResp.StatusCode == 302 {
 				atomic.AddInt64(&clickCount, 1)
+
+				// Simulate conversion (30% of clicks)
+				if rand.Float64() < convertRate {
+					convertURL := fmt.Sprintf("%s/convert?campaign_id=%s&request_id=%s&token=%s&geo=%s&os=%s",
+						bidderURL, q.Get("campaign_id"), q.Get("request_id"), q.Get("token"),
+						q.Get("geo"), q.Get("os"))
+					convResp, err := http.Get(convertURL)
+					if err == nil {
+						convResp.Body.Close()
+						if convResp.StatusCode == 200 {
+							atomic.AddInt64(&convertCount, 1)
+						}
+					}
+				}
 			}
 		}
 	}

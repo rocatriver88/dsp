@@ -77,7 +77,10 @@ export default function CampaignReportPage() {
         <div className="grid grid-cols-5 gap-4 mb-6">
           <StatCard label="曝光量" value={stats.impressions.toLocaleString()} />
           <StatCard label="点击量" value={stats.clicks.toLocaleString()} />
+          <StatCard label="转化量" value={stats.conversions.toLocaleString()} />
           <StatCard label="CTR" value={`${Math.min(stats.ctr, 100).toFixed(2)}%`} />
+          <StatCard label="CVR" value={`${Math.min(stats.cvr || 0, 100).toFixed(2)}%`} />
+          <StatCard label="CPA" value={stats.cpa > 0 ? `¥${stats.cpa.toFixed(2)}` : "—"} />
           <StatCard label="Win Rate" value={`${Math.min(stats.win_rate, 100).toFixed(1)}%`} />
           <StatCard label="花费" value={`¥${(stats.spend_cents / 100).toLocaleString()}`} />
         </div>

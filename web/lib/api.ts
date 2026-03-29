@@ -76,11 +76,14 @@ export interface CampaignStats {
   campaign_id: number;
   impressions: number;
   clicks: number;
+  conversions: number;
   wins: number;
   bids: number;
   spend_cents: number;
   ctr: number;
   win_rate: number;
+  cvr: number;
+  cpa: number;
 }
 
 export interface HourlyStats {

@@ -66,11 +66,14 @@ type CampaignStats struct {
 	CampaignID  uint64  `json:"campaign_id"`
 	Impressions uint64  `json:"impressions"`
 	Clicks      uint64  `json:"clicks"`
+	Conversions uint64  `json:"conversions"`
 	Wins        uint64  `json:"wins"`
 	Bids        uint64  `json:"bids"`
 	SpendCents  uint64  `json:"spend_cents"`
 	CTR         float64 `json:"ctr"`
 	WinRate     float64 `json:"win_rate"`
+	CVR         float64 `json:"cvr"`
+	CPA         float64 `json:"cpa"`
 }
 
 // GetCampaignStats returns aggregated stats for a campaign within a date range.
@@ -81,6 +84,7 @@ func (s *Store) GetCampaignStats(ctx context.Context, campaignID uint64, from, t
 		SELECT
 			countIf(event_type = 'impression') AS impressions,
 			countIf(event_type = 'click') AS clicks,
+			countIf(event_type = 'conversion') AS conversions,
 			countIf(event_type = 'win') AS wins,
 			countIf(event_type = 'bid') AS bids,
 			sumIf(clear_price_cents, event_type = 'win') AS spend_cents
@@ -88,7 +92,7 @@ func (s *Store) GetCampaignStats(ctx context.Context, campaignID uint64, from, t
 		WHERE campaign_id = ? AND event_date >= ? AND event_date <= ?
 	`, campaignID, from, to)
 
-	if err := row.Scan(&stats.Impressions, &stats.Clicks, &stats.Wins, &stats.Bids, &stats.SpendCents); err != nil {
+	if err := row.Scan(&stats.Impressions, &stats.Clicks, &stats.Conversions, &stats.Wins, &stats.Bids, &stats.SpendCents); err != nil {
 		return nil, err
 	}
 
@@ -97,6 +101,12 @@ func (s *Store) GetCampaignStats(ctx context.Context, campaignID uint64, from, t
 	}
 	if stats.Bids > 0 {
 		stats.WinRate = float64(stats.Wins) / float64(stats.Bids) * 100
+	}
+	if stats.Clicks > 0 {
+		stats.CVR = float64(stats.Conversions) / float64(stats.Clicks) * 100
+	}
+	if stats.Conversions > 0 {
+		stats.CPA = float64(stats.SpendCents) / float64(stats.Conversions) / 100 // cents → yuan per conversion
 	}
 
 	return stats, nil

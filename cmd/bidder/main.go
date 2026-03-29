@@ -83,6 +83,7 @@ func main() {
 	mux.HandleFunc("POST /bid", handleBid)
 	mux.HandleFunc("POST /win", handleWin)
 	mux.HandleFunc("GET /click", handleClick)
+	mux.HandleFunc("GET /convert", handleConvert)
 	mux.HandleFunc("GET /stats", handleStats)
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.Handle("GET /metrics", promhttp.Handler())
@@ -299,6 +300,33 @@ func handleClick(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Fprintf(w, `{"status":"clicked"}`)
+}
+
+func handleConvert(w http.ResponseWriter, r *http.Request) {
+	campaignIDStr := r.URL.Query().Get("campaign_id")
+	requestID := r.URL.Query().Get("request_id")
+	token := r.URL.Query().Get("token")
+
+	// Validate HMAC token (same as click)
+	hmacSecret := config.Load().BidderHMACSecret
+	if !auth.ValidateToken(hmacSecret, token, campaignIDStr, requestID) {
+		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
+		return
+	}
+
+	campaignID, _ := strconv.ParseInt(campaignIDStr, 10, 64)
+
+	if campaignID > 0 && producer != nil {
+		go producer.SendConversion(r.Context(), events.Event{
+			CampaignID: campaignID,
+			RequestID:  requestID,
+			GeoCountry: r.URL.Query().Get("geo"),
+			DeviceOS:   r.URL.Query().Get("os"),
+		})
+	}
+
+	log.Printf("[CONVERT] campaign_id=%d request_id=%s", campaignID, requestID)
+	fmt.Fprintf(w, `{"status":"converted"}`)
 }
 
 func handleStats(w http.ResponseWriter, r *http.Request) {

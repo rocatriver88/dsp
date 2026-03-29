@@ -126,6 +126,12 @@ func (p *Producer) SendClick(ctx context.Context, evt Event) {
 	p.Send(ctx, "dsp.impressions", evt)
 }
 
+// SendConversion sends a conversion event.
+func (p *Producer) SendConversion(ctx context.Context, evt Event) {
+	evt.Type = "conversion"
+	p.Send(ctx, "dsp.impressions", evt)
+}
+
 func (p *Producer) bufferToDisk(topic string, data []byte) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
