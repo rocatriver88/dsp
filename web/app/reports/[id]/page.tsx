@@ -74,7 +74,7 @@ export default function CampaignReportPage() {
 
       {/* Stats cards */}
       {stats ? (
-        <div className="grid grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           <StatCard label="曝光量" value={stats.impressions.toLocaleString()} />
           <StatCard label="点击量" value={stats.clicks.toLocaleString()} />
           <StatCard label="转化量" value={stats.conversions.toLocaleString()} />
@@ -115,7 +115,10 @@ export default function CampaignReportPage() {
           <div className="rounded-lg border border-gray-200 bg-white p-5">
             <h3 className="text-sm font-medium text-gray-500 mb-4">今日小时分布</h3>
             {hourly.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
+              <div className="text-center py-8">
+                <p className="text-sm text-gray-500">暂无数据</p>
+                <p className="text-xs text-gray-400 mt-1">Campaign 投放后数据会在此显示</p>
+              </div>
             ) : (
               <div className="space-y-1.5">
                 {hourly.map((h) => {
@@ -139,7 +142,10 @@ export default function CampaignReportPage() {
           <div className="rounded-lg border border-gray-200 bg-white p-5">
             <h3 className="text-sm font-medium text-gray-500 mb-4">地区分布</h3>
             {geo.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">暂无数据</p>
+              <div className="text-center py-8">
+                <p className="text-sm text-gray-500">暂无数据</p>
+                <p className="text-xs text-gray-400 mt-1">Campaign 投放后数据会在此显示</p>
+              </div>
             ) : (
               <table className="w-full text-sm">
                 <thead>

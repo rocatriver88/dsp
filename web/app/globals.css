@@ -20,7 +20,20 @@ body {
   background: var(--bg);
   color: var(--text-primary);
   font-family: "IBM Plex Sans", -apple-system, sans-serif;
+  font-size: 15px;
   margin: 0;
+}
+
+/* Data tables: readable at 15px with comfortable row height */
+table td, table th {
+  font-size: 15px;
+}
+
+/* Navigation items: minimum 44px touch target */
+nav a, nav button {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
 }
 
 /* Accessibility: visible focus ring on all interactive elements */
