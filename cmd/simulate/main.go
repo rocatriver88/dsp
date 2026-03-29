@@ -20,8 +20,9 @@ const (
 	totalBids   = 10000
 	targetQPS   = 200
 	workers     = 10
-	clickRate   = 0.03 // 3% CTR
+	clickRate   = 0.10 // 10% CTR (of impressions, not wins)
 	convertRate = 0.30 // 30% of clicks convert
+	fillRate    = 0.50 // 50% of wins actually render (fill rate)
 )
 
 var (
@@ -31,6 +32,7 @@ var (
 
 	bidCount     int64
 	winCount     int64
+	impCount     int64
 	clickCount   int64
 	convertCount int64
 	noBidCount   int64
@@ -68,8 +70,9 @@ func main() {
 			<-ticker.C
 			ch <- i
 			if (i+1)%1000 == 0 {
-				log.Printf("Progress: %d/%d bids, %d wins, %d clicks, %d converts",
-					i+1, totalBids, atomic.LoadInt64(&winCount), atomic.LoadInt64(&clickCount), atomic.LoadInt64(&convertCount))
+				log.Printf("Progress: %d/%d bids | wins=%d imps=%d clicks=%d converts=%d",
+					i+1, totalBids, atomic.LoadInt64(&winCount), atomic.LoadInt64(&impCount),
+					atomic.LoadInt64(&clickCount), atomic.LoadInt64(&convertCount))
 			}
 		}
 		close(ch)
@@ -90,15 +93,23 @@ func main() {
 
 	log.Printf("=== SIMULATION COMPLETE ===")
 	log.Printf("Duration: %s", elapsed)
-	log.Printf("Bids sent:  %d", atomic.LoadInt64(&bidCount))
-	log.Printf("No-bids:    %d", atomic.LoadInt64(&noBidCount))
-	log.Printf("Wins:       %d", atomic.LoadInt64(&winCount))
-	log.Printf("Clicks:     %d", atomic.LoadInt64(&clickCount))
-	log.Printf("Conversions:%d", atomic.LoadInt64(&convertCount))
-	log.Printf("Errors:     %d", atomic.LoadInt64(&errCount))
-	log.Printf("Win rate:   %.1f%%", float64(atomic.LoadInt64(&winCount))/float64(atomic.LoadInt64(&bidCount))*100)
-	log.Printf("CTR:        %.2f%%", float64(atomic.LoadInt64(&clickCount))/float64(atomic.LoadInt64(&winCount))*100)
-	log.Printf("CVR:        %.1f%%", float64(atomic.LoadInt64(&convertCount))/float64(atomic.LoadInt64(&clickCount))*100)
+	wins := atomic.LoadInt64(&winCount)
+	imps := atomic.LoadInt64(&impCount)
+	clicks := atomic.LoadInt64(&clickCount)
+	converts := atomic.LoadInt64(&convertCount)
+	bids := atomic.LoadInt64(&bidCount)
+
+	log.Printf("Bids sent:   %d", bids)
+	log.Printf("No-bids:     %d", atomic.LoadInt64(&noBidCount))
+	log.Printf("Wins:        %d", wins)
+	log.Printf("Impressions: %d", imps)
+	log.Printf("Clicks:      %d", clicks)
+	log.Printf("Conversions: %d", converts)
+	log.Printf("Errors:      %d", atomic.LoadInt64(&errCount))
+	log.Printf("Win rate:    %.1f%%", float64(wins)/float64(bids)*100)
+	log.Printf("Fill rate:   %.1f%%", float64(imps)/float64(wins)*100)
+	log.Printf("CTR:         %.2f%%", float64(clicks)/float64(imps)*100)
+	log.Printf("CVR:         %.1f%%", float64(converts)/float64(clicks)*100)
 	log.Printf("QPS:        %.0f", float64(totalBids)/elapsed.Seconds())
 }
 
@@ -147,6 +158,14 @@ func simulateBid(i int) {
 
 	bid := bidResp.SeatBid[0].Bid[0]
 
+	// Fill rate: only 50% of bid responses actually get rendered.
+	// In real RTB, the exchange sends win notice only when the ad renders.
+	// Unrendered wins = no win notice, no impression, no budget deduction.
+	filled := rand.Float64() < fillRate
+	if !filled {
+		return // bid won auction but ad was not rendered (no win notice)
+	}
+
 	// Simulate win notice (replace AUCTION_PRICE macro)
 	winURL := strings.Replace(bid.NURL, "${AUCTION_PRICE}", fmt.Sprintf("%.6f", bid.Price*0.8), 1)
 	winResp, err := http.Post(winURL, "", nil)
@@ -158,9 +177,10 @@ func simulateBid(i int) {
 
 	if winResp.StatusCode == 200 {
 		atomic.AddInt64(&winCount, 1)
+		atomic.AddInt64(&impCount, 1) // win + render = impression
 	}
 
-	// Simulate click (3% CTR)
+	// Simulate click (10% CTR of impressions)
 	if rand.Float64() < clickRate {
 		// Build click URL from win URL params
 		u, _ := url.Parse(winURL)

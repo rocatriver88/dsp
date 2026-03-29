@@ -82,7 +82,9 @@ export default function CampaignReportPage() {
           <StatCard label="CVR" value={`${Math.min(stats.cvr || 0, 100).toFixed(2)}%`} />
           <StatCard label="CPA" value={stats.cpa > 0 ? `¥${stats.cpa.toFixed(2)}` : "—"} />
           <StatCard label="Win Rate" value={`${Math.min(stats.win_rate, 100).toFixed(1)}%`} />
-          <StatCard label="花费" value={`¥${(stats.spend_cents / 100).toLocaleString()}`} />
+          <StatCard label="广告主计费" value={`¥${(stats.spend_cents / 100).toFixed(2)}`} />
+          <StatCard label="ADX 成本" value={`¥${((stats.adx_cost_cents || 0) / 100).toFixed(2)}`} />
+          <StatCard label="平台利润" value={`¥${((stats.profit_cents || 0) / 100).toFixed(2)}`} />
         </div>
       ) : (
         <div className="rounded-lg border border-gray-200 bg-white p-8 text-center mb-6">

@@ -80,6 +80,8 @@ export interface CampaignStats {
   wins: number;
   bids: number;
   spend_cents: number;
+  adx_cost_cents: number;
+  profit_cents: number;
   ctr: number;
   win_rate: number;
   cvr: number;

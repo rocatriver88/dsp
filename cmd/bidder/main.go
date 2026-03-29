@@ -231,16 +231,23 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 	// Emit win + impression events to Kafka
 	if producer != nil {
 		var bidPrice float64
+		var advertiserCharge float64
 		if c != nil {
 			bidPrice = float64(c.EffectiveBidCPMCents(0, 0)) / 100.0 / 1000.0
+			if isCPC {
+				advertiserCharge = 0 // CPC: charged on click, not impression
+			} else {
+				advertiserCharge = price * 1.10 // 10% markup on ADX clear price
+			}
 		}
 		evt := events.Event{
-			CampaignID: campaignID,
-			RequestID:  requestID,
-			BidPrice:   bidPrice,
-			ClearPrice: price,
-			GeoCountry: r.URL.Query().Get("geo"),
-			DeviceOS:   r.URL.Query().Get("os"),
+			CampaignID:       campaignID,
+			RequestID:        requestID,
+			BidPrice:         bidPrice,
+			ClearPrice:       price,
+			AdvertiserCharge: advertiserCharge,
+			GeoCountry:       r.URL.Query().Get("geo"),
+			DeviceOS:         r.URL.Query().Get("os"),
 		}
 		go producer.SendWin(r.Context(), evt)
 		go producer.SendImpression(r.Context(), evt)
@@ -285,11 +292,17 @@ func handleClick(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if campaignID > 0 && producer != nil {
+		var charge float64
+		c := loader.GetCampaign(campaignID)
+		if c != nil && c.BillingModel == "cpc" {
+			charge = float64(c.BidCPCCents) / 100.0 // CPC: charge per click in dollars
+		}
 		go producer.SendClick(r.Context(), events.Event{
-			CampaignID: campaignID,
-			RequestID:  requestID,
-			GeoCountry: r.URL.Query().Get("geo"),
-			DeviceOS:   r.URL.Query().Get("os"),
+			CampaignID:       campaignID,
+			RequestID:        requestID,
+			AdvertiserCharge: charge,
+			GeoCountry:       r.URL.Query().Get("geo"),
+			DeviceOS:         r.URL.Query().Get("os"),
 		})
 	}
 

@@ -35,12 +35,12 @@ func (s *Store) InsertEvent(ctx context.Context, evt BidEvent) error {
 	return s.conn.Exec(ctx,
 		`INSERT INTO bid_log (event_date, event_time, campaign_id, creative_id, advertiser_id,
 		  exchange_id, request_id, geo_country, device_os, bid_price_cents, clear_price_cents,
-		  event_type, loss_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  charge_cents, event_type, loss_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		evt.EventTime, evt.EventTime,
 		evt.CampaignID, evt.CreativeID, evt.AdvertiserID,
 		evt.ExchangeID, evt.RequestID,
 		evt.GeoCountry, evt.DeviceOS,
-		evt.BidPriceCents, evt.ClearPriceCents,
+		evt.BidPriceCents, evt.ClearPriceCents, evt.ChargeCents,
 		evt.EventType, evt.LossReason,
 	)
 }
@@ -56,24 +56,27 @@ type BidEvent struct {
 	GeoCountry      string
 	DeviceOS        string
 	BidPriceCents   uint32
-	ClearPriceCents uint32
-	EventType       string // bid, win, loss, impression, click
+	ClearPriceCents uint32 // ADX cost (per impression, cents)
+	ChargeCents     uint32 // Advertiser charge (per event, cents)
+	EventType       string // bid, win, loss, impression, click, conversion
 	LossReason      string
 }
 
 // CampaignStats holds aggregated stats for a campaign.
 type CampaignStats struct {
 	CampaignID  uint64  `json:"campaign_id"`
-	Impressions uint64  `json:"impressions"`
-	Clicks      uint64  `json:"clicks"`
-	Conversions uint64  `json:"conversions"`
-	Wins        uint64  `json:"wins"`
-	Bids        uint64  `json:"bids"`
-	SpendCents  uint64  `json:"spend_cents"`
-	CTR         float64 `json:"ctr"`
-	WinRate     float64 `json:"win_rate"`
-	CVR         float64 `json:"cvr"`
-	CPA         float64 `json:"cpa"`
+	Impressions    uint64  `json:"impressions"`
+	Clicks         uint64  `json:"clicks"`
+	Conversions    uint64  `json:"conversions"`
+	Wins           uint64  `json:"wins"`
+	Bids           uint64  `json:"bids"`
+	SpendCents     uint64  `json:"spend_cents"`      // advertiser charge total (cents)
+	AdxCostCents   uint64  `json:"adx_cost_cents"`   // ADX settlement cost (cents)
+	ProfitCents    int64   `json:"profit_cents"`      // spend - adx_cost (cents)
+	CTR            float64 `json:"ctr"`
+	WinRate        float64 `json:"win_rate"`
+	CVR            float64 `json:"cvr"`
+	CPA            float64 `json:"cpa"`
 }
 
 // GetCampaignStats returns aggregated stats for a campaign within a date range.
@@ -87,12 +90,13 @@ func (s *Store) GetCampaignStats(ctx context.Context, campaignID uint64, from, t
 			countIf(event_type = 'conversion') AS conversions,
 			countIf(event_type = 'win') AS wins,
 			countIf(event_type = 'bid') AS bids,
-			sumIf(clear_price_cents, event_type = 'win') AS spend_cents
+			sum(charge_cents) AS spend_cents,
+			sumIf(clear_price_cents, event_type = 'win') AS adx_cost_cents
 		FROM bid_log
 		WHERE campaign_id = ? AND event_date >= ? AND event_date <= ?
 	`, campaignID, from, to)
 
-	if err := row.Scan(&stats.Impressions, &stats.Clicks, &stats.Conversions, &stats.Wins, &stats.Bids, &stats.SpendCents); err != nil {
+	if err := row.Scan(&stats.Impressions, &stats.Clicks, &stats.Conversions, &stats.Wins, &stats.Bids, &stats.SpendCents, &stats.AdxCostCents); err != nil {
 		return nil, err
 	}
 
@@ -106,8 +110,9 @@ func (s *Store) GetCampaignStats(ctx context.Context, campaignID uint64, from, t
 		stats.CVR = float64(stats.Conversions) / float64(stats.Clicks) * 100
 	}
 	if stats.Conversions > 0 {
-		stats.CPA = float64(stats.SpendCents) / float64(stats.Conversions) / 100 // cents → yuan per conversion
+		stats.CPA = float64(stats.SpendCents) / float64(stats.Conversions) / 100
 	}
+	stats.ProfitCents = int64(stats.SpendCents) - int64(stats.AdxCostCents)
 
 	return stats, nil
 }

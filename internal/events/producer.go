@@ -33,16 +33,17 @@ type Producer struct {
 }
 
 type Event struct {
-	Type        string    `json:"type"`                   // bid, win, loss, impression, click
-	CampaignID  int64     `json:"campaign_id"`
-	CreativeID  int64     `json:"creative_id,omitempty"`
-	AdvertiserID int64    `json:"advertiser_id,omitempty"`
-	RequestID   string    `json:"request_id"`
-	BidPrice    float64   `json:"bid_price,omitempty"`
-	ClearPrice  float64   `json:"clear_price,omitempty"`
-	GeoCountry  string    `json:"geo_country,omitempty"`
-	DeviceOS    string    `json:"device_os,omitempty"`
-	Timestamp   time.Time `json:"ts"`
+	Type             string    `json:"type"` // bid, win, loss, impression, click, conversion
+	CampaignID       int64     `json:"campaign_id"`
+	CreativeID       int64     `json:"creative_id,omitempty"`
+	AdvertiserID     int64     `json:"advertiser_id,omitempty"`
+	RequestID        string    `json:"request_id"`
+	BidPrice         float64   `json:"bid_price,omitempty"`
+	ClearPrice       float64   `json:"clear_price,omitempty"`       // ADX settlement price (per impression, dollars)
+	AdvertiserCharge float64   `json:"advertiser_charge,omitempty"` // What we bill the advertiser (per event, dollars)
+	GeoCountry       string    `json:"geo_country,omitempty"`
+	DeviceOS         string    `json:"device_os,omitempty"`
+	Timestamp        time.Time `json:"ts"`
 }
 
 func NewProducer(brokers []string, bufferDir string) *Producer {
