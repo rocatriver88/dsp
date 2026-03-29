@@ -69,6 +69,42 @@ func (d *Deps) HandleApproveRegistration(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+// HandleSystemHealth returns system-wide health metrics for admin monitoring.
+func (d *Deps) HandleSystemHealth(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	health := map[string]any{
+		"status": "ok",
+	}
+
+	// Count advertisers
+	campaigns, _ := d.Store.ListActiveCampaigns(ctx)
+	health["active_campaigns"] = len(campaigns)
+
+	// Count pending registrations
+	pending, _ := d.RegSvc.ListPending(ctx)
+	health["pending_registrations"] = len(pending)
+
+	// Redis status
+	if d.Redis != nil {
+		if err := d.Redis.Ping(ctx).Err(); err != nil {
+			health["redis"] = "error"
+		} else {
+			health["redis"] = "ok"
+		}
+	} else {
+		health["redis"] = "unavailable"
+	}
+
+	// ClickHouse status
+	if d.ReportStore != nil {
+		health["clickhouse"] = "ok"
+	} else {
+		health["clickhouse"] = "unavailable"
+	}
+
+	WriteJSON(w, http.StatusOK, health)
+}
+
 func (d *Deps) HandleRejectRegistration(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {

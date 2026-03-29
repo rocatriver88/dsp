@@ -114,13 +114,18 @@ func main() {
 		fmt.Fprintf(w, `{"status":"ok","time":"%s"}`, time.Now().UTC().Format(time.RFC3339))
 	})
 
-	// Internal routes (separate port)
+	// Internal routes (separate port, admin auth required)
+	adminMux := http.NewServeMux()
+	adminMux.HandleFunc("GET /internal/active-campaigns", h.HandleActiveCampaigns)
+	adminMux.HandleFunc("GET /api/v1/admin/registrations", h.HandleListRegistrations)
+	adminMux.HandleFunc("POST /api/v1/admin/registrations/{id}/approve", h.HandleApproveRegistration)
+	adminMux.HandleFunc("POST /api/v1/admin/registrations/{id}/reject", h.HandleRejectRegistration)
+	adminMux.HandleFunc("GET /api/v1/admin/health", h.HandleSystemHealth)
+
 	internalMux := http.NewServeMux()
 	internalMux.Handle("GET /metrics", promhttp.Handler())
-	internalMux.HandleFunc("GET /internal/active-campaigns", h.HandleActiveCampaigns)
-	internalMux.HandleFunc("GET /api/v1/admin/registrations", h.HandleListRegistrations)
-	internalMux.HandleFunc("POST /api/v1/admin/registrations/{id}/approve", h.HandleApproveRegistration)
-	internalMux.HandleFunc("POST /api/v1/admin/registrations/{id}/reject", h.HandleRejectRegistration)
+	internalMux.Handle("/internal/", handler.AdminAuthMiddleware(adminMux))
+	internalMux.Handle("/api/v1/admin/", handler.AdminAuthMiddleware(adminMux))
 	internalMux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"status":"ok","port":"internal","time":"%s"}`, time.Now().UTC().Format(time.RFC3339))
 	})
