@@ -3,17 +3,23 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
+import { LoadingSkeleton, ErrorState } from "../components/LoadingState";
 
 export default function ReportsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = () => {
+    setLoading(true);
+    setError(null);
     api.listCampaigns()
       .then(setCampaigns)
-      .catch(() => {})
+      .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(load, []);
 
   return (
     <div>
@@ -21,9 +27,9 @@ export default function ReportsPage() {
       <p className="text-sm text-gray-500 mb-6">选择一个 Campaign 查看详细报表和 bid 透明度数据</p>
 
       {loading ? (
-        <div className="animate-pulse space-y-3">
-          {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-gray-100 rounded" />)}
-        </div>
+        <LoadingSkeleton rows={3} />
+      ) : error ? (
+        <ErrorState message={error} onRetry={load} />
       ) : campaigns.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
           <p className="text-lg font-medium mb-2">还没有 Campaign</p>

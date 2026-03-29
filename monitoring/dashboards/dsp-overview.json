@@ -1,0 +1,68 @@
+{
+  "dashboard": {
+    "title": "DSP Platform Overview",
+    "uid": "dsp-overview",
+    "timezone": "browser",
+    "refresh": "10s",
+    "panels": [
+      {
+        "title": "Bid Requests / sec",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+        "targets": [{"expr": "rate(dsp_bid_requests_total[1m])", "legendFormat": "{{result}}"}]
+      },
+      {
+        "title": "Bid Latency (p50 / p95 / p99)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+        "targets": [
+          {"expr": "histogram_quantile(0.5, rate(dsp_bid_latency_seconds_bucket[5m]))", "legendFormat": "p50"},
+          {"expr": "histogram_quantile(0.95, rate(dsp_bid_latency_seconds_bucket[5m]))", "legendFormat": "p95"},
+          {"expr": "histogram_quantile(0.99, rate(dsp_bid_latency_seconds_bucket[5m]))", "legendFormat": "p99"}
+        ]
+      },
+      {
+        "title": "Win Notices / sec",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+        "targets": [{"expr": "rate(dsp_win_notices_total[1m])", "legendFormat": "{{status}}"}]
+      },
+      {
+        "title": "Active Campaigns",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+        "targets": [{"expr": "dsp_active_campaigns"}]
+      },
+      {
+        "title": "Auto-Pause Events",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+        "targets": [{"expr": "sum(dsp_auto_pause_total)"}]
+      },
+      {
+        "title": "Rate Limit Hits",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+        "targets": [{"expr": "dsp_rate_limit_hits_total"}]
+      },
+      {
+        "title": "DLQ Events",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8},
+        "targets": [{"expr": "dsp_dlq_publish_total"}]
+      },
+      {
+        "title": "API Requests / sec",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [{"expr": "sum(rate(dsp_api_requests_total[1m])) by (path)", "legendFormat": "{{path}}"}]
+      },
+      {
+        "title": "Kafka Consume Errors",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [{"expr": "rate(dsp_kafka_consume_errors_total[5m])", "legendFormat": "{{topic}}"}]
+      }
+    ]
+  }
+}

@@ -3,16 +3,19 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
+import { LoadingSkeleton, ErrorState, EmptyState } from "../components/LoadingState";
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
+    setError(null);
     api.listCampaigns()
       .then(setCampaigns)
-      .catch(() => {})
+      .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   };
 
@@ -39,9 +42,9 @@ export default function CampaignsPage() {
       </div>
 
       {loading ? (
-        <div className="animate-pulse space-y-3">
-          {[1, 2, 3].map((i) => <div key={i} className="h-14 bg-gray-100 rounded" />)}
-        </div>
+        <LoadingSkeleton rows={5} />
+      ) : error ? (
+        <ErrorState message={error} onRetry={load} />
       ) : campaigns.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
           <p className="text-lg font-medium mb-2">还没有 Campaign</p>

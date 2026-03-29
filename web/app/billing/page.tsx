@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { ErrorState } from "../components/LoadingState";
 
 interface Transaction {
   id: number;
@@ -17,9 +18,11 @@ export default function BillingPage() {
   const [billingType, setBillingType] = useState("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Use api client with X-API-Key header (advertiser scoped by backend)
+  const load = () => {
+    setLoading(true);
+    setError(null);
     Promise.all([
       api.getBalance(1),
       api.getTransactions(1),
@@ -29,15 +32,26 @@ export default function BillingPage() {
         setBillingType(b.billing_type);
         setTransactions(Array.isArray(t) ? t : []);
       })
-      .catch(() => {})
+      .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(load, []);
 
   if (loading) {
     return (
       <div>
         <h2 className="text-xl font-semibold mb-6">账户</h2>
         <div className="animate-pulse"><div className="h-24 bg-gray-100 rounded mb-4" /><div className="h-40 bg-gray-100 rounded" /></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <h2 className="text-xl font-semibold mb-6">账户</h2>
+        <ErrorState message={error} onRetry={load} />
       </div>
     );
   }
