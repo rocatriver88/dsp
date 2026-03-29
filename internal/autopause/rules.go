@@ -10,6 +10,23 @@ func CheckSpendSpike(budgetDailyCents int64, hourlySpendCents uint64) string {
 	return ""
 }
 
+// CheckBudgetExhausted returns a pause reason if total spend exceeds total budget.
+// Returns empty string if within budget.
+func CheckBudgetExhausted(budgetTotalCents int64, totalSpendCents uint64) string {
+	if budgetTotalCents > 0 && totalSpendCents >= uint64(budgetTotalCents) {
+		return "budget_exhausted: total spend reached campaign budget limit"
+	}
+	return ""
+}
+
+// CheckDailyBudgetExhausted returns a pause reason if daily spend exceeds daily budget.
+func CheckDailyBudgetExhausted(budgetDailyCents int64, dailySpendCents uint64) string {
+	if budgetDailyCents > 0 && dailySpendCents >= uint64(budgetDailyCents) {
+		return "daily_budget_exhausted: daily spend reached daily budget limit"
+	}
+	return ""
+}
+
 // CheckCTRAnomaly returns a pause reason if CTR exceeds 5% over 1000+ impressions.
 // Only applies to CPM campaigns. CPC campaigns have structurally different CTR.
 // Returns empty string if no anomaly.

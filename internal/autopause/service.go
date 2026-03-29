@@ -58,14 +58,34 @@ func (s *Service) checkAll(ctx context.Context) {
 	now := time.Now().UTC()
 	hourStart := now.Truncate(time.Hour)
 	hourEnd := hourStart.Add(time.Hour)
+	dayStart := now.Truncate(24 * time.Hour)
+	// Use a wide range (30 days) for total budget check
+	totalStart := now.AddDate(0, 0, -30)
 
 	for _, c := range campaigns {
+		// Check total budget (all-time spend vs budget_total_cents)
+		totalStats, err := s.reportStore.GetCampaignStats(ctx, uint64(c.ID), totalStart, now)
+		if err == nil && totalStats != nil {
+			if reason := CheckBudgetExhausted(c.BudgetTotalCents, totalStats.SpendCents); reason != "" {
+				s.pause(ctx, c.ID, reason)
+				continue
+			}
+		}
+
+		// Check daily budget (today's spend vs budget_daily_cents)
+		dailyStats, err := s.reportStore.GetCampaignStats(ctx, uint64(c.ID), dayStart, now)
+		if err == nil && dailyStats != nil {
+			if reason := CheckDailyBudgetExhausted(c.BudgetDailyCents, dailyStats.SpendCents); reason != "" {
+				s.pause(ctx, c.ID, reason)
+				continue
+			}
+		}
+
+		// Check hourly anomalies
 		stats, err := s.reportStore.GetCampaignStats(ctx, uint64(c.ID), hourStart, hourEnd)
 		if err != nil || stats == nil {
 			continue
 		}
-
-		// Check anomaly rules (extracted for testability)
 		if reason := CheckSpendSpike(c.BudgetDailyCents, stats.SpendCents); reason != "" {
 			s.pause(ctx, c.ID, reason)
 			continue

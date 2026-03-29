@@ -30,6 +30,39 @@ func TestCheckSpendSpike_ZeroBudget(t *testing.T) {
 	}
 }
 
+func TestCheckBudgetExhausted_WithinBudget(t *testing.T) {
+	if r := CheckBudgetExhausted(1000000, 500000); r != "" {
+		t.Errorf("expected no exhaustion at 50%%, got: %s", r)
+	}
+}
+
+func TestCheckBudgetExhausted_Exceeded(t *testing.T) {
+	if r := CheckBudgetExhausted(1000000, 1500000); r == "" {
+		t.Error("expected exhaustion at 150%")
+	}
+}
+
+func TestCheckBudgetExhausted_ExactLimit(t *testing.T) {
+	if r := CheckBudgetExhausted(1000000, 1000000); r == "" {
+		t.Error("expected exhaustion at exactly 100%")
+	}
+}
+
+func TestCheckBudgetExhausted_ZeroBudget(t *testing.T) {
+	if r := CheckBudgetExhausted(0, 500000); r != "" {
+		t.Errorf("expected no check with zero budget, got: %s", r)
+	}
+}
+
+func TestCheckDailyBudgetExhausted(t *testing.T) {
+	if r := CheckDailyBudgetExhausted(100000, 150000); r == "" {
+		t.Error("expected daily exhaustion")
+	}
+	if r := CheckDailyBudgetExhausted(100000, 50000); r != "" {
+		t.Errorf("expected no daily exhaustion, got: %s", r)
+	}
+}
+
 func TestCheckCTRAnomaly_CPM_Normal(t *testing.T) {
 	// 2% CTR on CPM = normal
 	if r := CheckCTRAnomaly("cpm", 10000, 200); r != "" {

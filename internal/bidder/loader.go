@@ -38,6 +38,7 @@ type LoadedCampaign struct {
 	BidCPMCents        int
 	BidCPCCents        int
 	OCPMTargetCPACents int
+	BudgetTotalCents   int64
 	BudgetDailyCents   int64
 	StartDate          *time.Time
 	Targeting          campaign.Targeting
@@ -148,6 +149,7 @@ func (cl *CampaignLoader) fullLoad(ctx context.Context) error {
 			BidCPMCents:        c.BidCPMCents,
 			BidCPCCents:        c.BidCPCCents,
 			OCPMTargetCPACents: c.OCPMTargetCPACents,
+			BudgetTotalCents:   c.BudgetTotalCents,
 			BudgetDailyCents:   c.BudgetDailyCents,
 			StartDate:          c.StartDate,
 			Targeting:          targeting,
