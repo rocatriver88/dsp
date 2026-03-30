@@ -81,22 +81,22 @@ export default function CampaignsPage() {
             <tbody>
               {campaigns.map((c) => (
                 <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-4 font-mono text-gray-400">{c.id}</td>
+                  <td className="py-3 px-4 font-geist tabular-nums text-gray-400">{c.id}</td>
                   <td className="py-3 px-4">
                     <Link href={`/campaigns/${c.id}`} className="text-blue-600 hover:underline">{c.name}</Link>
                   </td>
                   <td className="py-3 px-4">
                     <StatusBadge status={c.status} />
                   </td>
-                  <td className="py-3 px-4 text-right font-mono">
+                  <td className="py-3 px-4 text-right font-geist tabular-nums">
                     {c.billing_model === "cpc"
                       ? `¥${(c.bid_cpc_cents / 100).toFixed(2)} CPC`
                       : c.billing_model === "ocpm"
                       ? `¥${(c.ocpm_target_cpa_cents / 100).toFixed(2)} oCPM`
                       : `¥${(c.bid_cpm_cents / 100).toFixed(2)} CPM`}
                   </td>
-                  <td className="py-3 px-4 text-right font-mono">{(c.budget_daily_cents / 100).toLocaleString()}</td>
-                  <td className="py-3 px-4 text-right font-mono">{(c.spent_cents / 100).toLocaleString()}</td>
+                  <td className="py-3 px-4 text-right font-geist tabular-nums">{(c.budget_daily_cents / 100).toLocaleString()}</td>
+                  <td className="py-3 px-4 text-right font-geist tabular-nums">{(c.spent_cents / 100).toLocaleString()}</td>
                   <td className="py-3 px-4 text-center">
                     {c.status === "draft" && (
                       <button onClick={() => handleAction(c.id, "start")}

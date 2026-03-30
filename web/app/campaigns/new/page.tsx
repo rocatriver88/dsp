@@ -261,7 +261,7 @@ export default function NewCampaignPage() {
               <div className="flex gap-2">
                 {selectedAdType.sizes.map((s) => (
                   <button key={s} onClick={() => setAdSize(s)}
-                    className={`px-3 py-1.5 text-sm rounded-md border font-mono ${
+                    className={`px-3 py-1.5 text-sm rounded-md border font-geist tabular-nums ${
                       adSize === s ? "bg-blue-50 border-blue-300 text-blue-700" : "border-gray-300 text-gray-600 hover:bg-gray-50"
                     }`}>
                     {s}
@@ -305,7 +305,7 @@ export default function NewCampaignPage() {
               <Field label="广告代码 (HTML)">
                 <textarea value={creativeMarkup} onChange={(e) => setCreativeMarkup(e.target.value)}
                   rows={3} placeholder={`<div style="width:${adSize.split('x')[0]}px;height:${adSize.split('x')[1]}px;background:#1a1a2e;color:#fff;display:flex;align-items:center;justify-content:center">广告内容</div>`}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono focus:ring-2 focus:ring-blue-500" />
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-geist tabular-nums focus:ring-2 focus:ring-blue-500" />
                 <p className="text-xs text-gray-400 mt-1">留空将自动生成占位素材</p>
               </Field>
             </>

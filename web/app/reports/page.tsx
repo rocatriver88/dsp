@@ -57,7 +57,7 @@ export default function ReportsPage() {
                       "bg-gray-100 text-gray-600"
                     }`}>{c.status}</span>
                   </td>
-                  <td className="py-3 px-4 text-right font-mono">{(c.bid_cpm_cents / 100).toFixed(2)}</td>
+                  <td className="py-3 px-4 text-right font-geist tabular-nums">{(c.bid_cpm_cents / 100).toFixed(2)}</td>
                   <td className="py-3 px-4 text-center">
                     <Link href={`/reports/${c.id}`}
                       className="text-sm px-4 py-1.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100">

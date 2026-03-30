@@ -96,7 +96,7 @@ export default function BillingPage() {
             <tbody>
               {transactions.map((t) => (
                 <tr key={t.id} className="border-t border-gray-100">
-                  <td className="py-3 px-4 text-gray-500 font-mono text-xs">
+                  <td className="py-3 px-4 text-gray-500 font-geist tabular-nums text-xs">
                     {new Date(t.created_at).toLocaleString("zh-CN")}
                   </td>
                   <td className="py-3 px-4">
@@ -106,10 +106,10 @@ export default function BillingPage() {
                       "bg-gray-100 text-gray-600"
                     }`}>{t.type === "topup" ? "充值" : t.type === "spend" ? "消费" : t.type}</span>
                   </td>
-                  <td className={`py-3 px-4 text-right font-mono ${t.amount_cents > 0 ? "text-green-600" : "text-red-600"}`}>
+                  <td className={`py-3 px-4 text-right font-geist tabular-nums ${t.amount_cents > 0 ? "text-green-600" : "text-red-600"}`}>
                     {t.amount_cents > 0 ? "+" : ""}{(t.amount_cents / 100).toLocaleString()}
                   </td>
-                  <td className="py-3 px-4 text-right font-mono">{(t.balance_after / 100).toLocaleString()}</td>
+                  <td className="py-3 px-4 text-right font-geist tabular-nums">{(t.balance_after / 100).toLocaleString()}</td>
                   <td className="py-3 px-4 text-gray-500">{t.description}</td>
                 </tr>
               ))}

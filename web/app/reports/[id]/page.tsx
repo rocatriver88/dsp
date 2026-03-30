@@ -128,11 +128,11 @@ export default function CampaignReportPage() {
                   const pct = (h.impressions / maxImp) * 100;
                   return (
                     <div key={h.hour} className="flex items-center gap-2 text-xs">
-                      <span className="w-8 text-right text-gray-400 font-mono">{String(h.hour).padStart(2, "0")}:00</span>
+                      <span className="w-8 text-right text-gray-400 font-geist tabular-nums">{String(h.hour).padStart(2, "0")}:00</span>
                       <div className="flex-1 h-5 bg-gray-50 rounded overflow-hidden">
                         <div className="h-full bg-blue-500 rounded" style={{ width: `${pct}%` }} />
                       </div>
-                      <span className="w-16 text-right font-mono text-gray-600">{h.impressions.toLocaleString()}</span>
+                      <span className="w-16 text-right font-geist tabular-nums text-gray-600">{h.impressions.toLocaleString()}</span>
                     </div>
                   );
                 })}
@@ -161,10 +161,10 @@ export default function CampaignReportPage() {
                 <tbody>
                   {geo.map((g) => (
                     <tr key={g.country} className="border-t border-gray-100">
-                      <td className="py-2 font-mono">{g.country}</td>
-                      <td className="py-2 text-right font-mono">{g.impressions.toLocaleString()}</td>
-                      <td className="py-2 text-right font-mono">{g.clicks.toLocaleString()}</td>
-                      <td className="py-2 text-right font-mono">{(g.spend_cents / 100).toFixed(2)}</td>
+                      <td className="py-2 font-geist tabular-nums">{g.country}</td>
+                      <td className="py-2 text-right font-geist tabular-nums">{g.impressions.toLocaleString()}</td>
+                      <td className="py-2 text-right font-geist tabular-nums">{g.clicks.toLocaleString()}</td>
+                      <td className="py-2 text-right font-geist tabular-nums">{(g.spend_cents / 100).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -204,20 +204,20 @@ export default function CampaignReportPage() {
                     b.event_type === "win" ? "bg-green-50/50" :
                     b.event_type === "loss" ? "bg-red-50/30" : ""
                   }`}>
-                    <td className="py-2 px-4 font-mono text-gray-500">
+                    <td className="py-2 px-4 font-geist tabular-nums text-gray-500">
                       {new Date(b.time).toLocaleTimeString("zh-CN")}
                     </td>
-                    <td className="py-2 px-4 font-mono text-gray-400 truncate max-w-[120px]">
+                    <td className="py-2 px-4 font-geist tabular-nums text-gray-400 truncate max-w-[120px]">
                       {b.request_id}
                     </td>
                     <td className="py-2 px-4 text-center">
                       <EventBadge type={b.event_type} />
                     </td>
-                    <td className="py-2 px-4 text-right font-mono">{b.bid_price_cents}</td>
-                    <td className="py-2 px-4 text-right font-mono">
+                    <td className="py-2 px-4 text-right font-geist tabular-nums">{b.bid_price_cents}</td>
+                    <td className="py-2 px-4 text-right font-geist tabular-nums">
                       {b.clear_price_cents > 0 ? b.clear_price_cents : "—"}
                     </td>
-                    <td className="py-2 px-4 text-center font-mono">{b.geo_country || "—"}</td>
+                    <td className="py-2 px-4 text-center font-geist tabular-nums">{b.geo_country || "—"}</td>
                     <td className="py-2 px-4 text-center">{b.device_os || "—"}</td>
                     <td className="py-2 px-4 text-gray-400">{b.loss_reason || ""}</td>
                   </tr>
