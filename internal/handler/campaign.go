@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -276,6 +277,19 @@ func (d *Deps) HandlePauseCampaign(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "paused"})
 }
 
+func (d *Deps) HandleListCreatives(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	creatives, err := d.Store.GetAllCreativesByCampaign(r.Context(), id)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if creatives == nil {
+		creatives = []*campaign.Creative{}
+	}
+	WriteJSON(w, http.StatusOK, creatives)
+}
+
 func (d *Deps) HandleCreateCreative(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CampaignID     int64  `json:"campaign_id"`
@@ -321,7 +335,14 @@ func (d *Deps) HandleCreateCreative(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	WriteJSON(w, http.StatusCreated, map[string]any{"id": id, "status": "approved"})
+	// Auto-approve creatives in development for faster iteration.
+	// In production, creatives stay "pending" until admin reviews.
+	status := "pending"
+	if os.Getenv("ENV") != "production" {
+		_ = d.Store.UpdateCreativeStatus(r.Context(), id, "approved")
+		status = "approved"
+	}
+	WriteJSON(w, http.StatusCreated, map[string]any{"id": id, "status": status})
 }
 
 func (d *Deps) HandleAdTypes(w http.ResponseWriter, r *http.Request) {

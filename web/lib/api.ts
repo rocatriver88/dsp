@@ -65,11 +65,13 @@ export interface Creative {
   id: number;
   campaign_id: number;
   name: string;
+  ad_type: string;
   format: string;
   size: string;
   ad_markup: string;
   destination_url: string;
   status: string;
+  created_at: string;
 }
 
 export interface CampaignStats {
@@ -198,6 +200,9 @@ export const api = {
   },
 
   // Creatives
+  listCreatives: (campaignId: number) =>
+    request<Creative[]>(`/api/v1/campaigns/${campaignId}/creatives`),
+
   createCreative: (data: {
     campaign_id: number;
     name: string;

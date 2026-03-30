@@ -292,6 +292,34 @@ func (s *Store) GetCreativesByCampaigns(ctx context.Context, campaignIDs []int64
 	return result, nil
 }
 
+// GetAllCreativesByCampaign returns all creatives for a campaign regardless of status.
+func (s *Store) GetAllCreativesByCampaign(ctx context.Context, campaignID int64) ([]*Creative, error) {
+	rows, err := s.db.Query(ctx,
+		`SELECT id, campaign_id, name, ad_type, format, size, ad_markup, destination_url, status,
+		        COALESCE(native_title,''), COALESCE(native_desc,''), COALESCE(native_icon_url,''),
+		        COALESCE(native_image_url,''), COALESCE(native_cta,''), created_at
+		 FROM creatives WHERE campaign_id = $1 ORDER BY created_at ASC`,
+		campaignID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var creatives []*Creative
+	for rows.Next() {
+		cr := &Creative{}
+		if err := rows.Scan(&cr.ID, &cr.CampaignID, &cr.Name, &cr.AdType, &cr.Format, &cr.Size,
+			&cr.AdMarkup, &cr.DestinationURL, &cr.Status,
+			&cr.NativeTitle, &cr.NativeDesc, &cr.NativeIconURL,
+			&cr.NativeImageURL, &cr.NativeCTA, &cr.CreatedAt); err != nil {
+			return nil, err
+		}
+		creatives = append(creatives, cr)
+	}
+	return creatives, nil
+}
+
 // CreateCreative creates a new creative.
 func (s *Store) CreateCreative(ctx context.Context, cr *Creative) (int64, error) {
 	if cr.AdType == "" {
