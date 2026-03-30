@@ -48,7 +48,12 @@
       "Bash($B fill:*)",
       "Bash(curl -sI http://localhost:8181/uploads/cb76d60b9d0fa4c9cdbc5a3adde74772.png)",
       "Bash($B scroll:*)",
-      "Bash(curl -s -X DELETE http://localhost:8181/api/v1/creatives/999 -H \"X-API-Key: dsp_086844ded4e06674f279c8c691be57627d936a8ffbfdd716ff313631d67965ae\")"
+      "Bash(curl -s -X DELETE http://localhost:8181/api/v1/creatives/999 -H \"X-API-Key: dsp_086844ded4e06674f279c8c691be57627d936a8ffbfdd716ff313631d67965ae\")",
+      "Bash(curl -s http://localhost:8181/api/v1/billing/topup -X POST -H \"X-API-Key: dsp_086844ded4e06674f279c8c691be57627d936a8ffbfdd716ff313631d67965ae\" -H \"Content-Type: application/json\" -d '{\"\"advertiser_id\"\":1,\"\"amount_cents\"\":10000000}')",
+      "Bash(curl -s http://localhost:8180/bid -X POST -H \"Content-Type: application/json\" -d '{:*)",
+      "Bash(curl -sv http://localhost:8180/bid -X POST -H \"Content-Type: application/json\" -d '{\"\"id\"\":\"\"test-003\"\",\"\"imp\"\":[{\"\"id\"\":\"\"1\"\",\"\"banner\"\":{\"\"w\"\":300,\"\"h\"\":250},\"\"bidfloor\"\":0.5}],\"\"site\"\":{\"\"domain\"\":\"\"test.com\"\"},\"\"device\"\":{\"\"os\"\":\"\"iOS\"\",\"\"geo\"\":{\"\"country\"\":\"\"CN\"\"}}}')",
+      "Bash(curl -s http://localhost:8180/stats)",
+      "Bash(curl -s http://localhost:8180/bid -X POST -H \"Content-Type: application/json\" -d '{\"\"id\"\":\"\"test-004\"\",\"\"imp\"\":[{\"\"id\"\":\"\"1\"\",\"\"banner\"\":{\"\"w\"\":300,\"\"h\"\":250},\"\"bidfloor\"\":0.01}],\"\"site\"\":{\"\"domain\"\":\"\"test.com\"\"},\"\"device\"\":{\"\"os\"\":\"\"iOS\"\",\"\"ua\"\":\"\"Mozilla/5.0 \\(iPhone; CPU iPhone OS 16_0 like Mac OS X\\)\"\",\"\"geo\"\":{\"\"country\"\":\"\"CN\"\"}}}')"
     ]
   }
 }
