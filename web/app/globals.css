@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url("https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/style.css");
+@import "tailwindcss";
 
 :root {
   --sidebar-bg: #1a1a1a;
