@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, Campaign, CampaignStats } from "@/lib/api";
+import { StatCard } from "../../components/StatCard";
+import { StatusBadge } from "../../components/StatusBadge";
 
 export default function CampaignDetailPage() {
   const params = useParams();
@@ -12,6 +14,7 @@ export default function CampaignDetailPage() {
   const [stats, setStats] = useState<CampaignStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -24,13 +27,14 @@ export default function CampaignDetailPage() {
   }, [id]);
 
   const handleAction = async (action: "start" | "pause") => {
+    setActionError(null);
     try {
       if (action === "start") await api.startCampaign(id);
       else await api.pauseCampaign(id);
       const c = await api.getCampaign(id);
       setCampaign(c);
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "操作失败");
+      setActionError(e instanceof Error ? e.message : "操作失败");
     }
   };
 
@@ -40,7 +44,7 @@ export default function CampaignDetailPage() {
 
   if (error || !campaign) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
+      <div className="rounded-lg bg-white p-8 text-center">
         <p className="text-sm text-red-600">{error || "Campaign 未找到"}</p>
         <Link href="/campaigns" className="text-sm text-blue-600 mt-4 inline-block">返回列表</Link>
       </div>
@@ -71,9 +75,16 @@ export default function CampaignDetailPage() {
         )}
       </div>
 
+      {actionError && (
+        <div className="mb-4 p-3 rounded bg-red-50 text-red-700 text-sm flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-red-500 hover:text-red-700 text-xs ml-4">关闭</button>
+        </div>
+      )}
+
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <StatCard label="曝光量" value={stats.impressions.toLocaleString()} />
           <StatCard label="点击量" value={stats.clicks.toLocaleString()} />
           <StatCard label="CTR" value={`${Math.min(stats.ctr, 100).toFixed(2)}%`} />
@@ -83,8 +94,8 @@ export default function CampaignDetailPage() {
       )}
 
       {/* Campaign Info */}
-      <div className="grid grid-cols-2 gap-6">
-        <div className="rounded-lg border border-gray-200 bg-white p-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="rounded-lg bg-white p-5">
           <h3 className="text-sm font-medium text-gray-500 mb-4">基本信息</h3>
           <div className="space-y-3 text-sm">
             <InfoRow label="计费模式" value={campaign.billing_model || "cpm"} />
@@ -97,7 +108,7 @@ export default function CampaignDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-5">
+        <div className="rounded-lg bg-white p-5">
           <h3 className="text-sm font-medium text-gray-500 mb-4">定向设置</h3>
           <div className="space-y-3 text-sm">
             <InfoRow label="地区" value={targeting.geo?.join(", ") || "全部"} />
@@ -118,34 +129,11 @@ export default function CampaignDetailPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-xs font-medium text-gray-500 mb-1">{label}</p>
-      <p className="text-xl font-semibold">{value}</p>
-    </div>
-  );
-}
-
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between">
       <span className="text-gray-500">{label}</span>
-      <span className="font-mono">{value}</span>
+      <span className="font-geist tabular-nums">{value}</span>
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    draft: "bg-gray-100 text-gray-600",
-    active: "bg-green-50 text-green-700",
-    paused: "bg-yellow-50 text-yellow-700",
-    completed: "bg-blue-50 text-blue-700",
-  };
-  return (
-    <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${styles[status] || styles.draft}`}>
-      {status}
-    </span>
   );
 }

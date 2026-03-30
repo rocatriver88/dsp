@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { LoadingSkeleton, ErrorState, EmptyState } from "../components/LoadingState";
+import { StatCard } from "../components/StatCard";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 
@@ -92,17 +93,17 @@ export default function AnalyticsPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <SummaryCard label="今日曝光" value={totalImpressions.toLocaleString()} />
-        <SummaryCard label="今日点击" value={totalClicks.toLocaleString()} />
-        <SummaryCard label="今日花费" value={`¥${(totalSpend / 100).toFixed(2)}`} />
-        <SummaryCard label="今日利润" value={`¥${(totalProfit / 100).toFixed(2)}`} color={totalProfit >= 0 ? "text-green-600" : "text-red-600"} />
+        <StatCard label="今日曝光" value={totalImpressions.toLocaleString()} />
+        <StatCard label="今日点击" value={totalClicks.toLocaleString()} />
+        <StatCard label="今日花费" value={`¥${(totalSpend / 100).toFixed(2)}`} />
+        <StatCard label="今日利润" value={`¥${(totalProfit / 100).toFixed(2)}`} className={totalProfit >= 0 ? "text-green-600" : "text-red-600"} />
       </div>
 
       {data.campaigns.length === 0 ? (
-        <EmptyState message="暂无活跃 campaign" />
+        <EmptyState heading="暂无活跃 Campaign" message="创建并启动 Campaign 后，实时竞价数据会在这里显示" actionLabel="创建 Campaign" actionHref="/campaigns/new" />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" aria-label="实时竞价数据">
             <thead>
               <tr className="border-b text-left text-gray-500">
                 <th className="py-3 pr-4">Campaign</th>
@@ -135,15 +136,6 @@ export default function AnalyticsPage() {
         </div>
       )}
     </main>
-  );
-}
-
-function SummaryCard({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div className="bg-white rounded-lg border p-4">
-      <div className="text-sm text-gray-500 mb-1">{label}</div>
-      <div className={`text-xl font-bold tabular-nums ${color || ""}`}>{value}</div>
-    </div>
   );
 }
 

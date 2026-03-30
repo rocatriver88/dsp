@@ -36,10 +36,29 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
   );
 }
 
-export function EmptyState({ message }: { message: string }) {
+export function EmptyState({ heading, message, actionLabel, actionHref, onAction }: {
+  heading?: string;
+  message: string;
+  actionLabel?: string;
+  actionHref?: string;
+  onAction?: () => void;
+}) {
   return (
-    <div className="text-center py-12">
-      <p className="text-sm text-gray-500">{message}</p>
+    <div className="rounded-lg bg-white p-12 text-center">
+      {heading && <p className="text-base font-medium mb-2">{heading}</p>}
+      <p className="text-sm text-gray-500 mb-1">{message}</p>
+      {actionLabel && actionHref && (
+        <a href={actionHref}
+          className="inline-block mt-4 px-6 py-2.5 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700">
+          {actionLabel}
+        </a>
+      )}
+      {actionLabel && onAction && !actionHref && (
+        <button onClick={onAction}
+          className="mt-4 px-6 py-2.5 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700">
+          {actionLabel}
+        </button>
+      )}
     </div>
   );
 }

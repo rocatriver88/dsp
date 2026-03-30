@@ -279,7 +279,7 @@ export default function NewCampaignPage() {
 
           {/* Native ad fields */}
           {adType === "native" && (
-            <div className="space-y-3 p-4 rounded-lg border border-gray-200 bg-gray-50">
+            <div className="space-y-3 p-4 rounded-lg bg-gray-50">
               <p className="text-xs font-medium text-gray-500 mb-2">原生广告素材</p>
               <input type="text" value={nativeTitle} onChange={(e) => setNativeTitle(e.target.value)}
                 placeholder="标题 (必填)"
@@ -318,7 +318,7 @@ export default function NewCampaignPage() {
           </Field>
 
           {/* Summary */}
-          <div className="mt-6 p-4 rounded-lg bg-gray-50 border border-gray-200">
+          <div className="mt-6 p-4 rounded-lg bg-gray-50">
             <h4 className="text-sm font-medium mb-3">确认信息</h4>
             <div className="grid grid-cols-2 gap-y-2 text-sm">
               <span className="text-gray-500">名称:</span><span>{name}</span>

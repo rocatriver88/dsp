@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, Campaign, CampaignStats, HourlyStats, GeoStats, BidDetail } from "@/lib/api";
+import { StatCard } from "../../components/StatCard";
+import { EventBadge } from "../../components/StatusBadge";
 
 export default function CampaignReportPage() {
   const params = useParams();
@@ -52,7 +54,7 @@ export default function CampaignReportPage() {
 
   if (error || !campaign) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
+      <div className="rounded-lg bg-white p-8 text-center">
         <p className="text-sm text-red-600">{error || "Campaign 未找到"}</p>
         <Link href="/reports" className="text-sm text-blue-600 mt-4 inline-block">返回报表列表</Link>
       </div>
@@ -87,7 +89,7 @@ export default function CampaignReportPage() {
           <StatCard label="平台利润" value={`¥${((stats.profit_cents || 0) / 100).toFixed(2)}`} />
         </div>
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center mb-6">
+        <div className="rounded-lg bg-white p-8 text-center mb-6">
           <p className="text-sm text-gray-500">ClickHouse 未连接或暂无数据</p>
           <p className="text-xs text-gray-400 mt-1">投放广告后数据会自动显示</p>
         </div>
@@ -110,9 +112,9 @@ export default function CampaignReportPage() {
       </div>
 
       {tab === "overview" ? (
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Hourly chart (text-based for Phase 2) */}
-          <div className="rounded-lg border border-gray-200 bg-white p-5">
+          <div className="rounded-lg bg-white p-5">
             <h3 className="text-sm font-medium text-gray-500 mb-4">今日小时分布</h3>
             {hourly.length === 0 ? (
               <div className="text-center py-8">
@@ -139,7 +141,7 @@ export default function CampaignReportPage() {
           </div>
 
           {/* Geo breakdown */}
-          <div className="rounded-lg border border-gray-200 bg-white p-5">
+          <div className="rounded-lg bg-white p-5">
             <h3 className="text-sm font-medium text-gray-500 mb-4">地区分布</h3>
             {geo.length === 0 ? (
               <div className="text-center py-8">
@@ -147,7 +149,7 @@ export default function CampaignReportPage() {
                 <p className="text-xs text-gray-400 mt-1">Campaign 投放后数据会在此显示</p>
               </div>
             ) : (
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" aria-label="地区分布">
                 <thead>
                   <tr>
                     <th className="text-left py-2 text-gray-500 font-medium">地区</th>
@@ -172,7 +174,7 @@ export default function CampaignReportPage() {
         </div>
       ) : (
         /* Bid Transparency Tab */
-        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-lg bg-white overflow-hidden">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-200">
             <h3 className="text-sm font-medium">逐笔竞价记录</h3>
             <p className="text-xs text-gray-500 mt-0.5">每一笔竞价的真实出价和成交价，完全透明</p>
@@ -183,7 +185,7 @@ export default function CampaignReportPage() {
               <p className="text-xs text-gray-400 mt-1">Campaign 投放后，每笔竞价都会记录在这里</p>
             </div>
           ) : (
-            <table className="w-full text-xs">
+            <table className="w-full text-xs" aria-label="竞价记录">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left py-2.5 px-4 font-medium text-gray-500">时间</th>
@@ -229,26 +231,3 @@ export default function CampaignReportPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <p className="text-xs font-medium text-gray-500 mb-1">{label}</p>
-      <p className="text-xl font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function EventBadge({ type }: { type: string }) {
-  const styles: Record<string, string> = {
-    bid: "bg-blue-50 text-blue-700",
-    win: "bg-green-50 text-green-700",
-    loss: "bg-red-50 text-red-600",
-    impression: "bg-purple-50 text-purple-700",
-    click: "bg-orange-50 text-orange-700",
-  };
-  return (
-    <span className={`inline-block px-1.5 py-0.5 text-xs font-medium rounded ${styles[type] || "bg-gray-100 text-gray-600"}`}>
-      {type}
-    </span>
-  );
-}

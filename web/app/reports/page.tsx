@@ -31,13 +31,13 @@ export default function ReportsPage() {
       ) : error ? (
         <ErrorState message={error} onRetry={load} />
       ) : campaigns.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
+        <div className="rounded-lg bg-white p-12 text-center">
           <p className="text-lg font-medium mb-2">还没有 Campaign</p>
           <p className="text-sm text-gray-500">创建并投放 Campaign 后，这里会显示报表数据</p>
         </div>
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="rounded-lg bg-white overflow-hidden">
+          <table className="w-full text-sm" aria-label="Campaign 报表列表">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left py-3 px-4 font-medium text-gray-500">Campaign</th>

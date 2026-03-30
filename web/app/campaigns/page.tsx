@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
-import { LoadingSkeleton, ErrorState, EmptyState } from "../components/LoadingState";
+import { LoadingSkeleton, ErrorState } from "../components/LoadingState";
+import { StatusBadge } from "../components/StatusBadge";
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -22,12 +24,13 @@ export default function CampaignsPage() {
   useEffect(load, []);
 
   const handleAction = async (id: number, action: "start" | "pause") => {
+    setActionError(null);
     try {
       if (action === "start") await api.startCampaign(id);
       else await api.pauseCampaign(id);
       load();
     } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "操作失败");
+      setActionError(e instanceof Error ? e.message : "操作失败");
     }
   };
 
@@ -41,12 +44,19 @@ export default function CampaignsPage() {
         </Link>
       </div>
 
+      {actionError && (
+        <div className="mb-4 p-3 rounded bg-red-50 text-red-700 text-sm flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-red-500 hover:text-red-700 text-xs ml-4">关闭</button>
+        </div>
+      )}
+
       {loading ? (
         <LoadingSkeleton rows={5} />
       ) : error ? (
         <ErrorState message={error} onRetry={load} />
       ) : campaigns.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
+        <div className="rounded-lg bg-white p-12 text-center">
           <p className="text-lg font-medium mb-2">还没有 Campaign</p>
           <p className="text-sm mb-6 text-gray-500">创建第一个 Campaign，开始投放广告</p>
           <Link href="/campaigns/new"
@@ -55,7 +65,7 @@ export default function CampaignsPage() {
           </Link>
         </div>
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-lg bg-white overflow-hidden">
           <table className="w-full text-sm" role="table" aria-label="Campaign 列表">
             <thead className="bg-gray-50">
               <tr>
@@ -123,16 +133,3 @@ export default function CampaignsPage() {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    draft: "bg-gray-100 text-gray-600",
-    active: "bg-green-50 text-green-700",
-    paused: "bg-yellow-50 text-yellow-700",
-    completed: "bg-blue-50 text-blue-700",
-  };
-  return (
-    <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${styles[status] || styles.draft}`}>
-      {status}
-    </span>
-  );
-}

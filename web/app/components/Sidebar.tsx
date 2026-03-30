@@ -55,6 +55,15 @@ export default function Sidebar() {
             );
           })}
         </div>
+        <div className="px-5 py-4 border-t border-gray-800">
+          <button
+            onClick={() => { localStorage.removeItem("dsp_api_key"); window.location.reload(); }}
+            className="flex items-center gap-2 text-sm hover:text-white transition-colors w-full"
+            style={{ color: "var(--sidebar-text)" }}>
+            <span className="text-xs">退</span>
+            退出登录
+          </button>
+        </div>
       </nav>
     </>
   );

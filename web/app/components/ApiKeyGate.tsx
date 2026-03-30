@@ -20,7 +20,7 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
   if (!apiKey) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="bg-white rounded-lg border border-gray-200 p-8 w-full max-w-md">
+        <div className="bg-white rounded-lg p-8 w-full max-w-md">
           <h2 className="text-xl font-semibold mb-2">DSP Platform</h2>
           <p className="text-sm text-gray-500 mb-6">
             输入你的 API Key 登录广告管理后台

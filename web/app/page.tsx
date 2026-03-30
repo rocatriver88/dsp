@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
+import { StatCard, HeroStatCard } from "./components/StatCard";
+import { StatusBadge } from "./components/StatusBadge";
 
 export default function OverviewPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -30,7 +32,7 @@ export default function OverviewPage() {
         <h2 className="text-xl font-semibold mb-6">概览</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="rounded-lg border border-gray-200 bg-white p-5 animate-pulse">
+            <div key={i} className="rounded-lg bg-white p-5 animate-pulse">
               <div className="h-3 w-20 bg-gray-200 rounded mb-3" />
               <div className="h-7 w-16 bg-gray-200 rounded" />
             </div>
@@ -42,7 +44,7 @@ export default function OverviewPage() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
+      <div className="rounded-lg bg-white p-8 text-center">
         <p className="text-sm text-red-600">加载失败: {error}</p>
         <p className="text-xs mt-2 text-gray-500">请确认 API Server 已启动 (port 8181)</p>
         <button onClick={() => window.location.reload()}
@@ -58,11 +60,7 @@ export default function OverviewPage() {
       <h2 className="text-xl font-semibold mb-6">概览</h2>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
-        <div className="col-span-2 rounded-lg border border-gray-200 bg-white p-6">
-          <p className="text-xs font-medium mb-1 text-gray-500">今日花费</p>
-          <p className="text-4xl font-bold tracking-tight">¥{(totalSpent / 100).toLocaleString()}</p>
-          <p className="text-xs text-gray-400 mt-1">总预算 ¥{(totalBudget / 100).toLocaleString()}</p>
-        </div>
+        <HeroStatCard label="今日花费" value={`¥${(totalSpent / 100).toLocaleString()}`} sub={`总预算 ¥${(totalBudget / 100).toLocaleString()}`} />
         <StatCard label="活跃 Campaigns" value={String(active.length)} />
         <StatCard label="CTR" value={`${(overview?.ctr || 0).toFixed(2)}%`} />
       </div>
@@ -74,7 +72,7 @@ export default function OverviewPage() {
       </div>
 
       {campaigns.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
+        <div className="rounded-lg bg-white p-12 text-center">
           <p className="text-lg font-medium mb-2">还没有 Campaign</p>
           <p className="text-sm mb-6 text-gray-500">创建第一个 Campaign，开始投放广告</p>
           <Link href="/campaigns/new"
@@ -88,8 +86,8 @@ export default function OverviewPage() {
             <h3 className="text-base font-semibold text-gray-700">最近的 Campaigns</h3>
             <Link href="/campaigns" className="text-sm text-blue-600 px-3 py-2 -mr-3 rounded hover:bg-blue-50">查看全部</Link>
           </div>
-          <div className="rounded-lg border border-gray-200 bg-white overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="rounded-lg bg-white overflow-x-auto">
+            <table className="w-full text-sm" aria-label="最近的 Campaigns">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">名称</th>
@@ -126,25 +124,3 @@ export default function OverviewPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-5">
-      <p className="text-xs font-medium mb-1 text-gray-500">{label}</p>
-      <p className="text-2xl font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    draft: "bg-gray-100 text-gray-600",
-    active: "bg-green-50 text-green-700",
-    paused: "bg-yellow-50 text-yellow-700",
-    completed: "bg-blue-50 text-blue-700",
-  };
-  return (
-    <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${styles[status] || styles.draft}`}>
-      {status}
-    </span>
-  );
-}
