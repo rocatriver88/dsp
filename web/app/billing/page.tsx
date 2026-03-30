@@ -19,6 +19,12 @@ export default function BillingPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showTopUp, setShowTopUp] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState("");
+  const [topUpDesc, setTopUpDesc] = useState("");
+  const [topUpLoading, setTopUpLoading] = useState(false);
+  const [topUpError, setTopUpError] = useState<string | null>(null);
+  const [topUpSuccess, setTopUpSuccess] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -62,16 +68,79 @@ export default function BillingPage() {
 
       {/* Balance card */}
       <div className="rounded-lg bg-white p-6 mb-6">
-        <div className="flex items-baseline gap-6">
-          <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">账户余额</p>
-            <p className="text-3xl font-semibold">¥{balance !== null ? (balance / 100).toLocaleString() : "—"}</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-baseline gap-6">
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">账户余额</p>
+              <p className="text-3xl font-semibold font-geist">¥{balance !== null ? (balance / 100).toLocaleString() : "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">计费模式</p>
+              <p className="text-lg">{billingType === "prepaid" ? "预付费" : "后付费"}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">计费模式</p>
-            <p className="text-lg">{billingType === "prepaid" ? "预付费" : "后付费"}</p>
-          </div>
+          <button onClick={() => { setShowTopUp(!showTopUp); setTopUpSuccess(false); setTopUpError(null); }}
+            className="px-4 py-2 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700">
+            {showTopUp ? "取消" : "充值"}
+          </button>
         </div>
+
+        {/* Top-up form */}
+        {showTopUp && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            {topUpSuccess ? (
+              <div className="p-3 rounded bg-green-50 text-green-700 text-sm">
+                充值成功！余额已更新。
+              </div>
+            ) : (
+              <div className="flex items-end gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">充值金额 (¥)</label>
+                  <div className="flex gap-2 mb-2">
+                    {[1000, 5000, 10000, 50000].map((amt) => (
+                      <button key={amt} onClick={() => setTopUpAmount(String(amt))}
+                        className={`px-3 py-1.5 text-sm rounded-md border ${
+                          topUpAmount === String(amt) ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600"
+                        }`}>
+                        ¥{amt.toLocaleString()}
+                      </button>
+                    ))}
+                  </div>
+                  <input type="number" value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)}
+                    placeholder="输入自定义金额"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-geist tabular-nums" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">备注 (可选)</label>
+                  <input type="text" value={topUpDesc} onChange={(e) => setTopUpDesc(e.target.value)}
+                    placeholder="例: 3月广告预算"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                </div>
+                <button onClick={async () => {
+                  const amt = Number(topUpAmount);
+                  if (!amt || amt <= 0) { setTopUpError("请输入有效金额"); return; }
+                  setTopUpLoading(true);
+                  setTopUpError(null);
+                  try {
+                    await api.topUp(1, amt * 100, topUpDesc);
+                    setTopUpSuccess(true);
+                    setTopUpAmount("");
+                    setTopUpDesc("");
+                    load();
+                  } catch (e: unknown) {
+                    setTopUpError(e instanceof Error ? e.message : "充值失败");
+                  } finally {
+                    setTopUpLoading(false);
+                  }
+                }} disabled={topUpLoading || !topUpAmount}
+                  className="px-6 py-2 text-sm font-medium text-white rounded-md bg-green-600 hover:bg-green-700 disabled:bg-gray-300 whitespace-nowrap">
+                  {topUpLoading ? "处理中..." : "确认充值"}
+                </button>
+              </div>
+            )}
+            {topUpError && <p className="text-sm text-red-600 mt-2">{topUpError}</p>}
+          </div>
+        )}
       </div>
 
       {/* Transaction history */}

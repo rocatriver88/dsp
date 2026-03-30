@@ -262,4 +262,10 @@ export const api = {
       id: number; type: string; amount_cents: number;
       balance_after: number; description: string; created_at: string;
     }>>(`/api/v1/billing/transactions?advertiser_id=${advertiserId}&limit=${limit}&offset=${offset}`),
+
+  topUp: (advertiserId: number, amountCents: number, description?: string) =>
+    request<{ id: number; balance_after: number }>("/api/v1/billing/topup", {
+      method: "POST",
+      body: JSON.stringify({ advertiser_id: advertiserId, amount_cents: amountCents, description: description || "" }),
+    }),
 };
