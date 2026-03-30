@@ -75,6 +75,7 @@ func (d *Deps) HandleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 		StartDate          *time.Time      `json:"start_date"`
 		EndDate            *time.Time      `json:"end_date"`
 		Targeting          json.RawMessage `json:"targeting"`
+		Sandbox            bool            `json:"sandbox"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid request body")
@@ -129,6 +130,7 @@ func (d *Deps) HandleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 		StartDate:          req.StartDate,
 		EndDate:            req.EndDate,
 		Targeting:          req.Targeting,
+		Sandbox:            req.Sandbox,
 	}
 
 	id, err := d.Store.CreateCampaign(r.Context(), c)
@@ -232,6 +234,14 @@ func (d *Deps) HandleStartCampaign(w http.ResponseWriter, r *http.Request) {
 	if c.BudgetTotalCents < c.BudgetDailyCents {
 		WriteError(w, http.StatusUnprocessableEntity, "budget_total must be >= budget_daily")
 		return
+	}
+	// Check advertiser balance before starting (skip for sandbox campaigns)
+	if !c.Sandbox && d.BillingSvc != nil {
+		balance, _, err := d.BillingSvc.GetBalance(r.Context(), advID)
+		if err == nil && balance < c.BudgetDailyCents {
+			WriteError(w, http.StatusUnprocessableEntity, "insufficient balance: please top up before starting campaign")
+			return
+		}
 	}
 
 	if err := d.Store.TransitionStatus(r.Context(), id, advID, campaign.StatusActive); err != nil {

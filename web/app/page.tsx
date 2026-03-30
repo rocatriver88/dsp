@@ -6,14 +6,14 @@ import { api, Campaign } from "@/lib/api";
 
 export default function OverviewPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [overview, setOverview] = useState<{ today_spend_cents: number; today_impressions: number; today_clicks: number } | null>(null);
+  const [overview, setOverview] = useState<{ today_spend_cents: number; today_impressions: number; today_clicks: number; ctr: number; balance_cents: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
       api.listCampaigns(),
-      api.getOverviewStats().catch(() => ({ today_spend_cents: 0, today_impressions: 0, today_clicks: 0 })),
+      api.getOverviewStats().catch(() => ({ today_spend_cents: 0, today_impressions: 0, today_clicks: 0, ctr: 0, balance_cents: 0 })),
     ])
       .then(([c, o]) => { setCampaigns(c); setOverview(o); })
       .catch((e) => setError(e.message))
@@ -64,6 +64,12 @@ export default function OverviewPage() {
           <p className="text-xs text-gray-400 mt-1">总预算 ¥{(totalBudget / 100).toLocaleString()}</p>
         </div>
         <StatCard label="活跃 Campaigns" value={String(active.length)} />
+        <StatCard label="CTR" value={`${(overview?.ctr || 0).toFixed(2)}%`} />
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
+        <StatCard label="账户余额" value={`¥${((overview?.balance_cents || 0) / 100).toLocaleString()}`} />
+        <StatCard label="今日展示" value={String(overview?.today_impressions || 0)} />
+        <StatCard label="今日点击" value={String(overview?.today_clicks || 0)} />
         <StatCard label="全部 Campaigns" value={String(campaigns.length)} />
       </div>
 

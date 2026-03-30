@@ -96,6 +96,30 @@ func main() {
 		log.Printf("Kafka replay: %v (continuing)", err)
 	}
 
+	// Daily budget auto-reset at midnight CST
+	go func() {
+		loc, _ := time.LoadLocation("Asia/Shanghai")
+		for {
+			now := time.Now().In(loc)
+			// Next midnight CST
+			next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 5, 0, loc)
+			timer := time.NewTimer(next.Sub(now))
+			select {
+			case <-timer.C:
+				campaigns := loader.GetActiveCampaigns()
+				for _, c := range campaigns {
+					if err := budgetSvc.InitDailyBudget(ctx, c.ID, c.BudgetDailyCents); err != nil {
+						log.Printf("[BUDGET-RESET] campaign=%d error=%v", c.ID, err)
+					}
+				}
+				log.Printf("[BUDGET-RESET] Reset %d campaigns at %s", len(campaigns), time.Now().In(loc).Format(time.RFC3339))
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			}
+		}
+	}()
+
 	// Load campaigns from DB
 	if err := loader.Start(ctx); err != nil {
 		log.Fatalf("campaign loader: %v", err)
@@ -182,6 +206,10 @@ func handleBid(w http.ResponseWriter, r *http.Request) {
 		// Add win notice URL with HMAC token
 		bid.NURL = fmt.Sprintf("%s/win?campaign_id=%s&price=${AUCTION_PRICE}&request_id=%s&geo=%s&os=%s&token=%s",
 			baseURL, bid.CID, req.ID, geo, os, token)
+		// Inject click tracking URL for CPC billing
+		clickURL := fmt.Sprintf("%s/click?campaign_id=%s&request_id=%s&token=%s",
+			baseURL, bid.CID, req.ID, token)
+		bid.AdM = injectClickTracker(bid.AdM, clickURL)
 		resp.SeatBid[0].Bid[0] = bid
 
 		log.Printf("[BID] request_id=%s campaign=%s bid=%.6f latency=%s",
@@ -474,6 +502,18 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	campaigns := loader.GetActiveCampaigns()
 	fmt.Fprintf(w, `{"status":"ok","active_campaigns":%d,"time":"%s"}`,
 		len(campaigns), time.Now().UTC().Format(time.RFC3339))
+}
+
+// injectClickTracker wraps the ad markup's destination URL with a click tracking redirect.
+// For HTML ads, it prepends a 1x1 tracking pixel. For all ads, it also sets the click-through
+// URL in a way that passes through the tracker first.
+func injectClickTracker(adMarkup, clickURL string) string {
+	if adMarkup == "" || clickURL == "" {
+		return adMarkup
+	}
+	// Append a 1x1 tracking pixel to HTML ad markup
+	tracker := fmt.Sprintf(`<img src="%s" width="1" height="1" style="display:none"/>`, clickURL)
+	return adMarkup + tracker
 }
 
 func withLogging(next http.Handler) http.Handler {

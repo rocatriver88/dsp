@@ -105,8 +105,9 @@ func (s *BidStrategy) spendRatio(ctx context.Context, campaignID int64, dailyBud
 		return 0
 	}
 
-	// Expected spend at current hour
-	hour := time.Now().UTC().Hour()
+	// Expected spend at current hour (use Asia/Shanghai for China market)
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	hour := time.Now().In(loc).Hour()
 	if hour == 0 {
 		hour = 1 // avoid division by zero at midnight
 	}
@@ -141,7 +142,8 @@ func (s *BidStrategy) winRateFactor(ctx context.Context, campaignID int64) float
 }
 
 func today() string {
-	return time.Now().UTC().Format("2006-01-02")
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	return time.Now().In(loc).Format("2006-01-02")
 }
 
 // Thread-safe fast pseudo-random using atomic operations.

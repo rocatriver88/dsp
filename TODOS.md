@@ -58,3 +58,17 @@
 ### Alipay/WeChat Pay integration
 **What:** Self-serve payment for advertiser balance topup.
 **Depends on:** Billing system hardening
+
+### API 审计追踪
+**What:** 数据库审计表 + 中间件记录所有敏感操作（campaign 启停、充值、创意审批）。争议解决和合规基础。
+**Depends on:** 无
+
+### 余额低告警
+**What:** 广告主余额低于 1 天预算时通过 API/前端提醒。避免 campaign 被突然暂停的惊讶体验。
+**Depends on:** 无
+
+## P3 — Future
+
+### API 客户端 SDK (Go/Python)
+**What:** 为技术型代理商提供 Go 和 Python 客户端库，降低 API 集成门槛。
+**Depends on:** API 接口稳定后

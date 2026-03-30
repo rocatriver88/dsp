@@ -1,6 +1,9 @@
 package config
 
-import "os"
+import (
+	"log"
+	"os"
+)
 
 type Config struct {
 	DBHost             string
@@ -41,6 +44,14 @@ func Load() *Config {
 		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:4000"),
 		BidderPublicURL:    getEnv("BIDDER_PUBLIC_URL", "http://localhost:8180"),
 		BidderHMACSecret:   getEnv("BIDDER_HMAC_SECRET", "dev-hmac-secret-change-in-production"),
+	}
+}
+
+// Validate checks production safety. Call after Load().
+func (c *Config) Validate() {
+	env := getEnv("ENV", "development")
+	if env == "production" && c.BidderHMACSecret == "dev-hmac-secret-change-in-production" {
+		log.Fatal("FATAL: BIDDER_HMAC_SECRET must be set in production. Using the default dev secret is a security vulnerability.")
 	}
 }
 

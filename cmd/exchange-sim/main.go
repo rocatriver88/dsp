@@ -163,13 +163,31 @@ func handleBurst(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleLoad(w http.ResponseWriter, r *http.Request) {
+	// Parse optional params: ?qps=500&duration=10&threshold_p99_ms=50
 	targetQPS := 1000
-	duration := 10 * time.Second
+	if q := r.URL.Query().Get("qps"); q != "" {
+		if v, err := fmt.Sscanf(q, "%d", &targetQPS); v == 1 && err == nil && targetQPS > 0 {
+			// ok
+		}
+	}
+	durationSec := 10
+	if d := r.URL.Query().Get("duration"); d != "" {
+		fmt.Sscanf(d, "%d", &durationSec)
+	}
+	thresholdP99Ms := 50.0
+	if t := r.URL.Query().Get("threshold_p99_ms"); t != "" {
+		fmt.Sscanf(t, "%f", &thresholdP99Ms)
+	}
+
+	duration := time.Duration(durationSec) * time.Second
 	interval := time.Second / time.Duration(targetQPS)
 
-	log.Printf("[LOAD] Starting %d QPS for %s", targetQPS, duration)
+	log.Printf("[LOAD] Starting %d QPS for %s (p99 threshold: %.0fms)", targetQPS, duration, thresholdP99Ms)
 
 	resetCounters()
+	var allLatencies []int64
+	var latMu sync.Mutex
+
 	start := time.Now()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -185,19 +203,49 @@ func handleLoad(w http.ResponseWriter, r *http.Request) {
 				avgUs = totalLatencyUs.Load() / total
 			}
 
-			result := map[string]any{
-				"duration":   elapsed.String(),
-				"total":      total,
-				"bids":       totalBids.Load(),
-				"no_bids":    totalNoBids.Load(),
-				"errors":     totalErrors.Load(),
-				"actual_qps": float64(total) / elapsed.Seconds(),
-				"avg_latency_us": avgUs,
-				"avg_latency_ms": float64(avgUs) / 1000.0,
+			// Calculate percentiles
+			latMu.Lock()
+			sortedLats := make([]int64, len(allLatencies))
+			copy(sortedLats, allLatencies)
+			latMu.Unlock()
+			sortInt64s(sortedLats)
+
+			p50, p95, p99 := int64(0), int64(0), int64(0)
+			if len(sortedLats) > 0 {
+				p50 = percentile(sortedLats, 50)
+				p95 = percentile(sortedLats, 95)
+				p99 = percentile(sortedLats, 99)
 			}
 
-			log.Printf("[LOAD] Complete: %d requests, %.0f QPS, avg %.2fms",
-				total, float64(total)/elapsed.Seconds(), float64(avgUs)/1000.0)
+			p99Ms := float64(p99) / 1000.0
+			passed := p99Ms <= thresholdP99Ms
+
+			result := map[string]any{
+				"duration":          elapsed.String(),
+				"total":             total,
+				"bids":              totalBids.Load(),
+				"no_bids":           totalNoBids.Load(),
+				"errors":            totalErrors.Load(),
+				"actual_qps":        float64(total) / elapsed.Seconds(),
+				"avg_latency_us":    avgUs,
+				"avg_latency_ms":    float64(avgUs) / 1000.0,
+				"p50_us":            p50,
+				"p50_ms":            float64(p50) / 1000.0,
+				"p95_us":            p95,
+				"p95_ms":            float64(p95) / 1000.0,
+				"p99_us":            p99,
+				"p99_ms":            p99Ms,
+				"threshold_p99_ms":  thresholdP99Ms,
+				"passed":            passed,
+			}
+
+			verdict := "PASS"
+			if !passed {
+				verdict = "FAIL"
+			}
+			log.Printf("[LOAD] %s: %d requests, %.0f QPS, p50=%.2fms p95=%.2fms p99=%.2fms (threshold: %.0fms)",
+				verdict, total, float64(total)/elapsed.Seconds(),
+				float64(p50)/1000.0, float64(p95)/1000.0, p99Ms, thresholdP99Ms)
 
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(result)
@@ -213,6 +261,10 @@ func handleLoad(w http.ResponseWriter, r *http.Request) {
 				totalRequests.Add(1)
 				totalLatencyUs.Add(lat.Microseconds())
 
+				latMu.Lock()
+				allLatencies = append(allLatencies, lat.Microseconds())
+				latMu.Unlock()
+
 				if err != nil {
 					totalErrors.Add(1)
 				} else if resp.StatusCode == http.StatusNoContent {
@@ -223,6 +275,30 @@ func handleLoad(w http.ResponseWriter, r *http.Request) {
 			}()
 		}
 	}
+}
+
+func sortInt64s(a []int64) {
+	// Simple insertion sort for latency arrays (typically <20k elements)
+	for i := 1; i < len(a); i++ {
+		key := a[i]
+		j := i - 1
+		for j >= 0 && a[j] > key {
+			a[j+1] = a[j]
+			j--
+		}
+		a[j+1] = key
+	}
+}
+
+func percentile(sorted []int64, p int) int64 {
+	if len(sorted) == 0 {
+		return 0
+	}
+	idx := len(sorted) * p / 100
+	if idx >= len(sorted) {
+		idx = len(sorted) - 1
+	}
+	return sorted[idx]
 }
 
 func handleExchangeStats(w http.ResponseWriter, r *http.Request) {

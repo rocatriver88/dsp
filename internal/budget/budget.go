@@ -20,20 +20,27 @@ func New(rdb *redis.Client) *Service {
 // Budget keys: budget:daily:{campaign_id}:{date}
 // Freq keys:   freq:{campaign_id}:{user_id}
 
-// CheckAndDeductBudget atomically checks and deducts from daily budget.
+// deductBudgetScript is a Lua script that atomically checks and deducts budget.
+// Returns remaining budget if sufficient, or -1 if exhausted (no deduction made).
+var deductBudgetScript = redis.NewScript(`
+local key = KEYS[1]
+local amount = tonumber(ARGV[1])
+local current = tonumber(redis.call('GET', key) or '0')
+if current < amount then
+  return -1
+end
+return redis.call('DECRBY', key, amount)
+`)
+
+// CheckAndDeductBudget atomically checks and deducts from daily budget using Lua.
 // Returns remaining budget in cents, or -1 if exhausted.
 func (s *Service) CheckAndDeductBudget(ctx context.Context, campaignID int64, amountCents int64) (int64, error) {
 	key := dailyBudgetKey(campaignID)
-	remaining, err := s.rdb.DecrBy(ctx, key, amountCents).Result()
+	result, err := deductBudgetScript.Run(ctx, s.rdb, []string{key}, amountCents).Int64()
 	if err != nil {
-		return -1, fmt.Errorf("redis decrby: %w", err)
+		return -1, fmt.Errorf("redis budget lua: %w", err)
 	}
-	if remaining < 0 {
-		// Overspent, refund
-		s.rdb.IncrBy(ctx, key, amountCents)
-		return -1, nil
-	}
-	return remaining, nil
+	return result, nil
 }
 
 // InitDailyBudget sets the daily budget for a campaign. Called at midnight or campaign start.
@@ -77,41 +84,30 @@ func (s *Service) CheckFrequency(ctx context.Context, campaignID int64, userID s
 	return true, nil
 }
 
-// PipelineCheck does budget + frequency check in one Redis round trip.
+// PipelineCheck does budget (atomic Lua) + frequency check.
 func (s *Service) PipelineCheck(ctx context.Context, campaignID int64, userID string, bidAmountCents int64, freqCap int, freqPeriodHours int) (budgetOK bool, freqOK bool, err error) {
+	// Atomic budget check via Lua
 	budgetKey := dailyBudgetKey(campaignID)
-
-	pipe := s.rdb.Pipeline()
-	budgetCmd := pipe.DecrBy(ctx, budgetKey, bidAmountCents)
-
-	var freqCmd *redis.IntCmd
-	hasFreqCheck := userID != "" && freqCap > 0
-	freqKeyStr := ""
-	if hasFreqCheck {
-		freqKeyStr = freqKey(campaignID, userID)
-		freqCmd = pipe.Incr(ctx, freqKeyStr)
+	remaining, err := deductBudgetScript.Run(ctx, s.rdb, []string{budgetKey}, bidAmountCents).Int64()
+	if err != nil {
+		return false, false, fmt.Errorf("redis budget lua: %w", err)
 	}
-
-	_, err = pipe.Exec(ctx)
-	if err != nil && err != redis.Nil {
-		return false, false, fmt.Errorf("redis pipeline: %w", err)
-	}
-
-	// Check budget
-	remaining, _ := budgetCmd.Result()
-	if remaining < 0 {
-		// Refund
-		s.rdb.IncrBy(ctx, budgetKey, bidAmountCents)
-		budgetOK = false
-	} else {
-		budgetOK = true
-	}
+	budgetOK = remaining >= 0
 
 	// Check frequency
+	hasFreqCheck := userID != "" && freqCap > 0
 	if !hasFreqCheck {
 		freqOK = true
 	} else {
-		count, _ := freqCmd.Result()
+		freqKeyStr := freqKey(campaignID, userID)
+		count, ferr := s.rdb.Incr(ctx, freqKeyStr).Result()
+		if ferr != nil {
+			// Refund budget on freq check failure
+			if budgetOK {
+				s.rdb.IncrBy(ctx, budgetKey, bidAmountCents)
+			}
+			return false, false, fmt.Errorf("redis freq: %w", ferr)
+		}
 		if count == 1 {
 			s.rdb.Expire(ctx, freqKeyStr, time.Duration(freqPeriodHours)*time.Hour)
 		}
@@ -127,7 +123,8 @@ func (s *Service) PipelineCheck(ctx context.Context, campaignID int64, userID st
 }
 
 func dailyBudgetKey(campaignID int64) string {
-	date := time.Now().UTC().Format("2006-01-02")
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	date := time.Now().In(loc).Format("2006-01-02")
 	return fmt.Sprintf("budget:daily:%d:%s", campaignID, date)
 }
 

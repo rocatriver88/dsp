@@ -157,9 +157,25 @@ func (d *Deps) HandleOverviewStats(w http.ResponseWriter, r *http.Request) {
 		totalClicks += stats.Clicks
 	}
 
+	var ctr float64
+	if totalImpressions > 0 {
+		ctr = float64(totalClicks) / float64(totalImpressions) * 100
+	}
+
+	// Get advertiser balance
+	var balanceCents int64
+	if d.BillingSvc != nil {
+		bal, _, err := d.BillingSvc.GetBalance(r.Context(), advID)
+		if err == nil {
+			balanceCents = bal
+		}
+	}
+
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"today_spend_cents": totalSpend,
 		"today_impressions": totalImpressions,
 		"today_clicks":      totalClicks,
+		"ctr":               ctr,
+		"balance_cents":     balanceCents,
 	})
 }

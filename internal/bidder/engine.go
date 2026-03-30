@@ -164,7 +164,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 			}},
 			Seat: fmt.Sprintf("campaign-%d", best.ID),
 		}},
-		Cur: "USD",
+		Cur: "CNY",
 	}
 
 	// Emit bid event to Kafka (async, non-blocking)

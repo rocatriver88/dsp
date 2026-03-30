@@ -66,10 +66,10 @@ func (s *Store) CreateCampaign(ctx context.Context, c *Campaign) (int64, error) 
 	var id int64
 	err := s.db.QueryRow(ctx,
 		`INSERT INTO campaigns (advertiser_id, name, status, billing_model, budget_total_cents, budget_daily_cents,
-		  bid_cpm_cents, bid_cpc_cents, ocpm_target_cpa_cents, start_date, end_date, targeting)
-		 VALUES ($1, $2, 'draft', $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+		  bid_cpm_cents, bid_cpc_cents, ocpm_target_cpa_cents, start_date, end_date, targeting, sandbox)
+		 VALUES ($1, $2, 'draft', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
 		c.AdvertiserID, c.Name, c.BillingModel, c.BudgetTotalCents, c.BudgetDailyCents,
-		c.BidCPMCents, c.BidCPCCents, c.OCPMTargetCPACents, c.StartDate, c.EndDate, c.Targeting,
+		c.BidCPMCents, c.BidCPCCents, c.OCPMTargetCPACents, c.StartDate, c.EndDate, c.Targeting, c.Sandbox,
 	).Scan(&id)
 	return id, err
 }
@@ -301,7 +301,7 @@ func (s *Store) CreateCreative(ctx context.Context, cr *Creative) (int64, error)
 	err := s.db.QueryRow(ctx,
 		`INSERT INTO creatives (campaign_id, name, ad_type, format, size, ad_markup, destination_url, status,
 		  native_title, native_desc, native_icon_url, native_image_url, native_cta)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'approved', $8, $9, $10, $11, $12) RETURNING id`,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, $12) RETURNING id`,
 		cr.CampaignID, cr.Name, cr.AdType, cr.Format, cr.Size, cr.AdMarkup, cr.DestinationURL,
 		cr.NativeTitle, cr.NativeDesc, cr.NativeIconURL, cr.NativeImageURL, cr.NativeCTA,
 	).Scan(&id)
