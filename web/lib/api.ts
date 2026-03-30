@@ -239,6 +239,15 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  updateCreative: (id: number, data: {
+    name?: string; ad_type?: string; format?: string; size?: string;
+    ad_markup?: string; destination_url?: string;
+  }) =>
+    request<{ status: string }>(`/api/v1/creatives/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
   // Billing
   getBalance: (advertiserId: number) =>
     request<{ advertiser_id: number; balance_cents: number; billing_type: string }>(

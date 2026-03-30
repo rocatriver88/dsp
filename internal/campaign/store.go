@@ -361,6 +361,19 @@ func (s *Store) ListCreativesByStatus(ctx context.Context, status string) ([]*Cr
 	return creatives, nil
 }
 
+// UpdateCreative updates a creative's editable fields.
+func (s *Store) UpdateCreative(ctx context.Context, cr *Creative) error {
+	_, err := s.db.Exec(ctx,
+		`UPDATE creatives SET name = $1, ad_type = $2, format = $3, size = $4,
+		 ad_markup = $5, destination_url = $6, native_title = $7, native_desc = $8,
+		 native_icon_url = $9, native_image_url = $10, native_cta = $11
+		 WHERE id = $12`,
+		cr.Name, cr.AdType, cr.Format, cr.Size,
+		cr.AdMarkup, cr.DestinationURL, cr.NativeTitle, cr.NativeDesc,
+		cr.NativeIconURL, cr.NativeImageURL, cr.NativeCTA, cr.ID)
+	return err
+}
+
 // UpdateCreativeStatus changes a creative's review status (pending/approved/rejected).
 func (s *Store) UpdateCreativeStatus(ctx context.Context, creativeID int64, status string) error {
 	_, err := s.db.Exec(ctx,

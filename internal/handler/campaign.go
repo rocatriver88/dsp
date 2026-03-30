@@ -290,6 +290,36 @@ func (d *Deps) HandleListCreatives(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, creatives)
 }
 
+func (d *Deps) HandleUpdateCreative(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	var req struct {
+		Name           string `json:"name"`
+		AdType         string `json:"ad_type"`
+		Format         string `json:"format"`
+		Size           string `json:"size"`
+		AdMarkup       string `json:"ad_markup"`
+		DestinationURL string `json:"destination_url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	cr := &campaign.Creative{
+		ID:             id,
+		Name:           req.Name,
+		AdType:         req.AdType,
+		Format:         req.Format,
+		Size:           req.Size,
+		AdMarkup:       req.AdMarkup,
+		DestinationURL: req.DestinationURL,
+	}
+	if err := d.Store.UpdateCreative(r.Context(), cr); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	WriteJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
 func (d *Deps) HandleCreateCreative(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CampaignID     int64  `json:"campaign_id"`

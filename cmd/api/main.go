@@ -97,6 +97,7 @@ func main() {
 	publicMux.HandleFunc("POST /api/v1/campaigns/{id}/pause", h.HandlePauseCampaign)
 	publicMux.HandleFunc("GET /api/v1/campaigns/{id}/creatives", h.HandleListCreatives)
 	publicMux.HandleFunc("POST /api/v1/creatives", h.HandleCreateCreative)
+	publicMux.HandleFunc("PUT /api/v1/creatives/{id}", h.HandleUpdateCreative)
 	publicMux.HandleFunc("GET /api/v1/ad-types", h.HandleAdTypes)
 	publicMux.HandleFunc("GET /api/v1/billing-models", h.HandleBillingModels)
 	publicMux.HandleFunc("GET /api/v1/reports/campaign/{id}/stats", h.HandleCampaignStats)
