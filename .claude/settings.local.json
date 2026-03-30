@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Read(//c/Users/Roc/**)",
+      "Read(//c/Go/bin/**)",
+      "Bash(where go:*)",
+      "Bash(curl -fSL -o /tmp/go-installer.msi \"https://go.dev/dl/go1.24.2.windows-amd64.msi\")",
+      "Bash(export PATH=\"/c/Users/Roc/go-sdk/go/bin:$PATH\")",
+      "Bash(export GOPATH=\"/c/Users/Roc/go\")",
+      "Bash(go version:*)",
+      "Bash(go test:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Skill(design-consultation)",
+      "Bash(git status:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose ps:*)",
+      "Read(//tmp/**)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/Go/bin:/c/Users/Roc/go/bin:/c/Program Files/nodejs:/c/Users/Roc/AppData/Roaming/npm\")",
+      "Bash(npm install:*)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/Go/bin:/c/Users/Roc/go/bin:/c/Program Files/nodejs\")",
+      "Bash(export PGPASSWORD=dsp_dev_password)",
+      "Bash(psql -h localhost -U dsp -d dsp -f /c/Users/Roc/github/dsp/migrations/001_init.sql)",
+      "Bash(docker exec:*)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill:*)"
+    ]
+  }
+}
