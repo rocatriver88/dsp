@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSP Platform - Design System Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @font-face { font-family: 'Geist'; src: url('https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/Geist-Regular.woff2') format('woff2'); font-weight: 400; }
+  @font-face { font-family: 'Geist'; src: url('https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/Geist-Medium.woff2') format('woff2'); font-weight: 500; }
+  @font-face { font-family: 'Geist'; src: url('https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/Geist-SemiBold.woff2') format('woff2'); font-weight: 600; }
+  @font-face { font-family: 'Geist'; src: url('https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-sans/Geist-Bold.woff2') format('woff2'); font-weight: 700; }
+
+  :root {
+    --primary: #2563EB;
+    --primary-hover: #1D4ED8;
+    --sidebar-bg: #1a1a1a;
+    --sidebar-text: #a1a1aa;
+    --bg: #f9fafb;
+    --card-bg: #ffffff;
+    --text-primary: #111827;
+    --text-secondary: #6B7280;
+    --text-muted: #9CA3AF;
+    --border: #E5E7EB;
+    --success: #059669;
+    --warning: #D97706;
+    --error: #DC2626;
+    --neutral-50: #F9FAFB;
+    --neutral-100: #F3F4F6;
+    --neutral-200: #E5E7EB;
+    --neutral-300: #D1D5DB;
+    --neutral-500: #6B7280;
+    --neutral-700: #374151;
+    --neutral-900: #111827;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'IBM Plex Sans', sans-serif; font-size: 15px; color: var(--text-primary); background: var(--bg); }
+  .preview-container { display: flex; min-height: 100vh; }
+
+  /* Sidebar */
+  .sidebar { width: 224px; background: var(--sidebar-bg); color: var(--sidebar-text); flex-shrink: 0; padding-top: 20px; }
+  .sidebar-brand { padding: 0 20px 16px; border-bottom: 1px solid #333; }
+  .sidebar-brand h1 { font-family: 'Geist', sans-serif; font-size: 18px; font-weight: 600; color: #fff; }
+  .sidebar-brand p { font-size: 12px; margin-top: 4px; color: var(--sidebar-text); }
+  .sidebar-nav { padding: 12px 0; }
+  .sidebar-item { display: flex; align-items: center; gap: 12px; padding: 10px 20px; font-size: 14px; color: var(--sidebar-text); text-decoration: none; transition: background 0.15s; }
+  .sidebar-item:hover { background: #333; }
+  .sidebar-item.active { color: #60A5FA; background: rgba(37,99,235,0.12); border-right: 2px solid #60A5FA; }
+  .sidebar-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: #333; border-radius: 4px; color: #888; }
+
+  /* Main content */
+  .main { flex: 1; padding: 24px 32px; overflow-y: auto; }
+  .page-title { font-family: 'Geist', sans-serif; font-size: 20px; font-weight: 600; margin-bottom: 24px; }
+
+  /* Stat cards - no border, background differentiation */
+  .stats-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: var(--card-bg); padding: 20px; border-radius: 8px; }
+  .stat-card.hero { grid-column: 1; }
+  .stat-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 4px; }
+  .stat-value { font-family: 'Geist', sans-serif; font-weight: 700; color: var(--text-primary); }
+  .stat-value.large { font-size: 36px; letter-spacing: -0.5px; }
+  .stat-value.medium { font-size: 24px; }
+  .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  .stats-row2 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 32px; }
+
+  /* Data table */
+  .table-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .table-title { font-family: 'Geist', sans-serif; font-size: 15px; font-weight: 600; color: var(--neutral-700); }
+  .table-link { font-size: 13px; color: var(--primary); text-decoration: none; }
+  table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 8px; overflow: hidden; }
+  th { text-align: left; padding: 12px 16px; font-size: 13px; font-weight: 500; color: var(--text-secondary); background: var(--neutral-50); }
+  th:last-child, td:last-child { text-align: right; }
+  td { padding: 12px 16px; font-size: 14px; border-top: 1px solid var(--neutral-100); }
+  td.mono { font-family: 'Geist', sans-serif; font-variant-numeric: tabular-nums; }
+  td a { color: var(--primary); text-decoration: none; }
+  .status { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
+  .status-active { background: #ECFDF5; color: #059669; }
+  .status-paused { background: #FFFBEB; color: #D97706; }
+  .status-draft { background: var(--neutral-100); color: var(--neutral-500); }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; transition: background 0.15s; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+
+  /* Section: Font specimen */
+  .specimen { margin-top: 48px; padding-top: 32px; border-top: 2px solid var(--neutral-200); }
+  .specimen h2 { font-family: 'Geist', sans-serif; font-size: 16px; font-weight: 600; margin-bottom: 20px; color: var(--neutral-700); }
+  .font-sample { margin-bottom: 24px; }
+  .font-name { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .font-demo-geist { font-family: 'Geist', sans-serif; }
+  .font-demo-plex { font-family: 'IBM Plex Sans', sans-serif; }
+
+  /* Section: Color palette */
+  .palette { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .swatch { width: 80px; height: 56px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 4px; }
+  .swatch span { font-size: 10px; font-family: 'Geist', sans-serif; }
+</style>
+</head>
+<body>
+<div class="preview-container">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-brand">
+      <h1>DSP Platform</h1>
+      <p>广告投放管理平台</p>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="sidebar-item active" href="#"><span class="sidebar-icon">概</span> 概览</a>
+      <a class="sidebar-item" href="#"><span class="sidebar-icon">投</span> Campaigns</a>
+      <a class="sidebar-item" href="#"><span class="sidebar-icon">表</span> 报表</a>
+      <a class="sidebar-item" href="#"><span class="sidebar-icon">析</span> 实时分析</a>
+      <a class="sidebar-item" href="#"><span class="sidebar-icon">账</span> 账户</a>
+    </nav>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <h2 class="page-title">概览</h2>
+
+    <!-- Stat cards row 1 -->
+    <div class="stats-grid">
+      <div class="stat-card hero">
+        <div class="stat-label">今日花费</div>
+        <div class="stat-value large">¥12,580</div>
+        <div class="stat-sub">总预算 ¥850,000</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">活跃 Campaigns</div>
+        <div class="stat-value medium">8</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">CTR</div>
+        <div class="stat-value medium">1.24%</div>
+      </div>
+    </div>
+
+    <!-- Stat cards row 2 -->
+    <div class="stats-row2">
+      <div class="stat-card">
+        <div class="stat-label">账户余额</div>
+        <div class="stat-value medium">¥237,420</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">今日展示</div>
+        <div class="stat-value medium mono">1,015,482</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">今日点击</div>
+        <div class="stat-value medium mono">12,592</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">全部 Campaigns</div>
+        <div class="stat-value medium">15</div>
+      </div>
+    </div>
+
+    <!-- Campaign table -->
+    <div class="table-header">
+      <span class="table-title">最近的 Campaigns</span>
+      <a class="table-link" href="#">查看全部</a>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>名称</th>
+          <th>状态</th>
+          <th>出价</th>
+          <th>花费</th>
+          <th>预算</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><a href="#">春季电商推广-华东</a></td>
+          <td><span class="status status-active">active</span></td>
+          <td class="mono">¥8.50 CPM</td>
+          <td class="mono">¥3,240</td>
+          <td class="mono">¥50,000</td>
+        </tr>
+        <tr>
+          <td><a href="#">品牌曝光-全国覆盖</a></td>
+          <td><span class="status status-active">active</span></td>
+          <td class="mono">¥12.00 CPM</td>
+          <td class="mono">¥8,920</td>
+          <td class="mono">¥200,000</td>
+        </tr>
+        <tr>
+          <td><a href="#">游戏下载-安卓定向</a></td>
+          <td><span class="status status-paused">paused</span></td>
+          <td class="mono">¥0.85 CPC</td>
+          <td class="mono">¥15,680</td>
+          <td class="mono">¥30,000</td>
+        </tr>
+        <tr>
+          <td><a href="#">教育行业-暑期投放</a></td>
+          <td><span class="status status-draft">draft</span></td>
+          <td class="mono">¥6.00 CPM</td>
+          <td class="mono">¥0</td>
+          <td class="mono">¥100,000</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Font Specimen -->
+    <div class="specimen">
+      <h2>Font Specimen</h2>
+
+      <div class="font-sample">
+        <div class="font-name">Geist — Display / Data (48px, 24px, tabular-nums)</div>
+        <div class="font-demo-geist" style="font-size:48px;font-weight:700;letter-spacing:-0.5px;">¥128,450.00</div>
+        <div class="font-demo-geist" style="font-size:24px;font-weight:600;margin-top:8px;">Campaign Performance Overview</div>
+        <div class="font-demo-geist" style="font-size:14px;font-variant-numeric:tabular-nums;margin-top:8px;color:var(--text-secondary);">1,234,567 展示 | 15,482 点击 | CTR 1.25% | CVR 0.34%</div>
+      </div>
+
+      <div class="font-sample">
+        <div class="font-name">IBM Plex Sans — Body (15px)</div>
+        <div class="font-demo-plex" style="font-size:15px;line-height:1.6;max-width:600px;">
+          广告投放管理平台为中小代理商提供专业级程序化购买能力。通过实时竞价（RTB）技术，直连广告交易所，帮助代理商跳过技术对接，直接使用专业级竞价和投放管理功能。Campaign performance data is updated every 5 minutes from ClickHouse aggregation.
+        </div>
+      </div>
+    </div>
+
+    <!-- Color Palette -->
+    <div class="specimen">
+      <h2>Color Palette</h2>
+      <div class="palette">
+        <div class="swatch" style="background:#2563EB;"><span style="color:#fff;">#2563EB</span></div>
+        <div class="swatch" style="background:#1D4ED8;"><span style="color:#fff;">#1D4ED8</span></div>
+        <div class="swatch" style="background:#111827;"><span style="color:#fff;">#111827</span></div>
+        <div class="swatch" style="background:#374151;"><span style="color:#fff;">#374151</span></div>
+        <div class="swatch" style="background:#6B7280;"><span style="color:#fff;">#6B7280</span></div>
+        <div class="swatch" style="background:#D1D5DB;"><span>#D1D5DB</span></div>
+        <div class="swatch" style="background:#F3F4F6;"><span>#F3F4F6</span></div>
+        <div class="swatch" style="background:#F9FAFB;border:1px solid #E5E7EB;"><span>#F9FAFB</span></div>
+      </div>
+      <div class="palette">
+        <div class="swatch" style="background:#059669;"><span style="color:#fff;">Success</span></div>
+        <div class="swatch" style="background:#D97706;"><span style="color:#fff;">Warning</span></div>
+        <div class="swatch" style="background:#DC2626;"><span style="color:#fff;">Error</span></div>
+      </div>
+
+      <!-- Buttons -->
+      <div style="margin-top:20px;display:flex;gap:8px;">
+        <button class="btn btn-primary">创建 Campaign</button>
+        <button class="btn btn-ghost">导出报表</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
