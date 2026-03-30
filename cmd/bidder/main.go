@@ -96,12 +96,18 @@ func main() {
 		log.Printf("Kafka replay: %v (continuing)", err)
 	}
 
-	// Daily budget auto-reset at midnight CST
+	// Load campaigns from DB
+	if err := loader.Start(ctx); err != nil {
+		log.Fatalf("campaign loader: %v", err)
+	}
+	defer loader.Stop()
+	defer statsCache.Stop()
+
+	// Daily budget auto-reset at midnight CST (must start after loader)
 	go func() {
 		loc, _ := time.LoadLocation("Asia/Shanghai")
 		for {
 			now := time.Now().In(loc)
-			// Next midnight CST
 			next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 5, 0, loc)
 			timer := time.NewTimer(next.Sub(now))
 			select {
@@ -119,13 +125,6 @@ func main() {
 			}
 		}
 	}()
-
-	// Load campaigns from DB
-	if err := loader.Start(ctx); err != nil {
-		log.Fatalf("campaign loader: %v", err)
-	}
-	defer loader.Stop()
-	defer statsCache.Stop()
 
 	// Exchange registry: register self-owned + any configured external exchanges
 	exchangeRegistry = exchange.DefaultRegistry(cfg.BidderPublicURL)

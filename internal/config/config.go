@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"time"
 )
 
 type Config struct {
@@ -52,6 +53,17 @@ func (c *Config) Validate() {
 	env := getEnv("ENV", "development")
 	if env == "production" && c.BidderHMACSecret == "dev-hmac-secret-change-in-production" {
 		log.Fatal("FATAL: BIDDER_HMAC_SECRET must be set in production. Using the default dev secret is a security vulnerability.")
+	}
+}
+
+// CSTLocation returns the Asia/Shanghai timezone, cached at package init.
+var CSTLocation *time.Location
+
+func init() {
+	var err error
+	CSTLocation, err = time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		CSTLocation = time.FixedZone("CST", 8*3600)
 	}
 }
 

@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 )
 
 func TestLoad_Defaults(t *testing.T) {
@@ -33,5 +34,30 @@ func TestLoad_CORSDefault(t *testing.T) {
 	cfg := Load()
 	if cfg.CORSAllowedOrigins == "" {
 		t.Error("expected non-empty CORS default")
+	}
+}
+
+func TestValidate_DevMode_NoFatal(t *testing.T) {
+	// Development mode should not fatal even with default HMAC secret
+	t.Setenv("ENV", "development")
+	cfg := Load()
+	cfg.Validate() // should not panic
+}
+
+func TestValidate_ProductionWithCustomSecret_NoFatal(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("BIDDER_HMAC_SECRET", "real-production-secret-32chars-min")
+	cfg := Load()
+	cfg.Validate() // should not panic
+}
+
+func TestCSTLocation_NotNil(t *testing.T) {
+	if CSTLocation == nil {
+		t.Fatal("CSTLocation should be initialized at package init")
+	}
+	// Verify it's UTC+8
+	_, offset := time.Date(2026, 1, 1, 0, 0, 0, 0, CSTLocation).Zone()
+	if offset != 8*3600 {
+		t.Errorf("expected UTC+8 (28800s offset), got %d", offset)
 	}
 }

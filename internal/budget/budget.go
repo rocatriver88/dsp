@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/heartgryphon/dsp/internal/config"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -123,8 +124,7 @@ func (s *Service) PipelineCheck(ctx context.Context, campaignID int64, userID st
 }
 
 func dailyBudgetKey(campaignID int64) string {
-	loc, _ := time.LoadLocation("Asia/Shanghai")
-	date := time.Now().In(loc).Format("2006-01-02")
+	date := time.Now().In(config.CSTLocation).Format("2006-01-02")
 	return fmt.Sprintf("budget:daily:%d:%s", campaignID, date)
 }
 
