@@ -23,6 +23,9 @@ web/.next/
 # Logs
 *.log
 
+# Uploads (runtime)
+uploads/
+
 # Docker volumes
 pgdata/
 chdata/

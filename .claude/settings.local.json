@@ -25,7 +25,30 @@
       "Bash(psql -h localhost -U dsp -d dsp -f /c/Users/Roc/github/dsp/migrations/001_init.sql)",
       "Bash(docker exec:*)",
       "Bash(netstat -ano)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(export no_proxy=\"127.0.0.1,localhost\" http_proxy=\"\" https_proxy=\"\" HTTP_PROXY=\"\" HTTPS_PROXY=\"\")",
+      "Bash(B=~/.claude/skills/gstack/browse/dist/browse)",
+      "Bash($B reload:*)",
+      "Bash($B screenshot:*)",
+      "Bash($B console:*)",
+      "Bash($B goto:*)",
+      "Bash($B js:*)",
+      "Bash(curl -s http://localhost:8182/api/v1/admin/registrations -H \"X-Admin-Token: admin-secret\")",
+      "Bash(curl -s http://localhost:8182/api/v1/admin/advertisers -H \"X-Admin-Token: admin-secret\")",
+      "Bash($B snapshot:*)",
+      "Bash(xargs grep:*)",
+      "Bash(grep:*)",
+      "Bash(export 'PATH=$PATH:/c/Program Files/Go/bin:/c/Users/Roc/go/bin')",
+      "Bash(export REDIS_PASSWORD=dsp_dev_password)",
+      "Bash(export CLICKHOUSE_PASSWORD=dsp_dev_password)",
+      "Bash(curl -s http://localhost:8181/api/v1/campaigns/1/creatives -H \"X-API-Key: dsp_086844ded4e06674f279c8c691be57627d936a8ffbfdd716ff313631d67965ae\")",
+      "Bash(curl -s http://localhost:8181/api/v1/creatives -X POST -H \"X-API-Key: dsp_086844ded4e06674f279c8c691be57627d936a8ffbfdd716ff313631d67965ae\" -H \"Content-Type: application/json\" -d '{\"\"campaign_id\"\":1,\"\"name\"\":\"\"测试横幅\"\",\"\"ad_type\"\":\"\"banner\"\",\"\"size\"\":\"\"300x250\"\",\"\"ad_markup\"\":\"\"<div>test</div>\"\",\"\"destination_url\"\":\"\"https://example.com\"\"}')",
+      "Bash(curl -s http://localhost:8181/api/v1/creatives -X POST -H \"X-API-Key: dsp_086844ded4e06674f279c8c691be57627d936a8ffbfdd716ff313631d67965ae\" -H \"Content-Type: application/json\" -d '{\"\"campaign_id\"\":1,\"\"name\"\":\"\"测试横幅\"\",\"\"ad_type\"\":\"\"banner\"\",\"\"format\"\":\"\"banner\"\",\"\"size\"\":\"\"300x250\"\",\"\"ad_markup\"\":\"\"<div>test</div>\"\",\"\"destination_url\"\":\"\"https://example.com\"\"}')",
+      "Bash($B click:*)",
+      "Bash($B fill:*)",
+      "Bash(curl -sI http://localhost:8181/uploads/cb76d60b9d0fa4c9cdbc5a3adde74772.png)",
+      "Bash($B scroll:*)",
+      "Bash(curl -s -X DELETE http://localhost:8181/api/v1/creatives/999 -H \"X-API-Key: dsp_086844ded4e06674f279c8c691be57627d936a8ffbfdd716ff313631d67965ae\")"
     ]
   }
 }
