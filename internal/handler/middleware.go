@@ -16,7 +16,7 @@ func WithAuthExemption(authed http.Handler, publicMux *http.ServeMux) http.Handl
 				r.Header.Set("X-API-Key", apiKey)
 			}
 		}
-		if r.URL.Path == "/health" || r.URL.Path == "/api/v1/docs" || (r.Method == "POST" && r.URL.Path == "/api/v1/register") {
+		if r.URL.Path == "/health" || r.URL.Path == "/api/v1/docs" || strings.HasPrefix(r.URL.Path, "/uploads/") || (r.Method == "POST" && r.URL.Path == "/api/v1/register") {
 			publicMux.ServeHTTP(w, r)
 			return
 		}

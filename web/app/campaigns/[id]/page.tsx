@@ -193,6 +193,9 @@ function AddCreativeForm({ campaignId, onCreated }: { campaignId: number; onCrea
   const [destUrl, setDestUrl] = useState("https://example.com/landing");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [mode, setMode] = useState<"image" | "html">("image");
 
   const sizes: Record<string, string[]> = {
     banner: ["300x250", "728x90", "320x50", "300x600"],
@@ -201,18 +204,42 @@ function AddCreativeForm({ campaignId, onCreated }: { campaignId: number; onCrea
     native: [],
   };
 
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const result = await api.uploadFile(file);
+      setImageUrl(`${API_BASE}${result.url}`);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "上传失败");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setError(null);
     try {
       const formatMap: Record<string, string> = { banner: "banner", native: "native", splash: "banner", interstitial: "banner" };
+      const [w, h] = size.split("x");
+      let finalMarkup = markup;
+      if (mode === "image" && imageUrl) {
+        finalMarkup = `<a href="${destUrl}" target="_blank"><img src="${imageUrl}" width="${w}" height="${h}" alt="${name || "ad"}" style="display:block;width:${w}px;height:${h}px;object-fit:cover" /></a>`;
+      } else if (!finalMarkup) {
+        finalMarkup = `<div style="width:${w}px;height:${h}px;background:#1a1a2e;color:#fff;display:flex;align-items:center;justify-content:center">广告内容</div>`;
+      }
       await api.createCreative({
         campaign_id: campaignId,
         name: name || `${adType}-${size}`,
         ad_type: adType,
         format: formatMap[adType] || "banner",
         size,
-        ad_markup: markup || `<div style="width:${size.split("x")[0]}px;height:${size.split("x")[1]}px;background:#1a1a2e;color:#fff;display:flex;align-items:center;justify-content:center">广告内容</div>`,
+        ad_markup: finalMarkup,
         destination_url: destUrl,
       });
       onCreated();
@@ -261,14 +288,53 @@ function AddCreativeForm({ campaignId, onCreated }: { campaignId: number; onCrea
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
         </div>
       </div>
-      <div className="mt-4">
-        <label className="block text-xs font-medium text-gray-500 mb-1">广告代码 (HTML)</label>
-        <textarea value={markup} onChange={(e) => setMarkup(e.target.value)} rows={3}
-          placeholder="留空将自动生成占位素材" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-geist tabular-nums" />
+
+      {/* Mode toggle: image upload vs HTML */}
+      <div className="mt-4 flex gap-2 mb-3">
+        <button onClick={() => setMode("image")}
+          className={`px-3 py-1.5 text-sm rounded-md border ${mode === "image" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600"}`}>
+          上传图片
+        </button>
+        <button onClick={() => setMode("html")}
+          className={`px-3 py-1.5 text-sm rounded-md border ${mode === "html" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600"}`}>
+          HTML 代码
+        </button>
       </div>
+
+      {mode === "image" ? (
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">广告图片</label>
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+            {imageUrl ? (
+              <div className="flex items-center gap-4">
+                <img src={imageUrl} alt="preview" className="max-h-24 rounded" />
+                <div className="flex-1">
+                  <p className="text-sm text-green-600 mb-1">上传成功</p>
+                  <p className="text-xs text-gray-400 break-all">{imageUrl}</p>
+                  <button onClick={() => setImageUrl("")} className="text-xs text-red-500 mt-1">移除</button>
+                </div>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center cursor-pointer py-4">
+                <span className="text-sm text-gray-500 mb-2">{uploading ? "上传中..." : "点击选择图片或拖拽到此处"}</span>
+                <span className="text-xs text-gray-400">支持 JPG, PNG, GIF, WebP, SVG (最大 10MB)</span>
+                <input type="file" accept="image/*" onChange={handleUpload} disabled={uploading}
+                  className="hidden" />
+              </label>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">广告代码 (HTML)</label>
+          <textarea value={markup} onChange={(e) => setMarkup(e.target.value)} rows={3}
+            placeholder="留空将自动生成占位素材" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-geist tabular-nums" />
+        </div>
+      )}
+
       {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
       <div className="mt-4 flex justify-end">
-        <button onClick={handleSubmit} disabled={submitting}
+        <button onClick={handleSubmit} disabled={submitting || (mode === "image" && uploading)}
           className="px-6 py-2 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300">
           {submitting ? "创建中..." : "添加素材"}
         </button>

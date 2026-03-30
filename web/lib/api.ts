@@ -199,6 +199,23 @@ export const api = {
     return request<BidDetail[]>(`/api/v1/reports/campaign/${id}/bids?${params}`);
   },
 
+  // Upload
+  uploadFile: async (file: File): Promise<{ url: string; filename: string }> => {
+    const apiKey = getAPIKey();
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE}/api/v1/upload`, {
+      method: "POST",
+      headers: { ...(apiKey ? { "X-API-Key": apiKey } : {}) },
+      body: formData,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `Upload failed: ${res.status}`);
+    }
+    return res.json();
+  },
+
   // Creatives
   listCreatives: (campaignId: number) =>
     request<Creative[]>(`/api/v1/campaigns/${campaignId}/creatives`),
