@@ -42,7 +42,7 @@ func Load() *Config {
 		APIPort:            getEnv("API_PORT", "8181"),
 		BidderPort:         getEnv("BIDDER_PORT", "8180"),
 		InternalPort:       getEnv("INTERNAL_PORT", "8182"),
-		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3002,http://localhost:4000"),
+		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:4000"),
 		BidderPublicURL:    getEnv("BIDDER_PUBLIC_URL", "http://localhost:8180"),
 		BidderHMACSecret:   getEnv("BIDDER_HMAC_SECRET", "dev-hmac-secret-change-in-production"),
 	}
