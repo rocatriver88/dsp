@@ -374,6 +374,12 @@ func (s *Store) UpdateCreative(ctx context.Context, cr *Creative) error {
 	return err
 }
 
+// DeleteCreative removes a creative by ID.
+func (s *Store) DeleteCreative(ctx context.Context, creativeID int64) error {
+	_, err := s.db.Exec(ctx, `DELETE FROM creatives WHERE id = $1`, creativeID)
+	return err
+}
+
 // UpdateCreativeStatus changes a creative's review status (pending/approved/rejected).
 func (s *Store) UpdateCreativeStatus(ctx context.Context, creativeID int64, status string) error {
 	_, err := s.db.Exec(ctx,

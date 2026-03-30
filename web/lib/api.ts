@@ -248,6 +248,9 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  deleteCreative: (id: number) =>
+    request<{ status: string }>(`/api/v1/creatives/${id}`, { method: "DELETE" }),
+
   // Billing
   getBalance: (advertiserId: number) =>
     request<{ advertiser_id: number; balance_cents: number; billing_type: string }>(

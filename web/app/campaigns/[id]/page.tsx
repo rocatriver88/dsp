@@ -428,10 +428,19 @@ function CreativeCard({ creative: cr, onUpdated }: { creative: Creative; onUpdat
               </div>
             </div>
           ) : (
-            <button onClick={() => setEditing(true)}
-              className="text-sm text-blue-600 hover:text-blue-700">
-              编辑素材
-            </button>
+            <div className="flex items-center gap-4">
+              <button onClick={() => setEditing(true)}
+                className="text-sm text-blue-600 hover:text-blue-700">
+                编辑素材
+              </button>
+              <button onClick={async () => {
+                if (!confirm("确定删除该素材？")) return;
+                try { await api.deleteCreative(cr.id); onUpdated(); }
+                catch (e: unknown) { setError(e instanceof Error ? e.message : "删除失败"); }
+              }} className="text-sm text-red-500 hover:text-red-700">
+                删除
+              </button>
+            </div>
           )}
         </div>
       )}

@@ -290,6 +290,15 @@ func (d *Deps) HandleListCreatives(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, creatives)
 }
 
+func (d *Deps) HandleDeleteCreative(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err := d.Store.DeleteCreative(r.Context(), id); err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	WriteJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
 func (d *Deps) HandleUpdateCreative(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
