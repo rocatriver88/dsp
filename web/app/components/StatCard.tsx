@@ -4,7 +4,7 @@ export function StatCard({ label, value, className }: { label: string; value: st
   return (
     <div className={`rounded-lg bg-white p-5 ${className || ""}`}>
       <p className="text-xs font-medium mb-1 text-gray-500">{label}</p>
-      <p className="text-xl font-semibold font-geist tabular-nums">{value}</p>
+      <p className="text-2xl font-semibold font-geist tabular-nums">{value}</p>
     </div>
   );
 }
