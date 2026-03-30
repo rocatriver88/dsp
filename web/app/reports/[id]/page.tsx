@@ -66,7 +66,7 @@ export default function CampaignReportPage() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <Link href="/reports" className="text-gray-400 hover:text-gray-600">← 报表</Link>
-        <h2 className="text-xl font-semibold">{campaign.name}</h2>
+        <h2 className="text-2xl font-semibold">{campaign.name}</h2>
         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
           campaign.status === "active" ? "bg-green-50 text-green-700" :
           campaign.status === "paused" ? "bg-yellow-50 text-yellow-700" :

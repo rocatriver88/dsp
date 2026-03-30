@@ -114,7 +114,7 @@ export default function NewCampaignPage() {
 
   return (
     <div className="max-w-2xl">
-      <h2 className="text-xl font-semibold mb-6">创建 Campaign</h2>
+      <h2 className="text-2xl font-semibold mb-6">创建 Campaign</h2>
 
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-8">

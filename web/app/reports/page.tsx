@@ -23,7 +23,7 @@ export default function ReportsPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">报表</h2>
+      <h2 className="text-2xl font-semibold mb-6">报表</h2>
       <p className="text-sm text-gray-500 mb-6">选择一个 Campaign 查看详细报表和 bid 透明度数据</p>
 
       {loading ? (

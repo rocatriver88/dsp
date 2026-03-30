@@ -29,7 +29,7 @@ export default function OverviewPage() {
   if (loading) {
     return (
       <div>
-        <h2 className="text-xl font-semibold mb-6">概览</h2>
+        <h2 className="text-2xl font-semibold mb-6">概览</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="rounded-lg bg-white p-5 animate-pulse">
@@ -57,7 +57,7 @@ export default function OverviewPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">概览</h2>
+      <h2 className="text-2xl font-semibold mb-6">概览</h2>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
         <HeroStatCard label="今日花费" value={`¥${(totalSpent / 100).toLocaleString()}`} sub={`总预算 ¥${(totalBudget / 100).toLocaleString()}`} />

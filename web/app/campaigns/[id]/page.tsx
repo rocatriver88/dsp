@@ -57,7 +57,7 @@ export default function CampaignDetailPage() {
     <div>
       <div className="flex items-center gap-3 mb-6">
         <Link href="/campaigns" className="text-gray-400 hover:text-gray-600">← Campaigns</Link>
-        <h2 className="text-xl font-semibold">{campaign.name}</h2>
+        <h2 className="text-2xl font-semibold">{campaign.name}</h2>
         <StatusBadge status={campaign.status} />
         {campaign.status === "paused" && campaign.pause_reason && (
           <span className="text-xs text-yellow-700 bg-yellow-50 px-2 py-1 rounded">

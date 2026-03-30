@@ -37,7 +37,7 @@ export default function CampaignsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold">Campaigns</h2>
+        <h2 className="text-2xl font-semibold">Campaigns</h2>
         <Link href="/campaigns/new"
           className="px-4 py-2 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700">
           创建 Campaign

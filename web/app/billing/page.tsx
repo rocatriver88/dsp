@@ -41,7 +41,7 @@ export default function BillingPage() {
   if (loading) {
     return (
       <div>
-        <h2 className="text-xl font-semibold mb-6">账户</h2>
+        <h2 className="text-2xl font-semibold mb-6">账户</h2>
         <div className="animate-pulse"><div className="h-24 bg-gray-100 rounded mb-4" /><div className="h-40 bg-gray-100 rounded" /></div>
       </div>
     );
@@ -50,7 +50,7 @@ export default function BillingPage() {
   if (error) {
     return (
       <div>
-        <h2 className="text-xl font-semibold mb-6">账户</h2>
+        <h2 className="text-2xl font-semibold mb-6">账户</h2>
         <ErrorState message={error} onRetry={load} />
       </div>
     );
@@ -58,7 +58,7 @@ export default function BillingPage() {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-6">账户</h2>
+      <h2 className="text-2xl font-semibold mb-6">账户</h2>
 
       {/* Balance card */}
       <div className="rounded-lg bg-white p-6 mb-6">
