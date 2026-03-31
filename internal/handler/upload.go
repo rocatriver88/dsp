@@ -17,7 +17,7 @@ const (
 )
 
 var allowedExts = map[string]bool{
-	".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true, ".svg": true,
+	".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true,
 }
 
 // HandleUpload accepts a multipart file upload and returns the file URL.

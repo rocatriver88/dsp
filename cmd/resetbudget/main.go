@@ -3,13 +3,19 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
 func main() {
-	rdb := redis.NewClient(&redis.Options{Addr: "localhost:6380", Password: "dsp_dev_password"})
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "localhost:6380"
+	}
+	rdb := redis.NewClient(&redis.Options{Addr: redisAddr, Password: redisPassword})
 	ctx := context.Background()
 	date := time.Now().UTC().Format("2006-01-02")
 

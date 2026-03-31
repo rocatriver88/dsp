@@ -54,6 +54,9 @@ func (c *Config) Validate() {
 	if env == "production" && c.BidderHMACSecret == "dev-hmac-secret-change-in-production" {
 		log.Fatal("FATAL: BIDDER_HMAC_SECRET must be set in production. Using the default dev secret is a security vulnerability.")
 	}
+	if env == "production" && getEnv("ADMIN_TOKEN", "") == "" {
+		log.Fatal("FATAL: ADMIN_TOKEN must be set in production. The default 'admin-secret' is not safe.")
+	}
 }
 
 // CSTLocation returns the Asia/Shanghai timezone, cached at package init.

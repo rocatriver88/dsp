@@ -386,8 +386,13 @@ function CreativeCard({ creative: cr, onUpdated }: { creative: Creative; onUpdat
             ) : cr.ad_markup ? (
               <div className="bg-gray-50 p-3 rounded">
                 <div className="text-xs text-gray-400 mb-1">HTML 预览</div>
-                <div className="border border-gray-200 rounded overflow-hidden inline-block"
-                  dangerouslySetInnerHTML={{ __html: cr.ad_markup }} />
+                <iframe
+                  sandbox=""
+                  srcDoc={cr.ad_markup}
+                  className="border border-gray-200 rounded overflow-hidden"
+                  style={{ width: cr.size?.split("x")[0] ? `${Math.min(Number(cr.size.split("x")[0]), 600)}px` : "300px", height: cr.size?.split("x")[1] ? `${Math.min(Number(cr.size.split("x")[1]), 300)}px` : "250px" }}
+                  title={`素材预览: ${cr.name}`}
+                />
               </div>
             ) : (
               <p className="text-sm text-gray-400">无预览内容</p>
