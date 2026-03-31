@@ -355,6 +355,9 @@ func randomBidRequest() *openrtb2.BidRequest {
 	w := int64(300)
 	h := int64(250)
 
+	secure := int8(1)
+	cats := []string{"IAB1", "IAB3", "IAB12", "IAB19", "IAB22"}
+
 	return &openrtb2.BidRequest{
 		ID: fmt.Sprintf("req-%d", time.Now().UnixNano()),
 		Imp: []openrtb2.Imp{
@@ -364,19 +367,35 @@ func randomBidRequest() *openrtb2.BidRequest {
 					W: &w,
 					H: &h,
 				},
-				BidFloor: 0.5,
+				BidFloor:    0.5,
+				BidFloorCur: "CNY",
+				Secure:      &secure,
 			},
 		},
 		Site: &openrtb2.Site{
 			Domain: "tech-blog.example.com",
 			Page:   "https://tech-blog.example.com/article/rust-performance",
+			Cat:    []string{cats[rand.Intn(len(cats))]},
 		},
 		Device: &openrtb2.Device{
 			OS: oses[rand.Intn(len(oses))],
 			Geo: &openrtb2.Geo{
 				Country: geos[rand.Intn(len(geos))],
 			},
-			UA: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+			UA:  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+			IFA: fmt.Sprintf("device-%d", rand.Intn(1000)),
+		},
+		Source: &openrtb2.Source{
+			TID: fmt.Sprintf("txn-%d", time.Now().UnixNano()),
+			SChain: &openrtb2.SupplyChain{
+				Complete: 1,
+				Nodes: []openrtb2.SupplyChainNode{
+					{ASI: "exchange-sim.local", SID: "pub-001", HP: openrtb2.Int8Ptr(1)},
+				},
+			},
+		},
+		Regs: &openrtb2.Regs{
+			USPrivacy: "1YNN",
 		},
 	}
 }
