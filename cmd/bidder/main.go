@@ -134,6 +134,7 @@ func main() {
 	mux.HandleFunc("POST /bid", handleBid)                         // standard OpenRTB
 	mux.HandleFunc("POST /bid/{exchange_id}", handleExchangeBid)   // per-exchange protocol normalization
 	mux.HandleFunc("POST /win", handleWin)
+	mux.HandleFunc("GET /win", handleWin)                          // exchanges may use GET for nurl
 	mux.HandleFunc("GET /click", handleClick)
 	mux.HandleFunc("GET /convert", handleConvert)
 	mux.HandleFunc("GET /stats", handleStats)
@@ -377,8 +378,17 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 				advertiserCharge = price / 0.90 // ADX clear price ÷ 0.9 = advertiser pays (10% platform fee)
 			}
 		}
+		var creativeID, advertiserID int64
+		if c != nil {
+			advertiserID = c.AdvertiserID
+			if len(c.Creatives) > 0 {
+				creativeID = c.Creatives[0].ID
+			}
+		}
 		evt := events.Event{
 			CampaignID:       campaignID,
+			CreativeID:       creativeID,
+			AdvertiserID:     advertiserID,
 			RequestID:        requestID,
 			BidPrice:         bidPrice,
 			ClearPrice:       price,
@@ -386,8 +396,11 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 			GeoCountry:       r.URL.Query().Get("geo"),
 			DeviceOS:         r.URL.Query().Get("os"),
 		}
-		go producer.SendWin(r.Context(), evt)
-		go producer.SendImpression(r.Context(), evt)
+		// Use background context — request context gets cancelled when handler returns,
+		// which would abort the Kafka write in the goroutine.
+		bgCtx := context.Background()
+		go producer.SendWin(bgCtx, evt)
+		go producer.SendImpression(bgCtx, evt)
 	}
 
 	fmt.Fprintf(w, `{"status":"ok","remaining_cents":%d}`, remaining)
