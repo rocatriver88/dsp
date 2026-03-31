@@ -33,8 +33,10 @@ func main() {
 	dlqProducer := events.NewProducer(brokers, "/tmp/dsp-kafka-buffer-consumer")
 	defer dlqProducer.Close()
 
-	// Kafka readers for all 3 topics
-	topics := []string{"dsp.bids", "dsp.impressions", "dsp.billing"}
+	// Kafka readers for analytics topics only.
+	// dsp.billing is for the billing service, not for bid_log analytics.
+	// Writing billing events to bid_log causes duplicate win records.
+	topics := []string{"dsp.bids", "dsp.impressions"}
 
 	for _, topic := range topics {
 		t := topic
