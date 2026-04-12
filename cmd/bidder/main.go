@@ -21,6 +21,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/config"
 	"github.com/heartgryphon/dsp/internal/events"
 	"github.com/heartgryphon/dsp/internal/exchange"
+	"github.com/heartgryphon/dsp/internal/guardrail"
 	"github.com/heartgryphon/dsp/internal/reporting"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,6 +38,7 @@ var (
 	producer         *events.Producer
 	rdb              *redis.Client
 	exchangeRegistry *exchange.Registry
+	guard            *guardrail.Guardrail
 )
 
 func main() {
@@ -87,7 +89,17 @@ func main() {
 	statsCache = bidder.NewStatsCache(rdb, reportStore, loader.GetActiveCampaigns)
 	go statsCache.Start(ctx)
 
-	engine = bidder.NewEngine(loader, budgetSvc, strategySvc, statsCache, producer, fraudFilter)
+	guard = guardrail.New(rdb, guardrail.Config{
+		GlobalDailyBudgetCents: cfg.GlobalDailyBudgetCents,
+		MaxBidCPMCents:         cfg.MaxBidCPMCents,
+		LowBalanceAlertCents:   cfg.LowBalanceAlertCents,
+		MinBalanceCents:        cfg.MinBalanceCents,
+		SpendRateWindowSec:     cfg.SpendRateWindowSec,
+		SpendRateMultiplier:    cfg.SpendRateMultiplier,
+	})
+	log.Println("Guardrail initialized")
+
+	engine = bidder.NewEngine(loader, budgetSvc, strategySvc, statsCache, producer, fraudFilter, guard)
 	log.Printf("Anti-fraud filter initialized (%v)", fraudFilter.Stats())
 	log.Println("BidStrategy + StatsCache initialized (dynamic bidding active)")
 
@@ -347,6 +359,11 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[WIN-REJECTED] campaign_id=%d (budget exhausted)", campaignID)
 			http.Error(w, `{"error":"budget exhausted"}`, http.StatusConflict)
 			return
+		}
+
+		// Track global spend for guardrail
+		if guard != nil {
+			guard.RecordGlobalSpend(r.Context(), priceCents)
 		}
 	}
 
