@@ -63,7 +63,7 @@ func (d *Deps) HandleExportCampaignCSV(w http.ResponseWriter, r *http.Request) {
 		fmt.Sprintf("%.2f", stats.CTR),
 		fmt.Sprintf("%.2f", stats.WinRate),
 		fmt.Sprintf("%.2f", stats.CVR),
-		fmt.Sprintf("%d", stats.CPA),
+		fmt.Sprintf("%.2f", stats.CPA),
 	})
 }
 
