@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/heartgryphon/dsp/internal/audit"
 	"github.com/heartgryphon/dsp/internal/billing"
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/campaign"
@@ -22,9 +23,10 @@ type Deps struct {
 	ReportStore *reporting.Store // nil if ClickHouse unavailable
 	BillingSvc  *billing.Service
 	RegSvc      *registration.Service
-	BudgetSvc   *budget.Service    // nil if Redis unavailable
-	Redis       *redis.Client      // nil if Redis unavailable
+	BudgetSvc   *budget.Service      // nil if Redis unavailable
+	Redis       *redis.Client        // nil if Redis unavailable
 	Guardrail   *guardrail.Guardrail // nil if guardrails disabled
+	AuditLog    *audit.Logger        // nil if audit disabled
 }
 
 func WriteJSON(w http.ResponseWriter, status int, data any) {

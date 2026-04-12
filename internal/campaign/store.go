@@ -387,3 +387,26 @@ func (s *Store) UpdateCreativeStatus(ctx context.Context, creativeID int64, stat
 		status, creativeID)
 	return err
 }
+
+// ListAllAdvertisers returns all advertisers for admin dashboard.
+func (s *Store) ListAllAdvertisers(ctx context.Context) ([]*Advertiser, error) {
+	rows, err := s.db.Query(ctx,
+		`SELECT id, company_name, contact_email, api_key, balance_cents,
+		        billing_type, created_at, updated_at
+		 FROM advertisers ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var advs []*Advertiser
+	for rows.Next() {
+		a := &Advertiser{}
+		if err := rows.Scan(&a.ID, &a.CompanyName, &a.ContactEmail, &a.APIKey,
+			&a.BalanceCents, &a.BillingType, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			return nil, err
+		}
+		advs = append(advs, a)
+	}
+	return advs, nil
+}

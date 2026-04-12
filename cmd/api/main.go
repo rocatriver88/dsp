@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/alert"
+	"github.com/heartgryphon/dsp/internal/audit"
 	"github.com/heartgryphon/dsp/internal/auth"
 	"github.com/heartgryphon/dsp/internal/autopause"
 	"github.com/heartgryphon/dsp/internal/billing"
@@ -68,6 +69,7 @@ func main() {
 	store := campaign.NewStore(db)
 	billingSvc := billing.New(db)
 	regSvc := registration.New(db)
+	auditLogger := audit.NewLogger(db)
 	var budgetSvc *budget.Service
 	if rdb != nil {
 		budgetSvc = budget.New(rdb)
@@ -104,6 +106,7 @@ func main() {
 		BudgetSvc:   budgetSvc,
 		Redis:       rdb,
 		Guardrail:   guard,
+		AuditLog:    auditLogger,
 	}
 
 	// Public API routes
@@ -154,6 +157,11 @@ func main() {
 	adminMux.HandleFunc("POST /api/v1/admin/circuit-break", h.HandleCircuitBreak)
 	adminMux.HandleFunc("POST /api/v1/admin/circuit-reset", h.HandleCircuitReset)
 	adminMux.HandleFunc("GET /api/v1/admin/circuit-status", h.HandleCircuitStatus)
+	adminMux.HandleFunc("GET /api/v1/admin/advertisers", h.HandleListAdvertisers)
+	adminMux.HandleFunc("POST /api/v1/admin/topup", h.HandleAdminTopUp)
+	adminMux.HandleFunc("POST /api/v1/admin/invite-codes", h.HandleCreateInviteCode)
+	adminMux.HandleFunc("GET /api/v1/admin/invite-codes", h.HandleListInviteCodes)
+	adminMux.HandleFunc("GET /api/v1/admin/audit-log", h.HandleAuditLog)
 
 	internalMux := http.NewServeMux()
 	internalMux.Handle("GET /metrics", promhttp.Handler())
