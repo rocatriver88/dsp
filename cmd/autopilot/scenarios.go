@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -200,6 +201,107 @@ func (s *ScenarioRunner) RunNormalFlow() []StepResult {
 		return fmt.Sprintf("Campaign %d paused successfully", s.campaignID), nil
 	})
 	step.Screenshot = s.screenshot("06-campaign-paused", "/campaigns")
+	steps = append(steps, step)
+
+	return steps
+}
+
+// RunFaultScenarios executes steps 7-9: budget exhaustion, service restart, Kafka delay.
+// Requires a running Docker environment and an active campaign from RunNormalFlow.
+func (s *ScenarioRunner) RunFaultScenarios(faultInjector *FaultInjector) []StepResult {
+	var steps []StepResult
+	ctx := context.Background()
+
+	// Step 7: Budget Exhaustion
+	step := s.runStep("Fault: Budget Exhaustion", func() (string, error) {
+		err := s.client.UpdateCampaign(s.campaignID, map[string]any{
+			"budget_daily_cents": 100,
+		})
+		if err != nil {
+			return "", fmt.Errorf("set low budget: %w", err)
+		}
+
+		s.client.StartCampaign(s.campaignID)
+
+		_, err = s.client.TriggerExchangeSim(s.exchangeSimURL, "load", map[string]string{
+			"qps": "100", "duration": "5",
+		})
+		if err != nil {
+			return "", fmt.Errorf("trigger load: %w", err)
+		}
+
+		time.Sleep(10 * time.Second)
+
+		camp, err := s.client.GetCampaign(s.campaignID)
+		if err != nil {
+			return "", fmt.Errorf("get campaign: %w", err)
+		}
+
+		balance, _ := s.client.GetBalance(s.advertiserID)
+		detail := fmt.Sprintf("Campaign status: %s, Remaining balance: %d cents", camp.Status, balance)
+
+		if camp.Status != "paused" {
+			return detail, fmt.Errorf("expected campaign to auto-pause, got status=%s", camp.Status)
+		}
+		return detail, nil
+	})
+	step.Screenshot = s.screenshot("07-budget-exhausted", "/campaigns")
+	steps = append(steps, step)
+
+	// Step 8: Service Restart (bidder)
+	step = s.runStep("Fault: Bidder Service Restart", func() (string, error) {
+		if faultInjector == nil {
+			return "skipped (no Docker access)", nil
+		}
+
+		s.screenshotGrafana("08a-grafana-before", "/d/dsp-overview")
+
+		if err := faultInjector.RestartContainer(ctx, "bidder"); err != nil {
+			return "", fmt.Errorf("restart bidder: %w", err)
+		}
+
+		recoveryTime, err := WaitForHealthy("http://localhost:8180", 60*time.Second)
+		if err != nil {
+			return "", err
+		}
+
+		return fmt.Sprintf("Bidder restarted. Recovery time: %s", recoveryTime.Round(time.Millisecond)), nil
+	})
+	step.Screenshot = s.screenshotGrafana("08b-grafana-after", "/d/dsp-overview")
+	steps = append(steps, step)
+
+	// Step 9: Kafka Delay (pause consumer)
+	step = s.runStep("Fault: Kafka Consumer Delay", func() (string, error) {
+		if faultInjector == nil {
+			return "skipped (no Docker access)", nil
+		}
+
+		if err := faultInjector.PauseContainer(ctx, "consumer"); err != nil {
+			return "", fmt.Errorf("pause consumer: %w", err)
+		}
+
+		s.client.UpdateCampaign(s.campaignID, map[string]any{"budget_daily_cents": 1000000})
+		s.client.StartCampaign(s.campaignID)
+
+		s.client.TriggerExchangeSim(s.exchangeSimURL, "burst", nil)
+		log.Printf("[INFO] Consumer paused — messages accumulating in Kafka...")
+		time.Sleep(15 * time.Second)
+
+		if err := faultInjector.UnpauseContainer(ctx, "consumer"); err != nil {
+			return "", fmt.Errorf("unpause consumer: %w", err)
+		}
+
+		log.Printf("[INFO] Consumer resumed — waiting for catch-up...")
+		time.Sleep(10 * time.Second)
+
+		stats, err := s.client.GetCampaignStats(s.campaignID)
+		if err != nil {
+			return "", err
+		}
+
+		return fmt.Sprintf("Consumer caught up. Impressions: %d, Clicks: %d", stats.Impressions, stats.Clicks), nil
+	})
+	step.Screenshot = s.screenshot("09-analytics-catchup", "/analytics")
 	steps = append(steps, step)
 
 	return steps
