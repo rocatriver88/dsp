@@ -135,8 +135,3 @@ func runVerify(cfg *AutopilotConfig) {
 		os.Exit(1)
 	}
 }
-
-// Temporary stub — will be replaced by continuous.go in Task 10
-func runContinuous(cfg *AutopilotConfig) {
-	log.Fatal("continuous mode not yet implemented")
-}
