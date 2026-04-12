@@ -16,6 +16,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/config"
+	"github.com/heartgryphon/dsp/internal/guardrail"
 	"github.com/heartgryphon/dsp/internal/handler"
 	"github.com/heartgryphon/dsp/internal/observability"
 	"github.com/heartgryphon/dsp/internal/ratelimit"
@@ -51,6 +52,16 @@ func main() {
 		log.Println("Connected to Redis")
 	}
 
+	// Initialize guardrail (optional, requires Redis)
+	var guard *guardrail.Guardrail
+	if rdb != nil {
+		guard = guardrail.New(rdb, guardrail.Config{
+			GlobalDailyBudgetCents: cfg.GlobalDailyBudgetCents,
+			MaxBidCPMCents:         cfg.MaxBidCPMCents,
+		})
+		log.Println("Guardrail initialized")
+	}
+
 	// Initialize services
 	store := campaign.NewStore(db)
 	billingSvc := billing.New(db)
@@ -83,6 +94,7 @@ func main() {
 		RegSvc:      regSvc,
 		BudgetSvc:   budgetSvc,
 		Redis:       rdb,
+		Guardrail:   guard,
 	}
 
 	// Public API routes
@@ -130,6 +142,9 @@ func main() {
 	adminMux.HandleFunc("GET /api/v1/admin/creatives", h.HandleListCreativesForReview)
 	adminMux.HandleFunc("POST /api/v1/admin/creatives/{id}/approve", h.HandleApproveCreative)
 	adminMux.HandleFunc("POST /api/v1/admin/creatives/{id}/reject", h.HandleRejectCreative)
+	adminMux.HandleFunc("POST /api/v1/admin/circuit-break", h.HandleCircuitBreak)
+	adminMux.HandleFunc("POST /api/v1/admin/circuit-reset", h.HandleCircuitReset)
+	adminMux.HandleFunc("GET /api/v1/admin/circuit-status", h.HandleCircuitStatus)
 
 	internalMux := http.NewServeMux()
 	internalMux.Handle("GET /metrics", promhttp.Handler())

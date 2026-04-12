@@ -10,6 +10,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/billing"
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/campaign"
+	"github.com/heartgryphon/dsp/internal/guardrail"
 	"github.com/heartgryphon/dsp/internal/registration"
 	"github.com/heartgryphon/dsp/internal/reporting"
 	"github.com/redis/go-redis/v9"
@@ -21,8 +22,9 @@ type Deps struct {
 	ReportStore *reporting.Store // nil if ClickHouse unavailable
 	BillingSvc  *billing.Service
 	RegSvc      *registration.Service
-	BudgetSvc   *budget.Service // nil if Redis unavailable
-	Redis       *redis.Client   // nil if Redis unavailable
+	BudgetSvc   *budget.Service    // nil if Redis unavailable
+	Redis       *redis.Client      // nil if Redis unavailable
+	Guardrail   *guardrail.Guardrail // nil if guardrails disabled
 }
 
 func WriteJSON(w http.ResponseWriter, status int, data any) {
