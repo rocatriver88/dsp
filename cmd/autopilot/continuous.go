@@ -251,6 +251,17 @@ func (s *ContinuousSimulator) generateDailyReport() {
 		steps[0].Screenshot = ss
 	}
 
+	// Circuit breaker status
+	if circuitStatus, err := s.client.GetCircuitStatus(); err == nil {
+		steps = append(steps, StepResult{
+			Name:   "Circuit Breaker Status",
+			Passed: circuitStatus.Status == "open",
+			Detail: fmt.Sprintf("Status: %s, Global spend: %d cents",
+				circuitStatus.Status, circuitStatus.GlobalSpend),
+			Error: circuitStatus.Reason,
+		})
+	}
+
 	s.mu.Lock()
 	campaignIDs := make([]int64, len(s.campaignIDs))
 	copy(campaignIDs, s.campaignIDs)

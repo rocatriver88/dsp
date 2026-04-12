@@ -304,6 +304,27 @@ func (c *DSPClient) TriggerExchangeSim(simURL, mode string, params map[string]st
 	return result, nil
 }
 
+type CircuitStatus struct {
+	Status      string `json:"circuit_breaker"`
+	Reason      string `json:"reason"`
+	GlobalSpend int64  `json:"global_spend_today_cents"`
+}
+
+func (c *DSPClient) GetCircuitStatus() (*CircuitStatus, error) {
+	data, status, err := c.do("GET", "/api/v1/admin/circuit-status", nil)
+	if err != nil {
+		return nil, err
+	}
+	if status != 200 {
+		return nil, fmt.Errorf("circuit status: status %d", status)
+	}
+	var resp CircuitStatus
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("circuit status: decode: %w", err)
+	}
+	return &resp, nil
+}
+
 // HealthCheck checks if a service is responding.
 func (c *DSPClient) HealthCheck(url string) error {
 	resp, err := c.client.Get(url + "/health")
