@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,6 +31,7 @@ type ContinuousSimulator struct {
 	reportDir      string
 
 	// State
+	mu           sync.Mutex
 	advertiserID int64
 	apiKey       string
 	campaignIDs  []int64
@@ -128,7 +130,9 @@ func (s *ContinuousSimulator) setup() error {
 	if err != nil {
 		return fmt.Errorf("create campaign: %w", err)
 	}
+	s.mu.Lock()
 	s.campaignIDs = append(s.campaignIDs, cid)
+	s.mu.Unlock()
 
 	s.client.CreateCreative(CreativeRequest{
 		CampaignID:     cid,
@@ -184,7 +188,9 @@ func (s *ContinuousSimulator) randomOperation() {
 			BidCPMCents:      300 + rand.Intn(500),
 		})
 		if err == nil {
+			s.mu.Lock()
 			s.campaignIDs = append(s.campaignIDs, cid)
+			s.mu.Unlock()
 			s.client.CreateCreative(CreativeRequest{
 				CampaignID: cid, Name: "Auto Creative", AdType: "banner",
 				Format: "image", Size: "300x250",
@@ -196,19 +202,30 @@ func (s *ContinuousSimulator) randomOperation() {
 		}
 
 	case "pause_campaign":
-		if len(s.campaignIDs) > 1 {
-			idx := rand.Intn(len(s.campaignIDs))
-			cid := s.campaignIDs[idx]
-			s.client.PauseCampaign(cid)
-			log.Printf("[OP] Paused campaign %d", cid)
+		s.mu.Lock()
+		pauseLen := len(s.campaignIDs)
+		var pauseCID int64
+		if pauseLen > 1 {
+			pauseCID = s.campaignIDs[rand.Intn(pauseLen)]
+		}
+		s.mu.Unlock()
+		if pauseLen > 1 {
+			s.client.PauseCampaign(pauseCID)
+			log.Printf("[OP] Paused campaign %d", pauseCID)
 		}
 
 	case "adjust_budget":
-		if len(s.campaignIDs) > 0 {
-			cid := s.campaignIDs[rand.Intn(len(s.campaignIDs))]
+		s.mu.Lock()
+		adjLen := len(s.campaignIDs)
+		var adjCID int64
+		if adjLen > 0 {
+			adjCID = s.campaignIDs[rand.Intn(adjLen)]
+		}
+		s.mu.Unlock()
+		if adjLen > 0 {
 			newBudget := 200000 + rand.Intn(1000000)
-			s.client.UpdateCampaign(cid, map[string]any{"budget_daily_cents": newBudget})
-			log.Printf("[OP] Adjusted campaign %d daily budget to %d", cid, newBudget)
+			s.client.UpdateCampaign(adjCID, map[string]any{"budget_daily_cents": newBudget})
+			log.Printf("[OP] Adjusted campaign %d daily budget to %d", adjCID, newBudget)
 		}
 	}
 }
@@ -216,7 +233,10 @@ func (s *ContinuousSimulator) randomOperation() {
 func (s *ContinuousSimulator) generateDailyReport() {
 	log.Println("[REPORT] Generating daily report...")
 
-	overview, _ := s.client.GetOverviewStats()
+	overview, err := s.client.GetOverviewStats()
+	if err != nil || overview == nil {
+		overview = &OverviewStats{}
+	}
 
 	var steps []StepResult
 	steps = append(steps, StepResult{
@@ -231,7 +251,12 @@ func (s *ContinuousSimulator) generateDailyReport() {
 		steps[0].Screenshot = ss
 	}
 
-	for _, cid := range s.campaignIDs {
+	s.mu.Lock()
+	campaignIDs := make([]int64, len(s.campaignIDs))
+	copy(campaignIDs, s.campaignIDs)
+	s.mu.Unlock()
+
+	for _, cid := range campaignIDs {
 		stats, err := s.client.GetCampaignStats(cid)
 		if err != nil {
 			continue
@@ -257,7 +282,7 @@ func (s *ContinuousSimulator) generateDailyReport() {
 	passed, _ := report.Summary()
 	s.alerter.Send("DSP Daily Report",
 		fmt.Sprintf("Date: %s\nCampaigns: %d\nReport: %s",
-			time.Now().Format("2006-01-02"), len(s.campaignIDs), reportFile))
+			time.Now().Format("2006-01-02"), len(campaignIDs), reportFile))
 
 	log.Printf("[REPORT] Daily report: %d steps, all passed=%v, file=%s", len(steps), passed == len(steps), reportFile)
 }

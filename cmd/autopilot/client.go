@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -27,7 +28,10 @@ func NewDSPClient(baseURL, apiKey string) *DSPClient {
 func (c *DSPClient) do(method, path string, body any) ([]byte, int, error) {
 	var reqBody io.Reader
 	if body != nil {
-		b, _ := json.Marshal(body)
+		b, err := json.Marshal(body)
+		if err != nil {
+			return nil, 0, fmt.Errorf("marshal request: %w", err)
+		}
 		reqBody = bytes.NewReader(b)
 	}
 	req, err := http.NewRequest(method, c.BaseURL+path, reqBody)
@@ -113,7 +117,9 @@ func (c *DSPClient) CreateAdvertiser(companyName, email string) (*AdvertiserResp
 		return nil, fmt.Errorf("create advertiser: status %d, body: %s", status, data)
 	}
 	var resp AdvertiserResponse
-	json.Unmarshal(data, &resp)
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("create advertiser: decode: %w", err)
+	}
 	return &resp, nil
 }
 
@@ -130,7 +136,9 @@ func (c *DSPClient) TopUp(advertiserID int64, amountCents int64, description str
 		return 0, fmt.Errorf("topup: status %d, body: %s", status, data)
 	}
 	var resp map[string]any
-	json.Unmarshal(data, &resp)
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return 0, fmt.Errorf("topup: decode: %w", err)
+	}
 	balance, _ := resp["balance_cents"].(float64)
 	return int64(balance), nil
 }
@@ -144,7 +152,9 @@ func (c *DSPClient) CreateCampaign(req CampaignRequest) (int64, error) {
 		return 0, fmt.Errorf("create campaign: status %d, body: %s", status, data)
 	}
 	var resp map[string]any
-	json.Unmarshal(data, &resp)
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return 0, fmt.Errorf("create campaign: decode: %w", err)
+	}
 	id, _ := resp["id"].(float64)
 	return int64(id), nil
 }
@@ -158,7 +168,9 @@ func (c *DSPClient) CreateCreative(req CreativeRequest) (int64, error) {
 		return 0, fmt.Errorf("create creative: status %d, body: %s", status, data)
 	}
 	var resp map[string]any
-	json.Unmarshal(data, &resp)
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return 0, fmt.Errorf("create creative: decode: %w", err)
+	}
 	id, _ := resp["id"].(float64)
 	return int64(id), nil
 }
@@ -194,7 +206,9 @@ func (c *DSPClient) GetCampaign(campaignID int64) (*CampaignResponse, error) {
 		return nil, fmt.Errorf("get campaign: status %d", status)
 	}
 	var resp CampaignResponse
-	json.Unmarshal(data, &resp)
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("get campaign: decode: %w", err)
+	}
 	return &resp, nil
 }
 
@@ -207,7 +221,9 @@ func (c *DSPClient) ListCampaigns() ([]CampaignResponse, error) {
 		return nil, fmt.Errorf("list campaigns: status %d", status)
 	}
 	var resp []CampaignResponse
-	json.Unmarshal(data, &resp)
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("list campaigns: decode: %w", err)
+	}
 	return resp, nil
 }
 
@@ -220,7 +236,9 @@ func (c *DSPClient) GetOverviewStats() (*OverviewStats, error) {
 		return nil, fmt.Errorf("overview stats: status %d", status)
 	}
 	var resp OverviewStats
-	json.Unmarshal(data, &resp)
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("overview stats: decode: %w", err)
+	}
 	return &resp, nil
 }
 
@@ -233,7 +251,9 @@ func (c *DSPClient) GetCampaignStats(campaignID int64) (*CampaignStats, error) {
 		return nil, fmt.Errorf("campaign stats: status %d", status)
 	}
 	var resp CampaignStats
-	json.Unmarshal(data, &resp)
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("campaign stats: decode: %w", err)
+	}
 	return &resp, nil
 }
 
@@ -257,21 +277,24 @@ func (c *DSPClient) GetBalance(advertiserID int64) (int64, error) {
 		return 0, fmt.Errorf("balance: status %d", status)
 	}
 	var resp map[string]any
-	json.Unmarshal(data, &resp)
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return 0, fmt.Errorf("balance: decode: %w", err)
+	}
 	balance, _ := resp["balance_cents"].(float64)
 	return int64(balance), nil
 }
 
 // TriggerExchangeSim sends traffic via the exchange simulator.
 func (c *DSPClient) TriggerExchangeSim(simURL, mode string, params map[string]string) (map[string]any, error) {
-	url := simURL + "/" + mode
+	u := simURL + "/" + mode
 	if len(params) > 0 {
-		url += "?"
+		q := make(url.Values)
 		for k, v := range params {
-			url += k + "=" + v + "&"
+			q.Set(k, v)
 		}
+		u += "?" + q.Encode()
 	}
-	resp, err := c.client.Get(url)
+	resp, err := c.client.Get(u)
 	if err != nil {
 		return nil, fmt.Errorf("exchange-sim %s: %w", mode, err)
 	}
