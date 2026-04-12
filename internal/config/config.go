@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -24,6 +25,14 @@ type Config struct {
 	CORSAllowedOrigins string
 	BidderPublicURL    string
 	BidderHMACSecret   string
+
+	// Guardrails
+	GlobalDailyBudgetCents int64   // all campaigns combined, 0 = no limit
+	MaxBidCPMCents         int     // single bid ceiling, 0 = no limit
+	LowBalanceAlertCents   int64   // alert when below this, 0 = disabled
+	MinBalanceCents        int64   // auto-pause all when below this, 0 = disabled
+	SpendRateWindowSec     int     // window for spend rate check (default 300 = 5min)
+	SpendRateMultiplier    float64 // alert if rate > expected * this (default 3.0)
 }
 
 func Load() *Config {
@@ -45,6 +54,13 @@ func Load() *Config {
 		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:4000"),
 		BidderPublicURL:    getEnv("BIDDER_PUBLIC_URL", "http://localhost:8180"),
 		BidderHMACSecret:   getEnv("BIDDER_HMAC_SECRET", "dev-hmac-secret-change-in-production"),
+
+		GlobalDailyBudgetCents: parseInt64("GLOBAL_DAILY_BUDGET_CENTS", 0),
+		MaxBidCPMCents:         parseInt("MAX_BID_CPM_CENTS", 0),
+		LowBalanceAlertCents:   parseInt64("LOW_BALANCE_ALERT_CENTS", 0),
+		MinBalanceCents:        parseInt64("MIN_BALANCE_CENTS", 0),
+		SpendRateWindowSec:     parseInt("SPEND_RATE_WINDOW_SEC", 300),
+		SpendRateMultiplier:    parseFloat("SPEND_RATE_MULTIPLIER", 3.0),
 	}
 }
 
@@ -77,6 +93,33 @@ func (c *Config) DSN() string {
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+func parseInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func parseInt64(key string, fallback int64) int64 {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func parseFloat(key string, fallback float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
 	}
 	return fallback
 }
