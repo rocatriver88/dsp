@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>DSP Autopilot Verify Report</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", sans-serif; background: #f3f4f6; color: #111827; padding: 24px; }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+  .meta { color: #6b7280; font-size: 13px; margin-bottom: 24px; }
+  .summary { display: flex; gap: 16px; margin-bottom: 24px; }
+  .summary-card { background: #fff; border-radius: 8px; padding: 16px 24px; flex: 1; }
+  .summary-card .label { font-size: 12px; color: #6b7280; text-transform: uppercase; }
+  .summary-card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+  .value.pass { color: #059669; }
+  .value.fail { color: #dc2626; }
+  .step { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 12px; }
+  .step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .badge { padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .badge.pass { background: #d1fae5; color: #065f46; }
+  .badge.fail { background: #fee2e2; color: #991b1b; }
+  .step-name { font-size: 16px; font-weight: 600; }
+  .step-duration { color: #6b7280; font-size: 13px; margin-left: auto; }
+  .step-detail { font-size: 14px; color: #374151; margin-bottom: 8px; }
+  .step-error { font-size: 13px; color: #dc2626; background: #fef2f2; padding: 8px 12px; border-radius: 4px; margin-bottom: 8px; }
+  .screenshot { margin-top: 12px; }
+  .screenshot img { max-width: 100%; border: 1px solid #e5e7eb; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>DSP Autopilot Verify Report</h1>
+  <div class="meta">
+    {{.StartTime.Format "2006-01-02 15:04:05"}} — {{.EndTime.Format "2006-01-02 15:04:05"}}
+    ({{.DurationStr}})
+  </div>
+
+  <div class="summary">
+    <div class="summary-card">
+      <div class="label">Total Steps</div>
+      <div class="value">{{.TotalSteps}}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Passed</div>
+      <div class="value pass">{{.PassedCount}}</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Failed</div>
+      <div class="value fail">{{.FailedCount}}</div>
+    </div>
+  </div>
+
+  {{range .Steps}}
+  <div class="step">
+    <div class="step-header">
+      {{if .Passed}}<span class="badge pass">PASS</span>{{else}}<span class="badge fail">FAIL</span>{{end}}
+      <span class="step-name">{{.Name}}</span>
+      <span class="step-duration">{{.Duration}}</span>
+    </div>
+    {{if .Detail}}<div class="step-detail">{{.Detail}}</div>{{end}}
+    {{if .Error}}<div class="step-error">{{.Error}}</div>{{end}}
+    {{if .Screenshot}}
+    <div class="screenshot">
+      <img src="{{.Screenshot}}" alt="{{.Name}}">
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+</body>
+</html>
