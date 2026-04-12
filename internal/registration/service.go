@@ -30,6 +30,7 @@ type Request struct {
 	ContactPhone string     `json:"contact_phone,omitempty"`
 	BusinessType string     `json:"business_type,omitempty"`
 	Website      string     `json:"website,omitempty"`
+	InviteCode   string     `json:"invite_code,omitempty"`
 	Status       string     `json:"status"`
 	ReviewedAt   *time.Time `json:"reviewed_at,omitempty"`
 	ReviewedBy   string     `json:"reviewed_by,omitempty"`
@@ -65,6 +66,13 @@ func (s *Service) Submit(ctx context.Context, req *Request) (int64, error) {
 		return 0, err
 	}
 
+	if req.InviteCode == "" {
+		return 0, fmt.Errorf("invite code is required")
+	}
+	if err := s.ValidateInviteCode(ctx, req.InviteCode); err != nil {
+		return 0, err
+	}
+
 	// Check for duplicate email
 	var count int
 	err := s.db.QueryRow(ctx,
@@ -93,10 +101,13 @@ func (s *Service) Submit(ctx context.Context, req *Request) (int64, error) {
 
 	var id int64
 	err = s.db.QueryRow(ctx,
-		`INSERT INTO registration_requests (company_name, contact_email, contact_phone, business_type, website)
-		 VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-		req.CompanyName, req.ContactEmail, req.ContactPhone, req.BusinessType, req.Website,
+		`INSERT INTO registration_requests (company_name, contact_email, contact_phone, business_type, website, invite_code)
+		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+		req.CompanyName, req.ContactEmail, req.ContactPhone, req.BusinessType, req.Website, req.InviteCode,
 	).Scan(&id)
+	if err == nil {
+		s.UseInviteCode(ctx, req.InviteCode)
+	}
 	return id, err
 }
 
