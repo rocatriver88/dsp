@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/heartgryphon/dsp/internal/alert"
 	"github.com/heartgryphon/dsp/internal/auth"
 	"github.com/heartgryphon/dsp/internal/autopause"
 	"github.com/heartgryphon/dsp/internal/billing"
@@ -18,6 +19,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/config"
 	"github.com/heartgryphon/dsp/internal/guardrail"
 	"github.com/heartgryphon/dsp/internal/handler"
+	"github.com/heartgryphon/dsp/internal/reconciliation"
 	"github.com/heartgryphon/dsp/internal/observability"
 	"github.com/heartgryphon/dsp/internal/ratelimit"
 	"github.com/heartgryphon/dsp/internal/registration"
@@ -85,6 +87,13 @@ func main() {
 	// Start auto-pause background service
 	autoPauseSvc := autopause.New(store, reportStore, rdb)
 	go autoPauseSvc.Start(ctx)
+
+	// Start hourly reconciliation
+	if reportStore != nil && rdb != nil {
+		reconSvc := reconciliation.New(rdb, store, reportStore, billingSvc, alert.Noop{})
+		reconSvc.StartHourlySchedule(ctx, 1.0) // 1% threshold
+		log.Println("Hourly reconciliation started")
+	}
 
 	// Handler dependencies
 	h := &handler.Deps{
