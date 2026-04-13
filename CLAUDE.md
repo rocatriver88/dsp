@@ -63,7 +63,7 @@ Standard flow for any feature/phase implementation:
    │   └── 重新执行上面的三个步骤，直到每个步骤都没有问题
    │
    └── 全部实现完成后:
-       ├── requesting-code-review   全量审查 → 修 Critical/Important
+       ├── final-code-review        全量审查 → 修 Critical/Important
        ├── verification-before-completion   启动真实服务，跑集成验证
        ├── /qa                              无头浏览器系统性测试前端
        ├── /browse                          截图验证关键页面
