@@ -140,7 +140,7 @@ func (s *ContinuousSimulator) setup() error {
 		CampaignID:     cid,
 		Name:           "Continuous Banner",
 		AdType:         "banner",
-		Format:         "image",
+		Format:         "banner",
 		Size:           "300x250",
 		AdMarkup:       `<div style="width:300px;height:250px;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center">Continuous Test</div>`,
 		DestinationURL: "https://example.com",
@@ -195,7 +195,7 @@ func (s *ContinuousSimulator) randomOperation() {
 			s.mu.Unlock()
 			s.client.CreateCreative(CreativeRequest{
 				CampaignID: cid, Name: "Auto Creative", AdType: "banner",
-				Format: "image", Size: "300x250",
+				Format: "banner", Size: "300x250",
 				AdMarkup:       `<div style="width:300px;height:250px;background:#059669;color:#fff;display:flex;align-items:center;justify-content:center">Auto</div>`,
 				DestinationURL: "https://example.com",
 			})
