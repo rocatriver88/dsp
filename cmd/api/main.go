@@ -30,6 +30,17 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// @title DSP Platform API
+// @version 1.0
+// @description Demand-Side Platform — programmatic advertising API
+// @host localhost:8181
+// @BasePath /api/v1
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name X-API-Key
+// @securityDefinitions.apikey AdminAuth
+// @in header
+// @name X-Admin-Token
 func main() {
 	observability.InitLogger()
 	cfg := config.Load()

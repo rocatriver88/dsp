@@ -1,0 +1,18 @@
+basePath: /api/v1
+host: localhost:8181
+info:
+  contact: {}
+  description: Demand-Side Platform — programmatic advertising API
+  title: DSP Platform API
+  version: "1.0"
+paths: {}
+securityDefinitions:
+  AdminAuth:
+    in: header
+    name: X-Admin-Token
+    type: apiKey
+  ApiKeyAuth:
+    in: header
+    name: X-API-Key
+    type: apiKey
+swagger: "2.0"

@@ -1,0 +1,24 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Demand-Side Platform — programmatic advertising API",
+        "title": "DSP Platform API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8181",
+    "basePath": "/api/v1",
+    "paths": {},
+    "securityDefinitions": {
+        "AdminAuth": {
+            "type": "apiKey",
+            "name": "X-Admin-Token",
+            "in": "header"
+        },
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "name": "X-API-Key",
+            "in": "header"
+        }
+    }
+}
