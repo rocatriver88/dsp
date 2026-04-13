@@ -108,9 +108,27 @@ function AdminTokenGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem("dsp_admin_token");
     if (stored) {
-      setToken(stored);
+      // Re-validate stored token against server
+      fetch(
+        `${process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8182"}/api/v1/admin/health`,
+        { headers: { "X-Admin-Token": stored } }
+      )
+        .then((res) => {
+          if (res.ok) {
+            setToken(stored);
+          } else {
+            localStorage.removeItem("dsp_admin_token");
+          }
+        })
+        .catch(() => {
+          // Network error — still allow access with stored token
+          // (server might be temporarily unreachable)
+          setToken(stored);
+        })
+        .finally(() => setChecking(false));
+    } else {
+      setChecking(false);
     }
-    setChecking(false);
   }, []);
 
   const handleLogin = async () => {
