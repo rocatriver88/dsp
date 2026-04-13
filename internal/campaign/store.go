@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -226,6 +227,43 @@ func (s *Store) ListActiveCampaigns(ctx context.Context) ([]*Campaign, error) {
 			&c.BudgetTotalCents, &c.BudgetDailyCents, &c.SpentCents,
 			&c.BidCPMCents, &c.BidCPCCents, &c.OCPMTargetCPACents,
 			&c.StartDate, &c.EndDate, &c.Targeting, &c.PauseReason, &c.PausedAt, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, err
+		}
+		campaigns = append(campaigns, c)
+	}
+	return campaigns, nil
+}
+
+// ListCampaignsActiveOnDate returns campaigns that were active at any point during the given date.
+func (s *Store) ListCampaignsActiveOnDate(ctx context.Context, date time.Time) ([]*Campaign, error) {
+	dayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	dayEnd := dayStart.Add(24 * time.Hour)
+	rows, err := s.db.Query(ctx,
+		`SELECT id, advertiser_id, name, status, billing_model,
+		        budget_total_cents, budget_daily_cents, spent_cents,
+		        bid_cpm_cents, bid_cpc_cents, ocpm_target_cpa_cents,
+		        start_date, end_date, targeting, sandbox,
+		        pause_reason, paused_at, created_at, updated_at
+		 FROM campaigns
+		 WHERE status IN ('active', 'paused')
+		   AND created_at < $2
+		   AND (updated_at >= $1 OR status = 'active')
+		 ORDER BY id`,
+		dayStart, dayEnd,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var campaigns []*Campaign
+	for rows.Next() {
+		c := &Campaign{}
+		if err := rows.Scan(&c.ID, &c.AdvertiserID, &c.Name, &c.Status, &c.BillingModel,
+			&c.BudgetTotalCents, &c.BudgetDailyCents, &c.SpentCents,
+			&c.BidCPMCents, &c.BidCPCCents, &c.OCPMTargetCPACents,
+			&c.StartDate, &c.EndDate, &c.Targeting, &c.Sandbox,
+			&c.PauseReason, &c.PausedAt, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		campaigns = append(campaigns, c)

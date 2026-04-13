@@ -65,7 +65,7 @@ func (s *Service) RunHourly(ctx context.Context, thresholdPercent float64) ([]Re
 		return nil, fmt.Errorf("ClickHouse not available")
 	}
 
-	campaigns, err := s.store.ListActiveCampaigns(ctx)
+	campaigns, err := s.store.ListCampaignsActiveOnDate(ctx, time.Now())
 	if err != nil {
 		return nil, fmt.Errorf("list campaigns: %w", err)
 	}
@@ -128,7 +128,7 @@ func (s *Service) RunDaily(ctx context.Context, date time.Time) error {
 		return fmt.Errorf("ClickHouse not available")
 	}
 
-	campaigns, err := s.store.ListActiveCampaigns(ctx)
+	campaigns, err := s.store.ListCampaignsActiveOnDate(ctx, date)
 	if err != nil {
 		return fmt.Errorf("list campaigns: %w", err)
 	}
