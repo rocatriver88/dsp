@@ -198,7 +198,7 @@ func main() {
 	rateLimited := ratelimit.Middleware(limiter, ratelimit.APIKeyFunc, 100, time.Minute)(authedHandler)
 	publicHandler := handler.WithAuthExemption(rateLimited, publicMux)
 	publicSrv := &http.Server{Addr: ":" + cfg.APIPort, Handler: handler.WithCORS(cfg, observability.RequestIDMiddleware(observability.LoggingMiddleware(publicHandler)))}
-	internalSrv := &http.Server{Addr: ":" + cfg.InternalPort, Handler: observability.LoggingMiddleware(internalMux)}
+	internalSrv := &http.Server{Addr: ":" + cfg.InternalPort, Handler: handler.WithCORS(cfg, observability.LoggingMiddleware(internalMux))}
 
 	// Start servers
 	go func() {

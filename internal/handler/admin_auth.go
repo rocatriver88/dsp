@@ -18,6 +18,11 @@ func AdminAuthMiddleware(next http.Handler) http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// CORS preflight must bypass auth
+		if r.Method == "OPTIONS" {
+			next.ServeHTTP(w, r)
+			return
+		}
 		auth := r.Header.Get("X-Admin-Token")
 		if auth == "" {
 			auth = r.URL.Query().Get("admin_token")
