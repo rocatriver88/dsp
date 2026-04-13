@@ -4,8 +4,8 @@ global:
 scrape_configs:
   - job_name: "dsp-api"
     static_configs:
-      - targets: ["host.docker.internal:8182"]
+      - targets: ["api:8182"]
 
   - job_name: "dsp-bidder"
     static_configs:
-      - targets: ["host.docker.internal:8180"]
+      - targets: ["bidder:8180"]

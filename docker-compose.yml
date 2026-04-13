@@ -57,16 +57,129 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9193
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9094,CONTROLLER://0.0.0.0:9193
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9094
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:19094,EXTERNAL://0.0.0.0:9094,CONTROLLER://0.0.0.0:9193
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19094,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       CLUSTER_ID: dsp-kafka-cluster-001
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     volumes:
       - kafkadata:/var/kafka/data
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    ports:
+      - "8181:8181"
+      - "8182:8182"
+    environment:
+      ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: dsp
+      DB_PASSWORD: dsp_dev_password
+      DB_NAME: dsp
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-dsp_dev_password}
+      CLICKHOUSE_ADDR: clickhouse:9000
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-dsp_dev_password}
+      API_PORT: 8181
+      INTERNAL_PORT: 8182
+      CORS_ALLOWED_ORIGINS: http://localhost:4000
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    volumes:
+      - uploadsdata:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8181/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  bidder:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.bidder
+    restart: unless-stopped
+    ports:
+      - "8180:8180"
+    environment:
+      ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: dsp
+      DB_PASSWORD: dsp_dev_password
+      DB_NAME: dsp
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-dsp_dev_password}
+      KAFKA_BROKERS: kafka:19094
+      CLICKHOUSE_ADDR: clickhouse:9000
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-dsp_dev_password}
+      BIDDER_PORT: 8180
+      BIDDER_PUBLIC_URL: http://localhost:8180
+      BIDDER_HMAC_SECRET: ${BIDDER_HMAC_SECRET:-dev-hmac-secret-change-in-production}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8180/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  consumer:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.consumer
+    restart: unless-stopped
+    environment:
+      ENV: development
+      KAFKA_BROKERS: kafka:19094
+      CLICKHOUSE_ADDR: clickhouse:9000
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-dsp_dev_password}
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8181
+        NEXT_PUBLIC_ADMIN_API_URL: http://localhost:8182
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8181
+      NEXT_PUBLIC_ADMIN_API_URL: http://localhost:8182
+    depends_on:
+      api:
+        condition: service_healthy
 
   prometheus:
     image: prom/prometheus:latest
@@ -75,8 +188,11 @@ services:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    depends_on:
+      api:
+        condition: service_healthy
+      bidder:
+        condition: service_healthy
 
   grafana:
     image: grafana/grafana:latest
@@ -100,3 +216,4 @@ volumes:
   redisdata:
   kafkadata:
   grafanadata:
+  uploadsdata:

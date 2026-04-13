@@ -1,0 +1,13 @@
+.git
+.github
+.claude
+.context
+.gstack
+.gocache
+bin
+autopilot-output
+uploads
+web/node_modules
+web/.next
+docs/archive
+*.log
