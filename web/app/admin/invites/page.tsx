@@ -9,7 +9,8 @@ export default function InvitesPage() {
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
-  const [newCode, setNewCode] = useState<InviteCode | null>(null);
+  const [newCode, setNewCode] = useState<{ code: string } | null>(null);
+  const [maxUses, setMaxUses] = useState<number>(1);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -30,8 +31,8 @@ export default function InvitesPage() {
     setGenError(null);
     setNewCode(null);
     try {
-      const code = await adminApi.createInviteCode();
-      setNewCode(code);
+      const result = await adminApi.createInviteCode(maxUses);
+      setNewCode(result);
       load();
     } catch (e: unknown) {
       setGenError(e instanceof Error ? e.message : "生成失败");
@@ -56,6 +57,16 @@ export default function InvitesPage() {
         <h3 className="text-sm font-semibold text-gray-700 mb-4">生成邀请码</h3>
 
         <div className="flex items-end gap-3">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">最大使用次数</label>
+            <input
+              type="number"
+              min={1}
+              value={maxUses}
+              onChange={(e) => setMaxUses(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              className="w-24 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            />
+          </div>
           <button
             onClick={handleGenerate}
             disabled={generating}
@@ -99,39 +110,46 @@ export default function InvitesPage() {
                 <tr>
                   <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">邀请码</th>
                   <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">状态</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">使用者 ID</th>
+                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">使用量</th>
+                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">创建人</th>
                   <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">创建时间</th>
                   <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">过期时间</th>
                 </tr>
               </thead>
               <tbody>
-                {codes.map((c) => (
-                  <tr key={c.id} className="border-b last:border-0 border-gray-100">
-                    <td className="py-3 px-4">
-                      <span className="font-mono text-sm text-gray-900">{c.code}</span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${
-                          c.used
-                            ? "bg-gray-100 text-gray-500"
-                            : "bg-green-50 text-green-700"
-                        }`}
-                      >
-                        {c.used ? "已使用" : "可用"}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
-                      {c.used_by ?? "—"}
-                    </td>
-                    <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
-                      {new Date(c.created_at).toLocaleString("zh-CN")}
-                    </td>
-                    <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
-                      {c.expires_at ? new Date(c.expires_at).toLocaleString("zh-CN") : "—"}
-                    </td>
-                  </tr>
-                ))}
+                {codes.map((c) => {
+                  const exhausted = c.used_count >= c.max_uses;
+                  return (
+                    <tr key={c.id} className="border-b last:border-0 border-gray-100">
+                      <td className="py-3 px-4">
+                        <span className="font-mono text-sm text-gray-900">{c.code}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${
+                            exhausted
+                              ? "bg-gray-100 text-gray-500"
+                              : "bg-green-50 text-green-700"
+                          }`}
+                        >
+                          {exhausted ? "已用完" : "可用"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                        {c.used_count} / {c.max_uses}
+                      </td>
+                      <td className="py-3 px-4 text-xs text-gray-500">
+                        {c.created_by || "—"}
+                      </td>
+                      <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                        {new Date(c.created_at).toLocaleString("zh-CN")}
+                      </td>
+                      <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                        {c.expires_at ? new Date(c.expires_at).toLocaleString("zh-CN") : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

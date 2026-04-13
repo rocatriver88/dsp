@@ -21,8 +21,6 @@ function CreativeCard({
           <p className="text-sm font-semibold text-gray-900">{creative.name}</p>
           <div className="flex items-center gap-3 mt-1">
             <span className="text-xs text-gray-500">Campaign #{creative.campaign_id}</span>
-            <span className="text-xs text-gray-400">·</span>
-            <span className="text-xs text-gray-500">广告主 #{creative.advertiser_id}</span>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">

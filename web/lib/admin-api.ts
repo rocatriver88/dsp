@@ -44,16 +44,16 @@ export interface AdminAdvertiser {
 export interface InviteCode {
   id: number;
   code: string;
-  used: boolean;
-  used_by?: number;
+  created_by: string;
+  max_uses: number;
+  used_count: number;
+  expires_at?: string | null;
   created_at: string;
-  expires_at?: string;
 }
 
 export interface AdminCreative {
   id: number;
   campaign_id: number;
-  advertiser_id: number;
   name: string;
   ad_type: string;
   format: string;
@@ -65,18 +65,18 @@ export interface AdminCreative {
 }
 
 export interface CircuitStatus {
-  name: string;
-  state: "closed" | "open" | "half-open";
-  failures: number;
-  last_failure?: string;
+  circuit_breaker: string;
+  reason: string;
+  global_spend_today_cents: number;
 }
 
 export interface AuditEntry {
   id: number;
-  admin_user: string;
+  advertiser_id: number;
+  actor: string;
   action: string;
-  target_type: string;
-  target_id: number;
+  resource_type: string;
+  resource_id: number;
   details: Record<string, unknown>;
   created_at: string;
 }
@@ -85,18 +85,29 @@ export interface Registration {
   id: number;
   company_name: string;
   contact_email: string;
+  contact_phone: string;
+  business_type: string;
+  website: string;
   invite_code: string;
   status: "pending" | "approved" | "rejected";
   created_at: string;
 }
 
+export interface SystemHealth {
+  status: string;
+  active_campaigns: number;
+  pending_registrations: number;
+  redis: string;
+  clickhouse: string;
+}
+
 export const adminApi = {
   // Advertisers
   listAdvertisers: () =>
-    adminRequest<AdminAdvertiser[]>("/api/admin/advertisers"),
+    adminRequest<AdminAdvertiser[]>("/api/v1/admin/advertisers"),
 
   topUp: (advertiserId: number, amountCents: number, description?: string) =>
-    adminRequest<{ id: number; balance_after: number }>("/api/admin/billing/topup", {
+    adminRequest<{ id: number; balance_after: number }>("/api/v1/admin/topup", {
       method: "POST",
       body: JSON.stringify({ advertiser_id: advertiserId, amount_cents: amountCents, description: description || "" }),
     }),
@@ -104,56 +115,59 @@ export const adminApi = {
   // Registrations
   listRegistrations: (status?: string) => {
     const params = status ? `?status=${status}` : "";
-    return adminRequest<Registration[]>(`/api/admin/registrations${params}`);
+    return adminRequest<Registration[]>(`/api/v1/admin/registrations${params}`);
   },
 
   approveRegistration: (id: number) =>
-    adminRequest<{ status: string }>(`/api/admin/registrations/${id}/approve`, { method: "POST" }),
+    adminRequest<{ status: string }>(`/api/v1/admin/registrations/${id}/approve`, { method: "POST" }),
 
   rejectRegistration: (id: number, reason?: string) =>
-    adminRequest<{ status: string }>(`/api/admin/registrations/${id}/reject`, {
+    adminRequest<{ status: string }>(`/api/v1/admin/registrations/${id}/reject`, {
       method: "POST",
       body: JSON.stringify({ reason: reason || "" }),
     }),
 
   // Invite codes
   listInviteCodes: () =>
-    adminRequest<InviteCode[]>("/api/admin/invite-codes"),
+    adminRequest<InviteCode[]>("/api/v1/admin/invite-codes"),
 
-  createInviteCode: (expiresAt?: string) =>
-    adminRequest<InviteCode>("/api/admin/invite-codes", {
+  createInviteCode: (maxUses: number = 1) =>
+    adminRequest<{ code: string }>("/api/v1/admin/invite-codes", {
       method: "POST",
-      body: JSON.stringify({ expires_at: expiresAt }),
+      body: JSON.stringify({ max_uses: maxUses }),
     }),
 
   // Creative review
   listCreativesForReview: () =>
-    adminRequest<AdminCreative[]>("/api/admin/creatives/pending"),
+    adminRequest<AdminCreative[]>("/api/v1/admin/creatives"),
 
   approveCreative: (id: number) =>
-    adminRequest<{ status: string }>(`/api/admin/creatives/${id}/approve`, { method: "POST" }),
+    adminRequest<{ status: string }>(`/api/v1/admin/creatives/${id}/approve`, { method: "POST" }),
 
   rejectCreative: (id: number, reason?: string) =>
-    adminRequest<{ status: string }>(`/api/admin/creatives/${id}/reject`, {
+    adminRequest<{ status: string }>(`/api/v1/admin/creatives/${id}/reject`, {
       method: "POST",
       body: JSON.stringify({ reason: reason || "" }),
     }),
 
   // Circuit breaker
   getCircuitStatus: () =>
-    adminRequest<CircuitStatus[]>("/api/admin/circuit-breakers"),
+    adminRequest<CircuitStatus>("/api/v1/admin/circuit-status"),
 
-  tripCircuitBreaker: (name: string) =>
-    adminRequest<{ status: string }>(`/api/admin/circuit-breakers/${name}/trip`, { method: "POST" }),
+  tripCircuitBreaker: (reason: string) =>
+    adminRequest<{ status: string }>("/api/v1/admin/circuit-break", {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
 
-  resetCircuitBreaker: (name: string) =>
-    adminRequest<{ status: string }>(`/api/admin/circuit-breakers/${name}/reset`, { method: "POST" }),
+  resetCircuitBreaker: () =>
+    adminRequest<{ status: string }>("/api/v1/admin/circuit-reset", { method: "POST" }),
 
   // Health
   getHealth: () =>
-    adminRequest<{ status: string; checks: Record<string, string> }>("/api/admin/health"),
+    adminRequest<SystemHealth>("/api/v1/admin/health"),
 
   // Audit log
   getAuditLog: (limit = 50, offset = 0) =>
-    adminRequest<AuditEntry[]>(`/api/admin/audit?limit=${limit}&offset=${offset}`),
+    adminRequest<AuditEntry[]>(`/api/v1/admin/audit-log?limit=${limit}&offset=${offset}`),
 };

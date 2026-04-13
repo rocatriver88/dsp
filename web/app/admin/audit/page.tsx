@@ -106,6 +106,7 @@ export default function AuditPage() {
                   <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">时间</th>
                   <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">操作</th>
                   <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">操作人</th>
+                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">广告主 ID</th>
                   <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">资源</th>
                   <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">详情</th>
                 </tr>
@@ -120,12 +121,15 @@ export default function AuditPage() {
                       <span className="text-sm text-gray-900">{actionLabel(entry.action)}</span>
                       <span className="ml-2 text-xs text-gray-400 font-mono">{entry.action}</span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-700">{entry.admin_user || "—"}</td>
+                    <td className="py-3 px-4 text-sm text-gray-700">{entry.actor || "—"}</td>
                     <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
-                      {entry.target_type ? (
+                      {entry.advertiser_id ? `#${entry.advertiser_id}` : "—"}
+                    </td>
+                    <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                      {entry.resource_type ? (
                         <span>
-                          {entry.target_type}
-                          {entry.target_id ? ` #${entry.target_id}` : ""}
+                          {entry.resource_type}
+                          {entry.resource_id ? ` #${entry.resource_id}` : ""}
                         </span>
                       ) : (
                         "—"

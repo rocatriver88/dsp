@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { adminApi, CircuitStatus } from "@/lib/admin-api";
+import { adminApi, CircuitStatus, SystemHealth } from "@/lib/admin-api";
 
 interface Stats {
   agencyCount: number;
@@ -25,68 +25,14 @@ function StatCardSkeleton() {
   );
 }
 
-function CircuitBreakerRow({
-  circuit,
-  onTrip,
-  onReset,
-}: {
-  circuit: CircuitStatus;
-  onTrip: (name: string) => void;
-  onReset: (name: string) => void;
-}) {
-  const isOpen = circuit.state === "open";
-  const isHalfOpen = circuit.state === "half-open";
-
-  return (
-    <div className="flex items-center justify-between py-3 border-b last:border-0">
-      <div className="flex items-center gap-3">
-        <span
-          className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-            isOpen
-              ? "bg-red-500"
-              : isHalfOpen
-              ? "bg-yellow-500"
-              : "bg-green-500"
-          }`}
-          aria-label={circuit.state}
-        />
-        <div>
-          <p className="text-sm font-medium text-gray-900">{circuit.name}</p>
-          <p className="text-xs text-gray-500">
-            {isOpen ? "熔断已触发" : isHalfOpen ? "半开测试中" : "正常"}
-            {circuit.failures > 0 && ` · ${circuit.failures} 次失败`}
-          </p>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        {!isOpen && (
-          <button
-            onClick={() => onTrip(circuit.name)}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
-          >
-            手动熔断
-          </button>
-        )}
-        {(isOpen || isHalfOpen) && (
-          <button
-            onClick={() => onReset(circuit.name)}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-          >
-            重置
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function AdminOverviewPage() {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [circuits, setCircuits] = useState<CircuitStatus[]>([]);
-  const [health, setHealth] = useState<{ status: string; checks: Record<string, string> } | null>(null);
+  const [circuit, setCircuit] = useState<CircuitStatus | null>(null);
+  const [health, setHealth] = useState<SystemHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [circuitError, setCircuitError] = useState<string | null>(null);
+  const [circuitReason, setCircuitReason] = useState("");
 
   const load = useCallback(() => {
     setLoading(true);
@@ -101,11 +47,11 @@ export default function AdminOverviewPage() {
         const totalBalance = advertisers.reduce((sum, a) => sum + a.balance_cents, 0);
         setStats({
           agencyCount: advertisers.length,
-          activeCampaigns: 0, // not available from advertiser list
-          todaySpend: 0,      // not available from overview endpoint
+          activeCampaigns: healthData.active_campaigns ?? 0,
+          todaySpend: circuitData.global_spend_today_cents,
           totalBalance,
         });
-        setCircuits(circuitData);
+        setCircuit(circuitData);
         setHealth(healthData);
       })
       .catch((e) => setError(e.message))
@@ -116,28 +62,31 @@ export default function AdminOverviewPage() {
     load();
   }, [load]);
 
-  async function handleTrip(name: string) {
+  async function handleTrip() {
     setCircuitError(null);
+    const reason = circuitReason.trim() || "manual trip";
     try {
-      await adminApi.tripCircuitBreaker(name);
+      await adminApi.tripCircuitBreaker(reason);
       const updated = await adminApi.getCircuitStatus();
-      setCircuits(updated);
+      setCircuit(updated);
+      setCircuitReason("");
     } catch (e: unknown) {
       setCircuitError(e instanceof Error ? e.message : "操作失败");
     }
   }
 
-  async function handleReset(name: string) {
+  async function handleReset() {
     setCircuitError(null);
     try {
-      await adminApi.resetCircuitBreaker(name);
+      await adminApi.resetCircuitBreaker();
       const updated = await adminApi.getCircuitStatus();
-      setCircuits(updated);
+      setCircuit(updated);
     } catch (e: unknown) {
       setCircuitError(e instanceof Error ? e.message : "操作失败");
     }
   }
 
+  const isTripped = circuit?.circuit_breaker === "tripped";
   const healthOk = health?.status === "ok" || health?.status === "healthy";
 
   return (
@@ -171,7 +120,7 @@ export default function AdminOverviewPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Circuit Breakers */}
+        {/* Circuit Breaker */}
         <div className="bg-white rounded-lg p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-gray-700">熔断器状态</h3>
@@ -184,18 +133,59 @@ export default function AdminOverviewPage() {
               <div className="h-10 bg-gray-100 rounded" />
               <div className="h-10 bg-gray-100 rounded" />
             </div>
-          ) : circuits.length === 0 ? (
+          ) : !circuit ? (
             <p className="text-sm text-gray-500 text-center py-6">暂无熔断器数据</p>
           ) : (
             <div>
-              {circuits.map((c) => (
-                <CircuitBreakerRow
-                  key={c.name}
-                  circuit={c}
-                  onTrip={handleTrip}
-                  onReset={handleReset}
-                />
-              ))}
+              <div className="flex items-center justify-between py-3 border-b">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                      isTripped ? "bg-red-500" : "bg-green-500"
+                    }`}
+                    aria-label={circuit.circuit_breaker}
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {isTripped ? "熔断已触发" : "正常运行"}
+                    </p>
+                    {circuit.reason && (
+                      <p className="text-xs text-gray-500 mt-0.5">{circuit.reason}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {isTripped ? (
+                    <button
+                      onClick={handleReset}
+                      className="px-3 py-1.5 text-xs font-medium rounded bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                    >
+                      重置
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleTrip}
+                      className="px-3 py-1.5 text-xs font-medium rounded bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                    >
+                      手动熔断
+                    </button>
+                  )}
+                </div>
+              </div>
+              {!isTripped && (
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={circuitReason}
+                    onChange={(e) => setCircuitReason(e.target.value)}
+                    placeholder="熔断原因（可选）"
+                    className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-300"
+                  />
+                </div>
+              )}
+              <div className="mt-3 text-xs text-gray-500">
+                今日全局花费：¥{(circuit.global_spend_today_cents / 100).toLocaleString()}
+              </div>
             </div>
           )}
         </div>
@@ -220,14 +210,19 @@ export default function AdminOverviewPage() {
                   {healthOk ? "所有服务正常" : "存在异常"}
                 </span>
               </div>
-              {Object.entries(health.checks).length > 0 && (
-                <div className="space-y-2">
-                  {Object.entries(health.checks).map(([key, val]) => (
+              <div className="space-y-2">
+                {[
+                  { key: "redis", label: "Redis" },
+                  { key: "clickhouse", label: "ClickHouse" },
+                ].map(({ key, label }) => {
+                  const val = health[key as keyof SystemHealth] as string;
+                  const ok = val === "ok" || val === "healthy";
+                  return (
                     <div key={key} className="flex items-center justify-between py-1.5 border-b last:border-0">
-                      <span className="text-xs text-gray-600">{key}</span>
+                      <span className="text-xs text-gray-600">{label}</span>
                       <span
                         className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                          val === "ok" || val === "healthy"
+                          ok
                             ? "bg-green-50 text-green-700"
                             : "bg-red-50 text-red-700"
                         }`}
@@ -235,9 +230,17 @@ export default function AdminOverviewPage() {
                         {val}
                       </span>
                     </div>
-                  ))}
+                  );
+                })}
+                <div className="flex items-center justify-between py-1.5 border-b last:border-0">
+                  <span className="text-xs text-gray-600">活跃 Campaign</span>
+                  <span className="text-xs font-medium text-gray-700 tabular-nums">{health.active_campaigns}</span>
                 </div>
-              )}
+                <div className="flex items-center justify-between py-1.5">
+                  <span className="text-xs text-gray-600">待审注册</span>
+                  <span className="text-xs font-medium text-gray-700 tabular-nums">{health.pending_registrations}</span>
+                </div>
+              </div>
             </div>
           )}
         </div>
