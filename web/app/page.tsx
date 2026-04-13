@@ -25,6 +25,9 @@ export default function OverviewPage() {
   const active = campaigns.filter((c) => c.status === "active");
   const totalSpent = overview?.today_spend_cents || 0;
   const totalBudget = campaigns.reduce((sum, c) => sum + c.budget_total_cents, 0);
+  const activeDailyBudget = active.reduce((sum, c) => sum + c.budget_daily_cents, 0);
+  const balanceCents = overview?.balance_cents || 0;
+  const isLowBalance = balanceCents > 0 && activeDailyBudget > 0 && balanceCents < activeDailyBudget;
 
   if (loading) {
     return (
@@ -58,6 +61,15 @@ export default function OverviewPage() {
   return (
     <div>
       <h2 className="text-2xl font-semibold mb-6">概览</h2>
+
+      {isLowBalance && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-yellow-50 border border-yellow-200 text-sm text-yellow-800">
+          <span className="font-medium">⚠ 余额不足：</span>
+          当前余额 ¥{(balanceCents / 100).toLocaleString()}，
+          活跃 Campaign 日预算总计 ¥{(activeDailyBudget / 100).toLocaleString()}。
+          请及时<Link href="/billing" className="text-blue-600 underline hover:text-blue-700">充值</Link>以避免投放中断。
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
         <HeroStatCard label="今日花费" value={`¥${(totalSpent / 100).toLocaleString()}`} sub={`总预算 ¥${(totalBudget / 100).toLocaleString()}`} />
