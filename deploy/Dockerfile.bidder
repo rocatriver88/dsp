@@ -7,7 +7,7 @@ COPY internal/ internal/
 RUN CGO_ENABLED=0 go build -o /bidder ./cmd/bidder
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates wget
 WORKDIR /app
 COPY --from=builder /bidder /usr/local/bin/bidder
 EXPOSE 8180

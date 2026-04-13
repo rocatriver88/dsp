@@ -35,6 +35,35 @@ make api-gen
 ./scripts/test-env.sh all
 ```
 
+## Docker 启动
+仓库现在支持通过 Docker Compose 同时启动基础设施和应用服务，包括 `api`、`bidder`、`consumer`、`web`、`postgres`、`redis`、`clickhouse`、`kafka`、`prometheus`、`grafana`。
+
+启动命令：
+
+```powershell
+docker compose up --build
+```
+
+常用访问地址：
+- 前端：`http://localhost:4000`
+- 公共 API：`http://localhost:8181`
+- 管理 / internal API：`http://localhost:8182`
+- Bidder：`http://localhost:8180`
+- Prometheus：`http://localhost:9090`
+- Grafana：`http://localhost:3100`
+
+关闭并清理容器：
+
+```powershell
+docker compose down
+```
+
+如需同时删除数据卷：
+
+```powershell
+docker compose down -v
+```
+
 ## 文档入口
 - [项目概览](./PROJECT_OVERVIEW.md)
 - [贡献指南](./CONTRIBUTING.md)
