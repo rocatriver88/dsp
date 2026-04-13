@@ -1,12 +1,12 @@
 #!/bin/bash
-# Isolated test environment for DSP
+# Isolated test environment for DSP core services
 # Usage: ./scripts/test-env.sh [up|down|migrate|services|verify|all]
 #
-# Ports (offset +1000 from dev):
+# Ports:
 #   PostgreSQL: 6432    Redis: 7380    ClickHouse: 9124/10001
-#   Kafka: 10094        Prometheus: 10090    Grafana: 4100
+#   Kafka: 10094
 #   API: 9181           Bidder: 9180    Internal: 9182
-#   Exchange-Sim: 10090  Frontend: 5000
+#   Exchange-Sim: 10090 Frontend: 5000
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -41,7 +41,7 @@ export ENV=development
 export AUTOPILOT_API_URL=http://localhost:9181
 export AUTOPILOT_FRONTEND_URL=http://localhost:5000
 export AUTOPILOT_EXCHANGE_SIM_URL=http://localhost:10090
-export AUTOPILOT_GRAFANA_URL=http://localhost:4100
+export AUTOPILOT_GRAFANA_URL=
 
 cmd_up() {
     echo "Starting test infrastructure..."
@@ -61,7 +61,6 @@ cmd_up() {
     echo "Ports:"
     echo "  PostgreSQL: 6432    Redis: 7380"
     echo "  ClickHouse: 9124/10001    Kafka: 10094"
-    echo "  Prometheus: 10090    Grafana: 4100"
 }
 
 cmd_down() {

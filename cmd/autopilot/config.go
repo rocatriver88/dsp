@@ -65,12 +65,19 @@ func LoadAutopilotConfig() *AutopilotConfig {
 		LowBalanceThreshold: parseInt64("AUTOPILOT_LOW_BALANCE_CENTS", 100000),
 		ScreenshotDir:   getEnv("AUTOPILOT_SCREENSHOT_DIR", "autopilot-output/screenshots"),
 		ReportDir:       getEnv("AUTOPILOT_REPORT_DIR", "autopilot-output/reports"),
-		GrafanaURL:      getEnv("AUTOPILOT_GRAFANA_URL", "http://localhost:3100"),
+		GrafanaURL:      getEnvAllowEmpty("AUTOPILOT_GRAFANA_URL", "http://localhost:3100"),
 	}
 }
 
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func getEnvAllowEmpty(key, fallback string) string {
+	if v, ok := os.LookupEnv(key); ok {
 		return v
 	}
 	return fallback

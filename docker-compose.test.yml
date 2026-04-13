@@ -1,4 +1,4 @@
-# Isolated test environment — all ports offset by +1000 to avoid conflicts with dev
+# Isolated test environment — core services only, ports offset to avoid conflicts
 # Usage: docker compose -p dsp-test -f docker-compose.test.yml up -d
 
 services:
@@ -32,7 +32,7 @@ services:
       retries: 5
 
   clickhouse:
-    image: clickhouse/clickhouse-server:24-alpine
+    image: clickhouse/clickhouse-server:24.3
     ports:
       - "9124:8123"
       - "10001:9000"
@@ -43,7 +43,7 @@ services:
     volumes:
       - test-chdata:/var/lib/clickhouse
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--password", "dsp_test_password", "--query", "SELECT 1"]
+      test: ["CMD-SHELL", "clickhouse-client --password dsp_test_password -q 'SELECT 1'"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -67,33 +67,8 @@ services:
     volumes:
       - test-kafkadata:/var/kafka/data
 
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "10090:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "4100:3000"
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
-    volumes:
-      - ./monitoring/provisioning:/etc/grafana/provisioning
-      - ./monitoring/dashboards:/var/lib/grafana/dashboards
-      - test-grafanadata:/var/lib/grafana
-    depends_on:
-      - prometheus
-
 volumes:
   test-pgdata:
   test-chdata:
   test-redisdata:
   test-kafkadata:
-  test-grafanadata:
