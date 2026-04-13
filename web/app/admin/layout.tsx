@@ -102,6 +102,8 @@ function AdminTokenGate({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [checking, setChecking] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [validating, setValidating] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("dsp_admin_token");
@@ -111,12 +113,27 @@ function AdminTokenGate({ children }: { children: React.ReactNode }) {
     setChecking(false);
   }, []);
 
-  function handleLogin() {
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    localStorage.setItem("dsp_admin_token", trimmed);
-    setToken(trimmed);
-  }
+  const handleLogin = async () => {
+    if (!input) return;
+    setError(null);
+    setValidating(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8182"}/api/v1/admin/health`,
+        { headers: { "X-Admin-Token": input.trim() } }
+      );
+      if (!res.ok) {
+        setError("Token 无效或服务不可用");
+        return;
+      }
+      localStorage.setItem("dsp_admin_token", input.trim());
+      setToken(input.trim());
+    } catch {
+      setError("无法连接到管理服务");
+    } finally {
+      setValidating(false);
+    }
+  };
 
   function handleLogout() {
     localStorage.removeItem("dsp_admin_token");
@@ -151,11 +168,12 @@ function AdminTokenGate({ children }: { children: React.ReactNode }) {
           />
           <button
             onClick={handleLogin}
-            disabled={!input.trim()}
+            disabled={!input || validating}
             className="w-full px-4 py-2 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            登录
+            {validating ? "验证中..." : "登录"}
           </button>
+          {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
           <p className="text-xs text-gray-400 mt-3">
             管理员 Token 由系统配置，请联系运维获取
           </p>
