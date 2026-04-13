@@ -60,14 +60,14 @@ Standard flow for any feature/phase implementation:
    │   ├── requesting-code-review   阶段性全量审查 → 修 Critical/Important
    │   ├── verification-before-completion   启动真实服务，跑集成验证
    │   ├── /qa                              无头浏览器系统性测试前端
-   │   └── 一轮走完后回到 requesting-code-review，直到整轮三步都零问题
+   │   └── 一轮走完后回到 requesting-code-review，直到整轮三步都零问题（最多 5 轮）
    │
    └── 全部实现完成后:
        ├── final-code-review        全量审查 → 修 Critical/Important
        ├── verification-before-completion   启动真实服务，跑集成验证
        ├── /qa                              无头浏览器系统性测试前端
        ├── /browse                          截图验证关键页面
-       └── 一轮走完后回到 final-code-review，直到整轮四步都零问题
+       └── 一轮走完后回到 final-code-review，直到整轮四步都零问题（最多 5 轮）
 4. Finishing Branch                  打 tag / 创建 PR / push
 ```
 
