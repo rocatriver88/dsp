@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, Campaign, CampaignStats, Creative } from "@/lib/api";
@@ -150,6 +150,10 @@ export default function CampaignDetailPage() {
           </div>
         )}
       </div>
+
+      {campaign.billing_model === "cpm" && (
+        <BidSimulator campaignId={campaign.id} currentBidCPM={campaign.bid_cpm_cents} />
+      )}
 
       {/* Link to report */}
       <div className="mt-6">
@@ -448,6 +452,84 @@ function CreativeCard({ creative: cr, onUpdated }: { creative: Creative; onUpdat
             </div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function BidSimulator({ campaignId, currentBidCPM }: { campaignId: number; currentBidCPM: number }) {
+  const [simBid, setSimBid] = useState(currentBidCPM);
+  const [result, setResult] = useState<{
+    current_win_rate: number;
+    simulated_win_rate: number;
+    simulated_wins: number;
+    simulated_spend_cents: number;
+    total_bids: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const runSimulation = useCallback(() => {
+    if (simBid <= 0) return;
+    setLoading(true);
+    api.simulateBid(campaignId, simBid)
+      .then(setResult)
+      .catch(() => setResult(null))
+      .finally(() => setLoading(false));
+  }, [campaignId, simBid]);
+
+  useEffect(() => {
+    const timer = setTimeout(runSimulation, 500);
+    return () => clearTimeout(timer);
+  }, [runSimulation]);
+
+  const winDelta = result ? result.simulated_win_rate - result.current_win_rate : 0;
+
+  return (
+    <div className="rounded-lg bg-white p-5 mt-6">
+      <h3 className="text-sm font-semibold mb-4">出价模拟器</h3>
+      <div className="flex items-center gap-4 mb-4">
+        <label className="text-sm text-gray-500 flex-shrink-0">模拟 CPM</label>
+        <input
+          type="range"
+          min={100} max={Math.max(currentBidCPM * 3, 2000)} step={50}
+          value={simBid}
+          onChange={(e) => setSimBid(Number(e.target.value))}
+          className="flex-1"
+        />
+        <span className="text-sm font-geist tabular-nums w-20 text-right">
+          ¥{(simBid / 100).toFixed(2)}
+        </span>
+      </div>
+      {loading ? (
+        <p className="text-xs text-gray-400">计算中...</p>
+      ) : result && result.total_bids > 0 ? (
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-xs text-gray-500 mb-1">预估胜率</p>
+            <p className="text-lg font-geist tabular-nums font-semibold">
+              {(result.simulated_win_rate * 100).toFixed(1)}%
+            </p>
+            <p className={`text-xs ${winDelta >= 0 ? "text-green-600" : "text-red-500"}`}>
+              {winDelta >= 0 ? "+" : ""}{(winDelta * 100).toFixed(1)}%
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">预估曝光</p>
+            <p className="text-lg font-geist tabular-nums font-semibold">
+              {result.simulated_wins.toLocaleString()}
+            </p>
+            <p className="text-xs text-gray-400">/ {result.total_bids.toLocaleString()} 竞价</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1">预估花费</p>
+            <p className="text-lg font-geist tabular-nums font-semibold">
+              ¥{(result.simulated_spend_cents / 100).toFixed(2)}
+            </p>
+            <p className="text-xs text-gray-400">过去 7 天</p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400">暂无历史竞价数据，投放后可使用模拟器</p>
       )}
     </div>
   );

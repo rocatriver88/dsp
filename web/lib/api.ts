@@ -215,6 +215,22 @@ export const api = {
   deleteCreative: (id: number) =>
     request<{ status: string }>(`/api/v1/creatives/${id}`, { method: "DELETE" }),
 
+  // Bid Simulator
+  simulateBid: (campaignId: number, bidCPMCents: number) =>
+    request<{
+      current_bid_cpm_cents: number;
+      simulated_bid_cpm_cents: number;
+      total_bids: number;
+      actual_wins: number;
+      current_win_rate: number;
+      simulated_wins: number;
+      simulated_win_rate: number;
+      simulated_spend_cents: number;
+      median_clear_price_cents: number;
+      max_clear_price_cents: number;
+      data_days: number;
+    }>(`/api/v1/reports/campaign/${campaignId}/simulate?bid_cpm_cents=${bidCPMCents}`),
+
   // Billing
   getBalance: (advertiserId: number) =>
     request<{ advertiser_id: number; balance_cents: number; billing_type: string }>(
