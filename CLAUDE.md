@@ -76,6 +76,26 @@ Standard flow for any feature/phase implementation:
 - /browse screenshots at the end confirm visual compliance with DESIGN.md
 - Do NOT skip any step
 
+## /browse Verification Standard
+
+/browse 不是"截图+目视"，是三维度系统验证。每个页面必须完成以下三项：
+
+### 1. 交互验证（模拟用户点击）
+- 每个页面的关键按钮、链接、表单都要点击/提交
+- 验证点击后的页面跳转、状态变化、数据更新是否正确
+- 用 `snapshot -D` 对比操作前后的 DOM 变化
+
+### 2. 视觉合规（CSS 抽查 vs DESIGN.md）
+- 每个页面至少抽查 3 个元素的实际 CSS 值
+- 用 `getComputedStyle` 检查：字体族、字号、颜色、间距、背景色
+- 对照 DESIGN.md 的具体值（如 Geist 字体、#2563EB 主色、4px 间距倍数）
+- 不合规项记录到报告中
+
+### 3. 数据正确性（页面 vs 数据库交叉比对）
+- 每个页面显示的关键数字必须和数据库实际值比对
+- 用 SQL 查询真实数据，和页面截图中的数字逐一对照
+- 不一致项记录到报告中
+
 ## Design System
 Always read DESIGN.md before making any visual or UI decisions.
 All font choices, colors, spacing, and aesthetic direction are defined there.
