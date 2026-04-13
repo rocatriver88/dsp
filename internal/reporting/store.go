@@ -279,7 +279,6 @@ func (s *Store) SimulateBid(ctx context.Context, campaignID uint64, simulatedCPM
 		result.CurrentWinRate = float64(result.ActualWins) / float64(result.TotalBids)
 		result.SimulatedWinRate = float64(result.SimulatedWins) / float64(result.TotalBids)
 	}
-	// Re-read current bid from caller (set after return)
 
 	return &result, nil
 }
