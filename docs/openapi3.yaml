@@ -1,0 +1,1510 @@
+openapi: 3.0.0
+info:
+  contact: {}
+  description: Demand-Side Platform — programmatic advertising API
+  title: DSP Platform API
+  version: "1.0"
+paths:
+  /ad-types:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+      summary: List available ad types
+      tags:
+        - reference
+  /admin/advertisers:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_campaign.Adver\
+                    tiser"
+                type: array
+      security:
+        - AdminAuth: []
+      summary: List all advertisers
+      tags:
+        - admin
+  /admin/audit-log:
+    get:
+      parameters:
+        - description: Limit
+          in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - description: Offset
+          in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_audit.Entry"
+                type: array
+      security:
+        - AdminAuth: []
+      summary: Get audit log
+      tags:
+        - admin
+  /admin/circuit-break:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                reason:
+                  type: string
+              type: object
+        description: Trip reason
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  reason:
+                    type: string
+                  status:
+                    type: string
+                type: object
+      security:
+        - AdminAuth: []
+      summary: Trip circuit breaker
+      tags:
+        - admin
+  /admin/circuit-reset:
+    post:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  status:
+                    type: string
+                type: object
+      security:
+        - AdminAuth: []
+      summary: Reset circuit breaker
+      tags:
+        - admin
+  /admin/circuit-status:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  circuit_breaker:
+                    type: string
+                  global_spend_today_cents:
+                    type: integer
+                  reason:
+                    type: string
+                type: object
+      security:
+        - AdminAuth: []
+      summary: Get circuit breaker status
+      tags:
+        - admin
+  /admin/creatives:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_campaign.Creat\
+                    ive"
+                type: array
+      security:
+        - AdminAuth: []
+      summary: List creatives for review
+      tags:
+        - admin
+  "/admin/creatives/{id}/approve":
+    post:
+      parameters:
+        - description: Creative ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            "*/*":
+              schema:
+                properties:
+                  status:
+                    type: string
+                type: object
+      security:
+        - AdminAuth: []
+      summary: Approve creative
+      tags:
+        - admin
+  "/admin/creatives/{id}/reject":
+    post:
+      parameters:
+        - description: Creative ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        $ref: "#/components/requestBodies/Body"
+      responses:
+        "200":
+          description: OK
+          content:
+            "*/*":
+              schema:
+                properties:
+                  status:
+                    type: string
+                type: object
+      security:
+        - AdminAuth: []
+      summary: Reject creative
+      tags:
+        - admin
+  /admin/health:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  active_campaigns:
+                    type: integer
+                  status:
+                    type: string
+                  time:
+                    type: string
+                type: object
+      security:
+        - AdminAuth: []
+      summary: Get system health
+      tags:
+        - admin
+  /admin/invite-codes:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_registration.I\
+                    nviteCode"
+                type: array
+      security:
+        - AdminAuth: []
+      summary: List invite codes
+      tags:
+        - admin
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                expires_at:
+                  type: string
+                max_uses:
+                  type: integer
+              type: object
+        description: Invite code config
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                properties:
+                  code:
+                    type: string
+                type: object
+      security:
+        - AdminAuth: []
+      summary: Create invite code
+      tags:
+        - admin
+  /admin/registrations:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_registration.R\
+                    equest"
+                type: array
+      security:
+        - AdminAuth: []
+      summary: List pending registrations
+      tags:
+        - admin
+  "/admin/registrations/{id}/approve":
+    post:
+      parameters:
+        - description: Registration ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  advertiser_id:
+                    type: integer
+                  api_key:
+                    type: string
+                  message:
+                    type: string
+                type: object
+      security:
+        - AdminAuth: []
+      summary: Approve registration
+      tags:
+        - admin
+  "/admin/registrations/{id}/reject":
+    post:
+      parameters:
+        - description: Registration ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        $ref: "#/components/requestBodies/Body"
+      responses:
+        "200":
+          description: OK
+          content:
+            "*/*":
+              schema:
+                properties:
+                  status:
+                    type: string
+                type: object
+      security:
+        - AdminAuth: []
+      summary: Reject registration
+      tags:
+        - admin
+  /admin/topup:
+    post:
+      requestBody:
+        $ref: "#/components/requestBodies/Body2"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_billing.Transa\
+                  ction"
+      security:
+        - AdminAuth: []
+      summary: Admin top-up advertiser balance
+      tags:
+        - admin
+  /advertisers:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                balance_cents:
+                  type: integer
+                company_name:
+                  type: string
+                contact_email:
+                  type: string
+              type: object
+        description: Advertiser data
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                properties:
+                  api_key:
+                    type: string
+                  id:
+                    type: integer
+                type: object
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+      summary: Create advertiser
+      tags:
+        - advertisers
+  "/advertisers/{id}":
+    get:
+      parameters:
+        - description: Advertiser ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_campaign.Adver\
+                  tiser"
+      security:
+        - ApiKeyAuth: []
+      summary: Get advertiser by ID
+      tags:
+        - advertisers
+  /analytics/snapshot:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Get analytics snapshot
+      tags:
+        - analytics
+  /analytics/stream:
+    get:
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+      security:
+        - ApiKeyAuth: []
+      summary: Real-time analytics SSE stream
+      tags:
+        - analytics
+  /audit-log:
+    get:
+      parameters:
+        - description: Limit
+          in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - description: Offset
+          in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_audit.Entry"
+                type: array
+      security:
+        - ApiKeyAuth: []
+      summary: Get my audit log
+      tags:
+        - audit
+  /billing-models:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+      summary: List billing models
+      tags:
+        - reference
+  "/billing/balance/{id}":
+    get:
+      parameters:
+        - description: Advertiser ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  advertiser_id:
+                    type: integer
+                  balance_cents:
+                    type: integer
+                  billing_type:
+                    type: string
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Get advertiser balance
+      tags:
+        - billing
+  /billing/topup:
+    post:
+      requestBody:
+        $ref: "#/components/requestBodies/Body2"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_billing.Transa\
+                  ction"
+      security:
+        - ApiKeyAuth: []
+      summary: Top up advertiser balance
+      tags:
+        - billing
+  /billing/transactions:
+    get:
+      parameters:
+        - description: Advertiser ID
+          in: query
+          name: advertiser_id
+          schema:
+            type: integer
+        - description: Limit
+          in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - description: Offset
+          in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_billing.Transa\
+                    ction"
+                type: array
+      security:
+        - ApiKeyAuth: []
+      summary: List billing transactions
+      tags:
+        - billing
+  /campaigns:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_campaign.Campa\
+                    ign"
+                type: array
+      security:
+        - ApiKeyAuth: []
+      summary: List campaigns for advertiser
+      tags:
+        - campaigns
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                advertiser_id:
+                  type: integer
+                bid_cpm_cents:
+                  type: integer
+                billing_model:
+                  type: string
+                budget_daily_cents:
+                  type: integer
+                budget_total_cents:
+                  type: integer
+                name:
+                  type: string
+              type: object
+        description: Campaign data
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: integer
+                type: object
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Create campaign
+      tags:
+        - campaigns
+  "/campaigns/{id}":
+    get:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_campaign.Campa\
+                  ign"
+      security:
+        - ApiKeyAuth: []
+      summary: Get campaign by ID
+      tags:
+        - campaigns
+    put:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                bid_cpm_cents:
+                  type: integer
+                budget_daily_cents:
+                  type: integer
+                name:
+                  type: string
+                targeting:
+                  type: object
+              type: object
+        description: Update fields
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  status:
+                    type: string
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Update campaign
+      tags:
+        - campaigns
+  "/campaigns/{id}/creatives":
+    get:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_campaign.Creat\
+                    ive"
+                type: array
+      security:
+        - ApiKeyAuth: []
+      summary: List creatives for campaign
+      tags:
+        - creatives
+  "/campaigns/{id}/pause":
+    post:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  status:
+                    type: string
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Pause campaign
+      tags:
+        - campaigns
+  "/campaigns/{id}/start":
+    post:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  status:
+                    type: string
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Start campaign
+      tags:
+        - campaigns
+  /creatives:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                ad_markup:
+                  type: string
+                ad_type:
+                  type: string
+                campaign_id:
+                  type: integer
+                destination_url:
+                  type: string
+                format:
+                  type: string
+                name:
+                  type: string
+                size:
+                  type: string
+              type: object
+        description: Creative data
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: integer
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Create creative
+      tags:
+        - creatives
+  "/creatives/{id}":
+    delete:
+      parameters:
+        - description: Creative ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            "*/*":
+              schema:
+                properties:
+                  status:
+                    type: string
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Delete creative
+      tags:
+        - creatives
+    put:
+      parameters:
+        - description: Creative ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  status:
+                    type: string
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Update creative
+      tags:
+        - creatives
+  "/export/campaign/{id}/bids":
+    get:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+      security:
+        - ApiKeyAuth: []
+      summary: Export bid details as CSV
+      tags:
+        - export
+  "/export/campaign/{id}/stats":
+    get:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - description: Start date
+          in: query
+          name: from
+          schema:
+            type: string
+        - description: End date
+          in: query
+          name: to
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+      security:
+        - ApiKeyAuth: []
+      summary: Export campaign stats as CSV
+      tags:
+        - export
+  /register:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                company_name:
+                  type: string
+                contact_email:
+                  type: string
+                invite_code:
+                  type: string
+              type: object
+        description: Registration data
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: integer
+                  message:
+                    type: string
+                  status:
+                    type: string
+                type: object
+      summary: Submit registration request
+      tags:
+        - registration
+  "/reports/campaign/{id}/attribution":
+    get:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.Attr\
+                  ibutionReport"
+      security:
+        - ApiKeyAuth: []
+      summary: Get attribution report
+      tags:
+        - reports
+  "/reports/campaign/{id}/bids":
+    get:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - description: Limit
+          in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+        - description: Offset
+          in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.BidD\
+                    etail"
+                type: array
+      security:
+        - ApiKeyAuth: []
+      summary: Get bid-level details
+      tags:
+        - reports
+  "/reports/campaign/{id}/geo":
+    get:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.GeoS\
+                    tats"
+                type: array
+      security:
+        - ApiKeyAuth: []
+      summary: Get geo breakdown
+      tags:
+        - reports
+  "/reports/campaign/{id}/hourly":
+    get:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - description: Date (YYYY-MM-DD)
+          in: query
+          name: date
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.Hour\
+                    lyStats"
+                type: array
+      security:
+        - ApiKeyAuth: []
+      summary: Get hourly stats
+      tags:
+        - reports
+  "/reports/campaign/{id}/stats":
+    get:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - description: Start date (YYYY-MM-DD)
+          in: query
+          name: from
+          schema:
+            type: string
+        - description: End date (YYYY-MM-DD)
+          in: query
+          name: to
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.Camp\
+                  aignStats"
+      security:
+        - ApiKeyAuth: []
+      summary: Get campaign stats
+      tags:
+        - reports
+  /reports/overview:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  balance_cents:
+                    type: integer
+                  ctr:
+                    type: number
+                  today_clicks:
+                    type: integer
+                  today_impressions:
+                    type: integer
+                  today_spend_cents:
+                    type: integer
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Get today overview stats
+      tags:
+        - reports
+  /upload:
+    post:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  description: Image file
+                  type: string
+                  format: binary
+              required:
+                - file
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  url:
+                    type: string
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: Upload creative image
+      tags:
+        - creatives
+servers:
+  - url: //localhost:8181/api/v1
+components:
+  requestBodies:
+    Body:
+      content:
+        application/json:
+          schema:
+            properties:
+              reason:
+                type: string
+            type: object
+      description: Rejection reason
+      required: true
+    Body2:
+      content:
+        application/json:
+          schema:
+            properties:
+              advertiser_id:
+                type: integer
+              amount_cents:
+                type: integer
+              description:
+                type: string
+            type: object
+      description: Top-up data
+      required: true
+  securitySchemes:
+    AdminAuth:
+      in: header
+      name: X-Admin-Token
+      type: apiKey
+    ApiKeyAuth:
+      in: header
+      name: X-API-Key
+      type: apiKey
+  schemas:
+    github_com_heartgryphon_dsp_internal_audit.Entry:
+      properties:
+        action:
+          type: string
+        actor:
+          type: string
+        advertiser_id:
+          type: integer
+        created_at:
+          type: string
+        details:
+          additionalProperties: {}
+          type: object
+        id:
+          type: integer
+        resource_id:
+          type: integer
+        resource_type:
+          type: string
+      type: object
+    github_com_heartgryphon_dsp_internal_billing.Transaction:
+      properties:
+        advertiser_id:
+          type: integer
+        amount_cents:
+          type: integer
+        balance_after:
+          type: integer
+        created_at:
+          type: string
+        description:
+          type: string
+        id:
+          type: integer
+        reference_id:
+          type: string
+        type:
+          type: string
+      type: object
+    github_com_heartgryphon_dsp_internal_campaign.Advertiser:
+      properties:
+        api_key:
+          type: string
+        balance_cents:
+          type: integer
+        billing_type:
+          type: string
+        company_name:
+          type: string
+        contact_email:
+          type: string
+        created_at:
+          type: string
+        id:
+          type: integer
+        updated_at:
+          type: string
+      type: object
+    github_com_heartgryphon_dsp_internal_campaign.Campaign:
+      properties:
+        advertiser_id:
+          type: integer
+        bid_cpc_cents:
+          type: integer
+        bid_cpm_cents:
+          type: integer
+        billing_model:
+          type: string
+        budget_daily_cents:
+          type: integer
+        budget_total_cents:
+          type: integer
+        created_at:
+          type: string
+        end_date:
+          type: string
+        id:
+          type: integer
+        name:
+          type: string
+        ocpm_target_cpa_cents:
+          type: integer
+        pause_reason:
+          type: string
+        paused_at:
+          type: string
+        sandbox:
+          type: boolean
+        spent_cents:
+          type: integer
+        start_date:
+          type: string
+        status:
+          $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_campaign.Statu\
+            s"
+        targeting:
+          items:
+            type: integer
+          type: array
+        updated_at:
+          type: string
+      type: object
+    github_com_heartgryphon_dsp_internal_campaign.Creative:
+      properties:
+        ad_markup:
+          type: string
+        ad_type:
+          type: string
+        campaign_id:
+          type: integer
+        created_at:
+          type: string
+        destination_url:
+          type: string
+        format:
+          type: string
+        id:
+          type: integer
+        name:
+          type: string
+        native_cta:
+          type: string
+        native_desc:
+          type: string
+        native_icon_url:
+          type: string
+        native_image_url:
+          type: string
+        native_title:
+          description: Native ad fields (used when ad_type = "native")
+          type: string
+        size:
+          type: string
+        status:
+          type: string
+      type: object
+    github_com_heartgryphon_dsp_internal_campaign.Status:
+      enum:
+        - draft
+        - active
+        - paused
+        - completed
+        - deleted
+      type: string
+      x-enum-varnames:
+        - StatusDraft
+        - StatusActive
+        - StatusPaused
+        - StatusCompleted
+        - StatusDeleted
+    github_com_heartgryphon_dsp_internal_registration.InviteCode:
+      properties:
+        code:
+          type: string
+        created_at:
+          type: string
+        created_by:
+          type: string
+        expires_at:
+          type: string
+        id:
+          type: integer
+        max_uses:
+          type: integer
+        used_count:
+          type: integer
+      type: object
+    github_com_heartgryphon_dsp_internal_registration.Request:
+      properties:
+        business_type:
+          type: string
+        company_name:
+          type: string
+        contact_email:
+          type: string
+        contact_phone:
+          type: string
+        created_at:
+          type: string
+        id:
+          type: integer
+        invite_code:
+          type: string
+        reject_reason:
+          type: string
+        reviewed_at:
+          type: string
+        reviewed_by:
+          type: string
+        status:
+          type: string
+        website:
+          type: string
+      type: object
+    github_com_heartgryphon_dsp_internal_reporting.AttributionReport:
+      properties:
+        campaign_id:
+          type: integer
+        model:
+          type: string
+        paths:
+          items:
+            $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.Conv\
+              ersionPath"
+          type: array
+        summary:
+          $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.Attr\
+            ibutionSummary"
+        total_conversions:
+          type: integer
+        window:
+          type: string
+      type: object
+    github_com_heartgryphon_dsp_internal_reporting.AttributionSummary:
+      properties:
+        avg_time_to_convert:
+          type: string
+        avg_touchpoints:
+          type: number
+        click_conversions:
+          description: conversions with a click in path
+          type: integer
+        view_conversions:
+          description: conversions with impression only
+          type: integer
+      type: object
+    github_com_heartgryphon_dsp_internal_reporting.BidDetail:
+      properties:
+        bid_price_cents:
+          type: integer
+        clear_price_cents:
+          type: integer
+        device_os:
+          type: string
+        event_type:
+          type: string
+        geo_country:
+          type: string
+        loss_reason:
+          type: string
+        request_id:
+          type: string
+        time:
+          type: string
+      type: object
+    github_com_heartgryphon_dsp_internal_reporting.CampaignStats:
+      properties:
+        adx_cost_cents:
+          description: ADX settlement cost (cents)
+          type: integer
+        bids:
+          type: integer
+        campaign_id:
+          type: integer
+        clicks:
+          type: integer
+        conversions:
+          type: integer
+        cpa:
+          type: number
+        ctr:
+          type: number
+        cvr:
+          type: number
+        impressions:
+          type: integer
+        profit_cents:
+          description: spend - adx_cost (cents)
+          type: integer
+        spend_cents:
+          description: advertiser charge total (cents)
+          type: integer
+        win_rate:
+          type: number
+        wins:
+          type: integer
+      type: object
+    github_com_heartgryphon_dsp_internal_reporting.ConversionPath:
+      properties:
+        campaign_id:
+          type: integer
+        conversion_time:
+          type: string
+        credit:
+          items:
+            $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.Cred\
+              itedEvent"
+          type: array
+        device_id:
+          type: string
+        model:
+          type: string
+        touchpoints:
+          items:
+            $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.Touc\
+              hpoint"
+          type: array
+      type: object
+    github_com_heartgryphon_dsp_internal_reporting.CreditedEvent:
+      properties:
+        credit:
+          description: 0.0 - 1.0
+          type: number
+        event_type:
+          type: string
+        request_id:
+          type: string
+      type: object
+    github_com_heartgryphon_dsp_internal_reporting.GeoStats:
+      properties:
+        clicks:
+          type: integer
+        country:
+          type: string
+        impressions:
+          type: integer
+        spend_cents:
+          type: integer
+      type: object
+    github_com_heartgryphon_dsp_internal_reporting.HourlyStats:
+      properties:
+        clicks:
+          type: integer
+        hour:
+          type: integer
+        impressions:
+          type: integer
+        spend_cents:
+          type: integer
+      type: object
+    github_com_heartgryphon_dsp_internal_reporting.Touchpoint:
+      properties:
+        creative_id:
+          type: integer
+        event_type:
+          description: impression or click
+          type: string
+        request_id:
+          type: string
+        time:
+          type: string
+      type: object
