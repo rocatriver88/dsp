@@ -43,15 +43,38 @@ Use the /browse skill from gstack for all web browsing. Never use mcp__claude-in
   - Never let subagents guess cross-system contracts — guesses across boundaries are always wrong
 - Never skip spec compliance review for frontend tasks, even when rushing
 
-## Completion Checklist
+## Development Workflow
 
-After all implementation tasks are done, before final code review and finishing branch, MUST run these three steps in order:
+Standard flow for any feature/phase implementation:
 
-1. **verification-before-completion** — Start all services (`docker-compose up`, Go binaries, frontend dev server), run `autopilot verify` or equivalent integration test, confirm real output matches expectations. Evidence before assertions.
-2. **/qa** — Use the /qa skill to systematically test all frontend pages with a headless browser. Catches rendering errors, broken API calls, missing data, and interaction bugs that `tsc` cannot detect.
-3. **/browse** — Take screenshots of key pages to visually verify they match DESIGN.md. At minimum: login page, main dashboard, and any new pages added in this session.
+```
+1. Brainstorming                    构思 → 设计文档
+2. Writing Plans                    设计 → 实现计划
+3. Execution (TDD)                  计划 → 代码
+   ├── 每个 task:
+   │   ├── implementer subagent     写测试 → 写代码 → 跑测试 → 提交
+   │   ├── spec compliance review   对照计划检查（没多做、没少做）
+   │   └── code quality review      代码质量审查
+   │
+   ├── 每个 Phase 完成后:
+   │   ├── requesting-code-review   阶段性全量审查 → 修 Critical/Important
+   │   ├── verification-before-completion   启动真实服务，跑集成验证
+   │   └── /qa                              无头浏览器系统性测试前端
+   │
+   └── 全部实现完成后:
+       ├── requesting-code-review   全量审查 → 修 Critical/Important
+       ├── verification-before-completion   启动真实服务，跑集成验证
+       ├── /qa                              无头浏览器系统性测试前端
+       └── /browse                          截图验证关键页面
+4. Final Code Review                最终全量代码审查
+5. Finishing Branch                  打 tag / 创建 PR / push
+```
 
-Do NOT skip these steps. Compiling + unit tests ≠ working system.
+**Key rules:**
+- verification + /qa runs at EVERY Phase boundary, not just at the end
+- Compiling + unit tests ≠ working system — must verify against live services
+- /browse screenshots at the end confirm visual compliance with DESIGN.md
+- Do NOT skip any step
 
 ## Design System
 Always read DESIGN.md before making any visual or UI decisions.
