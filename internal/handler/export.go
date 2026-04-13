@@ -104,7 +104,15 @@ func (d *Deps) HandleExportBidsCSV(w http.ResponseWriter, r *http.Request) {
 	}
 
 	from, to := ParseDateRange(r)
-	bids, err := d.ReportStore.GetBidTransparency(r.Context(), uint64(campaignID), from, to, 10000, 0)
+	exportLimit := 10000
+	if l := r.URL.Query().Get("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &exportLimit)
+	}
+	if exportLimit > 50000 {
+		exportLimit = 50000
+	}
+
+	bids, err := d.ReportStore.GetBidTransparency(r.Context(), uint64(campaignID), from, to, exportLimit, 0)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "failed to fetch bids")
 		return
