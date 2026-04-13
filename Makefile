@@ -15,6 +15,7 @@ api-gen:
 # Build all Go binaries
 build:
 	mkdir -p $(BIN_DIR)
+	rm -f $(BIN_DIR)/api.exe $(BIN_DIR)/bidder.exe $(BIN_DIR)/consumer.exe $(BIN_DIR)/autopilot.exe $(BIN_DIR)/exchange-sim.exe $(BIN_DIR)/resetbudget.exe $(BIN_DIR)/simulate.exe
 	go build -o $(BIN_DIR)/api ./cmd/api/
 	go build -o $(BIN_DIR)/bidder ./cmd/bidder/
 	go build -o $(BIN_DIR)/consumer ./cmd/consumer/

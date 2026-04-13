@@ -5,6 +5,7 @@
 
 ## 目录边界规则
 仓库内容分为四类：`source`、`generated`、`local`、`runtime`。`source` 指 `cmd/`、`internal/`、`web/`、`migrations/` 和正式文档；`generated` 指 `docs/generated/` 与 `web/lib/api-types.ts` 这类可再生产物；`local` 指 `.claude/`、`.context/`、`.gstack/` 等个人环境状态；`runtime` 指 `uploads/`、`autopilot-output/`、临时截图和运行日志。规则是：编译产物只允许出现在 `bin/`，生成契约只允许出现在 `docs/generated/`，`local` 与 `runtime` 内容不得进入版本库。
+`bin/` 的规范文件名统一为无扩展名，例如 `bin/api`、`bin/bidder`。如果 Windows 下遗留了旧的 `.exe` 文件，应在构建前清理，不保留双份产物。
 
 ## 构建、测试与开发命令
 使用 `make build` 将主要 Go 服务统一编译到 `bin/`，使用 `make test` 运行 Go 短测集。修改 API 注解后执行 `make api-gen`，同步刷新 `docs/generated/openapi3.yaml` 和 `web/lib/api-types.ts`。前端本地开发使用 `cd web && npm run dev`，生产构建使用 `cd web && npm run build`，提交前至少运行 `cd web && npm run lint`。如需完整本地环境，执行 `./scripts/test-env.sh all` 启动隔离测试栈，执行 `./scripts/test-env.sh verify` 跑 autopilot 验证。

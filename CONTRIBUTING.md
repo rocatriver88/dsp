@@ -22,6 +22,7 @@
 - 除非源契约发生变化，不要手工修改 OpenAPI 产物或前端 API 类型
 - 新增子系统、工作流或操作面时，同步更新相关文档
 - 编译产物只允许进入 `bin/`，生成契约只允许进入 `docs/generated/`
+- `bin/` 内的规范产物名统一使用无扩展名，不保留历史 `.exe` 副本
 - `.claude/`、`.context/`、`.gstack/`、`uploads/`、`autopilot-output/` 等本地状态或运行时内容不得提交
 
 ## 评审与发布

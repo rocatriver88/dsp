@@ -91,6 +91,7 @@ cmd_services() {
     echo "Starting application services..."
 
     # Build first
+    rm -f bin/api.exe bin/bidder.exe bin/consumer.exe bin/exchange-sim.exe
     go build -o bin/api ./cmd/api/
     go build -o bin/bidder ./cmd/bidder/
     go build -o bin/consumer ./cmd/consumer/
