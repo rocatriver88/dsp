@@ -25,12 +25,7 @@ export default function RootLayout({
         <ApiKeyGate
           sidebar={<Sidebar />}
         >
-          {/* Main content */}
-          <main id="main-content" className="flex-1 overflow-auto" role="main">
-            <div className="max-w-6xl mx-auto px-4 py-4 md:px-8 md:py-6">
-              {children}
-            </div>
-          </main>
+          {children}
         </ApiKeyGate>
       </body>
     </html>

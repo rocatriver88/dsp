@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
 export default function ApiKeyGate({ children, sidebar }: { children: React.ReactNode; sidebar?: React.ReactNode }) {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [checking, setChecking] = useState(true);
+  const pathname = usePathname();
+  const isAdmin = pathname.startsWith("/admin");
 
   useEffect(() => {
     const key = localStorage.getItem("dsp_api_key");
@@ -59,5 +62,18 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
     );
   }
 
-  return <>{sidebar}{children}</>;
+  if (isAdmin) {
+    return <>{children}</>;
+  }
+
+  return (
+    <>
+      {sidebar}
+      <main id="main-content" className="flex-1 overflow-auto" role="main">
+        <div className="max-w-6xl mx-auto px-4 py-4 md:px-8 md:py-6">
+          {children}
+        </div>
+      </main>
+    </>
+  );
 }
