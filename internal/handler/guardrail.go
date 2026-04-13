@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+// HandleCircuitBreak godoc
+// @Summary Trip circuit breaker
+// @Tags admin
+// @Security AdminAuth
+// @Accept json
+// @Produce json
+// @Param body body object{reason=string} true "Trip reason"
+// @Success 200 {object} object{status=string,reason=string}
+// @Router /admin/circuit-break [post]
 func (d *Deps) HandleCircuitBreak(w http.ResponseWriter, r *http.Request) {
 	if d.Guardrail == nil {
 		WriteError(w, http.StatusServiceUnavailable, "guardrails not configured")
@@ -27,6 +36,13 @@ func (d *Deps) HandleCircuitBreak(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// HandleCircuitReset godoc
+// @Summary Reset circuit breaker
+// @Tags admin
+// @Security AdminAuth
+// @Produce json
+// @Success 200 {object} object{status=string}
+// @Router /admin/circuit-reset [post]
 func (d *Deps) HandleCircuitReset(w http.ResponseWriter, r *http.Request) {
 	if d.Guardrail == nil {
 		WriteError(w, http.StatusServiceUnavailable, "guardrails not configured")
@@ -37,6 +53,13 @@ func (d *Deps) HandleCircuitReset(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "reset"})
 }
 
+// HandleCircuitStatus godoc
+// @Summary Get circuit breaker status
+// @Tags admin
+// @Security AdminAuth
+// @Produce json
+// @Success 200 {object} object{circuit_breaker=string,reason=string,global_spend_today_cents=integer}
+// @Router /admin/circuit-status [get]
 func (d *Deps) HandleCircuitStatus(w http.ResponseWriter, r *http.Request) {
 	if d.Guardrail == nil {
 		WriteError(w, http.StatusServiceUnavailable, "guardrails not configured")

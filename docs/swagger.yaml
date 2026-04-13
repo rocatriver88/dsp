@@ -149,6 +149,50 @@ definitions:
     - StatusPaused
     - StatusCompleted
     - StatusDeleted
+  github_com_heartgryphon_dsp_internal_registration.InviteCode:
+    properties:
+      code:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: integer
+      max_uses:
+        type: integer
+      used_count:
+        type: integer
+    type: object
+  github_com_heartgryphon_dsp_internal_registration.Request:
+    properties:
+      business_type:
+        type: string
+      company_name:
+        type: string
+      contact_email:
+        type: string
+      contact_phone:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      invite_code:
+        type: string
+      reject_reason:
+        type: string
+      reviewed_at:
+        type: string
+      reviewed_by:
+        type: string
+      status:
+        type: string
+      website:
+        type: string
+    type: object
   github_com_heartgryphon_dsp_internal_reporting.AttributionReport:
     properties:
       campaign_id:
@@ -312,6 +356,359 @@ paths:
       summary: List available ad types
       tags:
       - reference
+  /admin/advertisers:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_heartgryphon_dsp_internal_campaign.Advertiser'
+            type: array
+      security:
+      - AdminAuth: []
+      summary: List all advertisers
+      tags:
+      - admin
+  /admin/audit-log:
+    get:
+      parameters:
+      - default: 50
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_heartgryphon_dsp_internal_audit.Entry'
+            type: array
+      security:
+      - AdminAuth: []
+      summary: Get audit log
+      tags:
+      - admin
+  /admin/circuit-break:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Trip reason
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            reason:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              reason:
+                type: string
+              status:
+                type: string
+            type: object
+      security:
+      - AdminAuth: []
+      summary: Trip circuit breaker
+      tags:
+      - admin
+  /admin/circuit-reset:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              status:
+                type: string
+            type: object
+      security:
+      - AdminAuth: []
+      summary: Reset circuit breaker
+      tags:
+      - admin
+  /admin/circuit-status:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              circuit_breaker:
+                type: string
+              global_spend_today_cents:
+                type: integer
+              reason:
+                type: string
+            type: object
+      security:
+      - AdminAuth: []
+      summary: Get circuit breaker status
+      tags:
+      - admin
+  /admin/creatives:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_heartgryphon_dsp_internal_campaign.Creative'
+            type: array
+      security:
+      - AdminAuth: []
+      summary: List creatives for review
+      tags:
+      - admin
+  /admin/creatives/{id}/approve:
+    post:
+      parameters:
+      - description: Creative ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              status:
+                type: string
+            type: object
+      security:
+      - AdminAuth: []
+      summary: Approve creative
+      tags:
+      - admin
+  /admin/creatives/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Creative ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Rejection reason
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            reason:
+              type: string
+          type: object
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              status:
+                type: string
+            type: object
+      security:
+      - AdminAuth: []
+      summary: Reject creative
+      tags:
+      - admin
+  /admin/health:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              active_campaigns:
+                type: integer
+              status:
+                type: string
+              time:
+                type: string
+            type: object
+      security:
+      - AdminAuth: []
+      summary: Get system health
+      tags:
+      - admin
+  /admin/invite-codes:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_heartgryphon_dsp_internal_registration.InviteCode'
+            type: array
+      security:
+      - AdminAuth: []
+      summary: List invite codes
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Invite code config
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            expires_at:
+              type: string
+            max_uses:
+              type: integer
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            properties:
+              code:
+                type: string
+            type: object
+      security:
+      - AdminAuth: []
+      summary: Create invite code
+      tags:
+      - admin
+  /admin/registrations:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_heartgryphon_dsp_internal_registration.Request'
+            type: array
+      security:
+      - AdminAuth: []
+      summary: List pending registrations
+      tags:
+      - admin
+  /admin/registrations/{id}/approve:
+    post:
+      parameters:
+      - description: Registration ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              advertiser_id:
+                type: integer
+              api_key:
+                type: string
+              message:
+                type: string
+            type: object
+      security:
+      - AdminAuth: []
+      summary: Approve registration
+      tags:
+      - admin
+  /admin/registrations/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Registration ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Rejection reason
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            reason:
+              type: string
+          type: object
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              status:
+                type: string
+            type: object
+      security:
+      - AdminAuth: []
+      summary: Reject registration
+      tags:
+      - admin
+  /admin/topup:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Top-up data
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            advertiser_id:
+              type: integer
+            amount_cents:
+              type: integer
+            description:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_heartgryphon_dsp_internal_billing.Transaction'
+      security:
+      - AdminAuth: []
+      summary: Admin top-up advertiser balance
+      tags:
+      - admin
   /advertisers:
     post:
       consumes:
@@ -849,6 +1246,41 @@ paths:
       summary: Export campaign stats as CSV
       tags:
       - export
+  /register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Registration data
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            company_name:
+              type: string
+            contact_email:
+              type: string
+            invite_code:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            properties:
+              id:
+                type: integer
+              message:
+                type: string
+              status:
+                type: string
+            type: object
+      summary: Submit registration request
+      tags:
+      - registration
   /reports/campaign/{id}/attribution:
     get:
       parameters:

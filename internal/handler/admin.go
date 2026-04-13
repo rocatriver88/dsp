@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/audit"
+	_ "github.com/heartgryphon/dsp/internal/billing"
 	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/registration"
 )
@@ -24,6 +25,14 @@ func (d *Deps) HandleActiveCampaigns(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, campaigns)
 }
 
+// HandleRegister godoc
+// @Summary Submit registration request
+// @Tags registration
+// @Accept json
+// @Produce json
+// @Param body body object{company_name=string,contact_email=string,invite_code=string} true "Registration data"
+// @Success 201 {object} object{id=integer,status=string,message=string}
+// @Router /register [post]
 func (d *Deps) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	var req registration.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -46,6 +55,13 @@ func (d *Deps) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// HandleListRegistrations godoc
+// @Summary List pending registrations
+// @Tags admin
+// @Security AdminAuth
+// @Produce json
+// @Success 200 {array} registration.Request
+// @Router /admin/registrations [get]
 func (d *Deps) HandleListRegistrations(w http.ResponseWriter, r *http.Request) {
 	reqs, err := d.RegSvc.ListPending(r.Context())
 	if err != nil {
@@ -58,6 +74,14 @@ func (d *Deps) HandleListRegistrations(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, reqs)
 }
 
+// HandleApproveRegistration godoc
+// @Summary Approve registration
+// @Tags admin
+// @Security AdminAuth
+// @Produce json
+// @Param id path int true "Registration ID"
+// @Success 200 {object} object{advertiser_id=integer,api_key=string,message=string}
+// @Router /admin/registrations/{id}/approve [post]
 func (d *Deps) HandleApproveRegistration(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	advID, apiKey, err := d.RegSvc.Approve(r.Context(), id, "admin")
@@ -72,7 +96,13 @@ func (d *Deps) HandleApproveRegistration(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// HandleSystemHealth returns system-wide health metrics for admin monitoring.
+// HandleSystemHealth godoc
+// @Summary Get system health
+// @Tags admin
+// @Security AdminAuth
+// @Produce json
+// @Success 200 {object} object{status=string,active_campaigns=integer,time=string}
+// @Router /admin/health [get]
 func (d *Deps) HandleSystemHealth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	health := map[string]any{
@@ -108,7 +138,13 @@ func (d *Deps) HandleSystemHealth(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, health)
 }
 
-// HandleListCreativesForReview returns all creatives pending review.
+// HandleListCreativesForReview godoc
+// @Summary List creatives for review
+// @Tags admin
+// @Security AdminAuth
+// @Produce json
+// @Success 200 {array} campaign.Creative
+// @Router /admin/creatives [get]
 func (d *Deps) HandleListCreativesForReview(w http.ResponseWriter, r *http.Request) {
 	status := r.URL.Query().Get("status")
 	if status == "" {
@@ -125,7 +161,13 @@ func (d *Deps) HandleListCreativesForReview(w http.ResponseWriter, r *http.Reque
 	WriteJSON(w, http.StatusOK, creatives)
 }
 
-// HandleApproveCreative approves a creative for serving.
+// HandleApproveCreative godoc
+// @Summary Approve creative
+// @Tags admin
+// @Security AdminAuth
+// @Param id path int true "Creative ID"
+// @Success 200 {object} object{status=string}
+// @Router /admin/creatives/{id}/approve [post]
 func (d *Deps) HandleApproveCreative(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -139,7 +181,15 @@ func (d *Deps) HandleApproveCreative(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "approved"})
 }
 
-// HandleRejectCreative rejects a creative with a reason.
+// HandleRejectCreative godoc
+// @Summary Reject creative
+// @Tags admin
+// @Security AdminAuth
+// @Accept json
+// @Param id path int true "Creative ID"
+// @Param body body object{reason=string} true "Rejection reason"
+// @Success 200 {object} object{status=string}
+// @Router /admin/creatives/{id}/reject [post]
 func (d *Deps) HandleRejectCreative(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -153,6 +203,15 @@ func (d *Deps) HandleRejectCreative(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "rejected"})
 }
 
+// HandleRejectRegistration godoc
+// @Summary Reject registration
+// @Tags admin
+// @Security AdminAuth
+// @Accept json
+// @Param id path int true "Registration ID"
+// @Param body body object{reason=string} true "Rejection reason"
+// @Success 200 {object} object{status=string}
+// @Router /admin/registrations/{id}/reject [post]
 func (d *Deps) HandleRejectRegistration(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
@@ -166,7 +225,13 @@ func (d *Deps) HandleRejectRegistration(w http.ResponseWriter, r *http.Request) 
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "rejected"})
 }
 
-// HandleListAdvertisers returns all advertisers for admin dashboard.
+// HandleListAdvertisers godoc
+// @Summary List all advertisers
+// @Tags admin
+// @Security AdminAuth
+// @Produce json
+// @Success 200 {array} campaign.Advertiser
+// @Router /admin/advertisers [get]
 func (d *Deps) HandleListAdvertisers(w http.ResponseWriter, r *http.Request) {
 	advs, err := d.Store.ListAllAdvertisers(r.Context())
 	if err != nil {
@@ -176,7 +241,15 @@ func (d *Deps) HandleListAdvertisers(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, advs)
 }
 
-// HandleAdminTopUp allows admin to add balance to any advertiser.
+// HandleAdminTopUp godoc
+// @Summary Admin top-up advertiser balance
+// @Tags admin
+// @Security AdminAuth
+// @Accept json
+// @Produce json
+// @Param body body object{advertiser_id=integer,amount_cents=integer,description=string} true "Top-up data"
+// @Success 200 {object} billing.Transaction
+// @Router /admin/topup [post]
 func (d *Deps) HandleAdminTopUp(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		AdvertiserID int64  `json:"advertiser_id"`
@@ -218,7 +291,15 @@ func (d *Deps) HandleAdminTopUp(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, tx)
 }
 
-// HandleCreateInviteCode generates a new invite code.
+// HandleCreateInviteCode godoc
+// @Summary Create invite code
+// @Tags admin
+// @Security AdminAuth
+// @Accept json
+// @Produce json
+// @Param body body object{max_uses=integer,expires_at=string} true "Invite code config"
+// @Success 201 {object} object{code=string}
+// @Router /admin/invite-codes [post]
 func (d *Deps) HandleCreateInviteCode(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		MaxUses   int        `json:"max_uses"`
@@ -238,7 +319,13 @@ func (d *Deps) HandleCreateInviteCode(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusCreated, map[string]string{"code": code})
 }
 
-// HandleListInviteCodes returns all invite codes.
+// HandleListInviteCodes godoc
+// @Summary List invite codes
+// @Tags admin
+// @Security AdminAuth
+// @Produce json
+// @Success 200 {array} registration.InviteCode
+// @Router /admin/invite-codes [get]
 func (d *Deps) HandleListInviteCodes(w http.ResponseWriter, r *http.Request) {
 	codes, err := d.RegSvc.ListInviteCodes(r.Context())
 	if err != nil {
@@ -248,7 +335,15 @@ func (d *Deps) HandleListInviteCodes(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, codes)
 }
 
-// HandleAuditLog returns audit entries for admin.
+// HandleAuditLog godoc
+// @Summary Get audit log
+// @Tags admin
+// @Security AdminAuth
+// @Produce json
+// @Param limit query int false "Limit" default(50)
+// @Param offset query int false "Offset" default(0)
+// @Success 200 {array} audit.Entry
+// @Router /admin/audit-log [get]
 func (d *Deps) HandleAuditLog(w http.ResponseWriter, r *http.Request) {
 	if d.AuditLog == nil {
 		WriteError(w, http.StatusServiceUnavailable, "audit log not available")
