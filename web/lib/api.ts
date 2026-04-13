@@ -1,9 +1,9 @@
 import type { components } from './api-types';
 
-// Types from generated OpenAPI spec
-export type Advertiser = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Advertiser']>;
-export type Campaign = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Campaign']>;
-export type Creative = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Creative']>;
+// Types from generated OpenAPI spec (Required<> ensures fields are non-optional, matching runtime behavior)
+export type Advertiser = Required<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Advertiser']>;
+export type Campaign = Required<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Campaign']>;
+export type Creative = Required<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Creative']>;
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 

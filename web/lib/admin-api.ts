@@ -1,11 +1,11 @@
 import type { components } from './api-types';
 
-// Types from generated OpenAPI spec
-export type AdminAdvertiser = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Advertiser']>;
-export type InviteCode = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_registration.InviteCode']>;
-export type AdminCreative = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Creative']>;
-export type AuditEntry = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_audit.Entry']>;
-export type Registration = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_registration.Request']>;
+// Types from generated OpenAPI spec (Required<> ensures fields are non-optional, matching runtime behavior)
+export type AdminAdvertiser = Required<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Advertiser']>;
+export type InviteCode = Required<components['schemas']['github_com_heartgryphon_dsp_internal_registration.InviteCode']>;
+export type AdminCreative = Required<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Creative']>;
+export type AuditEntry = Required<components['schemas']['github_com_heartgryphon_dsp_internal_audit.Entry']>;
+export type Registration = Required<components['schemas']['github_com_heartgryphon_dsp_internal_registration.Request']>;
 
 const ADMIN_API_BASE = process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8182";
 
