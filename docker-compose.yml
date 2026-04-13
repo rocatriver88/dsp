@@ -90,21 +90,22 @@ services:
     volumes:
       - ./migrations:/migrations:ro
     entrypoint: ["/bin/sh", "-lc"]
-    command: >
-      apk add --no-cache curl >/dev/null &&
-      for f in /migrations/*.sql; do
-        case "$$f" in
-          */002_clickhouse.sql|*/008_clickhouse_attribution.sql) continue ;;
-        esac;
-        echo "Applying $$f";
-        PGPASSWORD="$$DB_PASSWORD" psql -h "$$DB_HOST" -p "$$DB_PORT" -U "$$DB_USER" -d "$$DB_NAME" -v ON_ERROR_STOP=1 -f "$$f" >/dev/null 2>&1 || true;
-      done &&
-      for f in /migrations/002_clickhouse.sql /migrations/008_clickhouse_attribution.sql; do
-        if [ -f "$$f" ]; then
-          echo "Applying $$f (ClickHouse)";
-          curl -fsS "http://$$CLICKHOUSE_HOST:$$CLICKHOUSE_HTTP_PORT/?user=$$CLICKHOUSE_USER&password=$$CLICKHOUSE_PASSWORD" --data-binary @"$$f" >/dev/null || true;
-        fi;
-      done
+    command:
+      - |
+        apk add --no-cache curl >/dev/null &&
+        for f in /migrations/*.sql; do
+          case "$$f" in
+            */002_clickhouse.sql|*/008_clickhouse_attribution.sql) continue ;;
+          esac
+          echo "Applying $$f"
+          PGPASSWORD="$$DB_PASSWORD" psql -h "$$DB_HOST" -p "$$DB_PORT" -U "$$DB_USER" -d "$$DB_NAME" -v ON_ERROR_STOP=1 -f "$$f" >/dev/null
+        done &&
+        for f in /migrations/002_clickhouse.sql /migrations/008_clickhouse_attribution.sql; do
+          if [ -f "$$f" ]; then
+            echo "Applying $$f (ClickHouse)"
+            curl -fsS "http://$$CLICKHOUSE_HOST:$$CLICKHOUSE_HTTP_PORT/?user=$$CLICKHOUSE_USER&password=$$CLICKHOUSE_PASSWORD" --data-binary @"$$f" >/dev/null
+          fi
+        done
 
   api:
     build:
