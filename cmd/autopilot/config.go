@@ -63,8 +63,8 @@ func LoadAutopilotConfig() *AutopilotConfig {
 		HealthInterval:  parseDuration("AUTOPILOT_HEALTH_INTERVAL", time.Minute),
 		ReportHour:          parseInt("AUTOPILOT_REPORT_HOUR", 9),
 		LowBalanceThreshold: parseInt64("AUTOPILOT_LOW_BALANCE_CENTS", 100000),
-		ScreenshotDir:   getEnv("AUTOPILOT_SCREENSHOT_DIR", "autopilot-output/screenshots"),
-		ReportDir:       getEnv("AUTOPILOT_REPORT_DIR", "autopilot-output/reports"),
+		ScreenshotDir:   getEnv("AUTOPILOT_SCREENSHOT_DIR", "var/autopilot-output/screenshots"),
+		ReportDir:       getEnv("AUTOPILOT_REPORT_DIR", "var/autopilot-output/reports"),
 		GrafanaURL:      getEnvAllowEmpty("AUTOPILOT_GRAFANA_URL", "http://localhost:3100"),
 	}
 }

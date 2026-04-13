@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	uploadDir     = "uploads"
+	uploadDir     = "var/uploads"
 	maxUploadSize = 10 << 20 // 10MB
 )
 

@@ -101,7 +101,7 @@ services:
       clickhouse:
         condition: service_healthy
     volumes:
-      - uploadsdata:/app/uploads
+      - uploadsdata:/app/var/uploads
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8181/health >/dev/null || exit 1"]
       interval: 10s

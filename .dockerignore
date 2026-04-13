@@ -5,8 +5,7 @@
 .gstack
 .gocache
 bin
-autopilot-output
-uploads
+var
 web/node_modules
 web/.next
 docs/archive

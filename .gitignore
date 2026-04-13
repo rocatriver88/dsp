@@ -30,9 +30,8 @@ web/.next/
 # Logs
 *.log
 
-# Uploads (runtime)
-uploads/
-autopilot-output/
+# Runtime state (uploads, autopilot output, etc.)
+var/
 
 # Docker volumes
 pgdata/

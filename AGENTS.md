@@ -1,10 +1,10 @@
 # 仓库指南
 
 ## 项目结构与模块划分
-`cmd/` 放可执行服务入口，例如 `api`、`bidder`、`consumer`、`autopilot` 和 `exchange-sim`。共享的 Go 业务代码按领域放在 `internal/` 下，例如 `internal/handler`、`internal/bidder`、`internal/campaign`，测试文件与源码同目录，命名为 `*_test.go`。Next.js 控制台位于 `web/`，主要目录为 `app/`、`lib/`、`public/`；修改前端前先看 `web/AGENTS.md`。数据库变更放在 `migrations/`，叙述性文档放在 `docs/`，生成的 API 契约放在 `docs/generated/`，环境与运维辅助脚本位于 `scripts/`、`deploy/`、`monitoring/`。
+`cmd/` 放可执行服务入口，例如 `api`、`bidder`、`consumer`、`autopilot` 和 `exchange-sim`。共享的 Go 业务代码按领域放在 `internal/` 下，例如 `internal/handler`、`internal/bidder`、`internal/campaign`，测试文件与源码同目录，命名为 `*_test.go`。Next.js 控制台位于 `web/`，主要目录为 `app/`、`lib/`、`public/`；修改前端前先看 `web/AGENTS.md`。数据库变更放在 `migrations/`，叙述性文档放在 `docs/`,生成的 API 契约放在 `docs/generated/`,环境与运维辅助脚本位于 `scripts/`、`deploy/`(监控配置位于 `deploy/monitoring/`)。
 
 ## 目录边界规则
-仓库内容分为四类：`source`、`generated`、`local`、`runtime`。`source` 指 `cmd/`、`internal/`、`web/`、`migrations/` 和正式文档；`generated` 指 `docs/generated/` 与 `web/lib/api-types.ts` 这类可再生产物；`local` 指 `.claude/`、`.context/`、`.gstack/` 等个人环境状态；`runtime` 指 `uploads/`、`autopilot-output/`、临时截图和运行日志。规则是：编译产物只允许出现在 `bin/`，生成契约只允许出现在 `docs/generated/`，`local` 与 `runtime` 内容不得进入版本库。
+仓库内容分为四类：`source`、`generated`、`local`、`runtime`。`source` 指 `cmd/`、`internal/`、`web/`、`migrations/` 和正式文档；`generated` 指 `docs/generated/` 与 `web/lib/api-types.ts` 这类可再生产物；`local` 指 `.claude/`、`.context/`、`.gstack/` 等个人环境状态；`runtime` 指 `var/`(上传、autopilot 输出、临时截图、运行日志等均落在此)。规则是：编译产物只允许出现在 `bin/`，生成契约只允许出现在 `docs/generated/`，`local` 与 `runtime` 内容不得进入版本库。
 `bin/` 的规范文件名统一为无扩展名，例如 `bin/api`、`bin/bidder`。如果 Windows 下遗留了旧的 `.exe` 文件，应在构建前清理，不保留双份产物。
 
 ## 构建、测试与开发命令
