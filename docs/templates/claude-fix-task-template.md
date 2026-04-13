@@ -18,7 +18,7 @@
 仓库约束：
 - 该仓库以 Go 为主，服务入口在 cmd/，共享逻辑在 internal/。
 - 前端位于 web/，可能依赖生成的 API 类型。
-- 如果改了 API handler、请求结构或响应结构，需要确认是否应重新生成 docs/openapi3.yaml 和 web/lib/api-types.ts。
+- 如果改了 API handler、请求结构或响应结构，需要确认是否应重新生成 docs/generated/openapi3.yaml 和 web/lib/api-types.ts。
 - 如果改了测试环境配置，要一起检查 docker-compose.test.yml 和 scripts/test-env.sh。
 - 优先修真实行为问题和测试，不要把时间花在样式清理上。
 

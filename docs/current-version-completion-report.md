@@ -76,6 +76,6 @@
 这个表述比“原型”更准确，同时也避免过度宣称已经达到完整企业级成熟度。
 
 ## 建议的下一步
-1. 冻结并文档化当前契约面，确保 `docs/openapi3.yaml` 和前端生成类型同步。
+1. 冻结并文档化当前契约面，确保 `docs/generated/openapi3.yaml` 和前端生成类型同步。
 2. 将已延后的事项转成带验收标准的明确 roadmap 里程碑。
 3. 围绕 `make test`、前端 lint/build、`make api-gen` 和 `./scripts/test-env.sh verify` 建立正式发布检查清单。

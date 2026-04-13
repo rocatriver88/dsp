@@ -24,12 +24,15 @@ web/.next/
 
 # gstack local state
 .gstack/
+.claude/
+.context/
 
 # Logs
 *.log
 
 # Uploads (runtime)
 uploads/
+autopilot-output/
 
 # Docker volumes
 pgdata/

@@ -77,7 +77,7 @@ API 服务主要由以下包组成：
 - `web/lib/`：共享客户端逻辑，包括生成的 API 类型
 - `web/public/`：静态资源
 
-前端依赖后端生成的 OpenAPI 契约。只要 API 形状变化，就必须执行 `make api-gen` 同步刷新 `docs/openapi3.yaml` 和 `web/lib/api-types.ts`。
+前端依赖后端生成的 OpenAPI 契约。只要 API 形状变化，就必须执行 `make api-gen` 同步刷新 `docs/generated/openapi3.yaml` 和 `web/lib/api-types.ts`。
 
 ## 6. 横切能力
 - `internal/config`：集中处理基于环境变量的配置
