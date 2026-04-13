@@ -8,7 +8,7 @@
 - `cmd/bidder`：OpenRTB 竞价与 win、click、convert 回调处理
 - `cmd/consumer`：Kafka 到 ClickHouse 的分析链路写入
 - `web/`：广告主与管理端控制台
-- `scripts/`、`deploy/`、`monitoring/`：本地环境与运维支持
+- `scripts/`、`deploy/`：本地环境与运维支持（监控资产位于 `deploy/monitoring/`）
 
 核心运行依赖包括 PostgreSQL、Redis、Kafka、ClickHouse、Prometheus 和 Grafana。
 
@@ -73,14 +73,14 @@ docker compose up --build
 ```
 
 ## 文档入口
-- [项目概览](./PROJECT_OVERVIEW.md)
+- [项目概览](./docs/PROJECT_OVERVIEW.md)
 - [贡献指南](./CONTRIBUTING.md)
-- [评审工作流](./REVIEW_WORKFLOW.md)
-- [发布检查清单](./RELEASE_CHECKLIST.md)
+- [评审工作流](./docs/REVIEW_WORKFLOW.md)
+- [发布检查清单](./docs/RELEASE_CHECKLIST.md)
 - [文档索引](./docs/README.md)
 - [功能清单](./docs/project-feature-inventory.md)
-- [完成度报告](./docs/current-version-completion-report.md)
 - [模块架构说明](./docs/module-architecture.md)
+- [历史完成度快照](./docs/archive/)
 - [OpenAPI 契约](./docs/generated/openapi3.yaml)
 
 ## 当前状态

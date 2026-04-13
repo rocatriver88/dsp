@@ -4,7 +4,7 @@
 - 确认发布分支只包含本次预期变更
 - 移除或排除临时文件、浏览报告和无关实验内容
 - 确保提交信息可读且 scope 清晰
-- 确认没有提交 `.claude/`、`.context/`、`.gstack/`、`uploads/`、`autopilot-output/` 等本地或运行时内容
+- 确认没有提交 `.claude/`、`.context/`、`.gstack/`、`var/` 等本地或运行时内容
 - 确认没有根目录二进制产物，编译结果只允许位于 `bin/`
 
 ## 2. Codex 评审

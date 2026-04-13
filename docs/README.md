@@ -2,11 +2,12 @@
 
 ## 核心文档
 - [功能清单](./project-feature-inventory.md)：已实现的产品与系统能力
-- [当前版本完成度报告](./current-version-completion-report.md)：交付状态与当前边界
-- [模块架构说明](./module-architecture.md)：服务划分、模块职责与数据流
-- [../REVIEW_WORKFLOW.md](../REVIEW_WORKFLOW.md)：Codex 与 Claude Code 的评审闭环
-- [../RELEASE_CHECKLIST.md](../RELEASE_CHECKLIST.md)：合并与发版检查门槛
-- [../CONTRIBUTING.md](../CONTRIBUTING.md)：贡献入口文档
+- [模块架构说明](./module-architecture.md):服务划分、模块职责与数据流
+- [历史完成度快照](./archive/):版本发布时的交付状态记录(最新 2026-04-13)
+- [项目概览](./PROJECT_OVERVIEW.md):顶层定位、形态与能力总览
+- [评审工作流](./REVIEW_WORKFLOW.md):Codex 与 Claude Code 的评审闭环
+- [发布检查清单](./RELEASE_CHECKLIST.md):合并与发版检查门槛
+- [../CONTRIBUTING.md](../CONTRIBUTING.md):贡献入口文档
 
 ## API 契约
 - `generated/swagger.yaml` / `generated/swagger.json`：生成的 OpenAPI 2 产物
@@ -25,7 +26,7 @@
 - [templates/claude-fix-task-template.md](./templates/claude-fix-task-template.md)：Claude Code 修复任务模板
 
 ## 推荐阅读顺序
-1. [当前版本完成度报告](./current-version-completion-report.md)
+1. [项目概览](./PROJECT_OVERVIEW.md)
 2. [功能清单](./project-feature-inventory.md)
 3. [模块架构说明](./module-architecture.md)
 4. `generated/openapi3.yaml`

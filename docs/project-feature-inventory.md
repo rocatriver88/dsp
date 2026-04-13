@@ -34,7 +34,7 @@
 ## 5. 素材与资源管理
 - 素材创建、更新、删除与查询
 - 待审、通过、拒绝三种审核状态
-- 上传接口与 `uploads/` 静态文件服务
+- 上传接口与 `/uploads/` 静态文件服务(落盘位置 `var/uploads/`)
 - 支持 banner、native、splash、interstitial 等素材类型
 - 原生广告支持 title、description、icon、image、CTA 等字段
 

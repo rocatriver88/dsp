@@ -17,7 +17,7 @@
 - `cmd/bidder`：竞价服务与回调处理
 - `cmd/consumer`：Kafka 到 ClickHouse 的分析写入
 - `web/`：广告主与管理端控制台
-- `scripts/`、`deploy/`、`monitoring/`：本地环境、部署与可观测性资产
+- `scripts/`、`deploy/`：本地环境、部署与可观测性资产（监控配置位于 `deploy/monitoring/`）
 
 核心运行依赖是 PostgreSQL、Redis、Kafka、ClickHouse、Prometheus 和 Grafana。
 
@@ -31,10 +31,10 @@
 - SDK 分发与更完整的生态工具
 
 ## 仓库入口文档
-- 功能与能力总览：[`docs/project-feature-inventory.md`](./docs/project-feature-inventory.md)
-- 完成度状态：[`docs/current-version-completion-report.md`](./docs/current-version-completion-report.md)
-- 架构说明：[`docs/module-architecture.md`](./docs/module-architecture.md)
-- OpenAPI 契约：[`docs/generated/openapi3.yaml`](./docs/generated/openapi3.yaml)
+- 功能与能力总览:[`project-feature-inventory.md`](./project-feature-inventory.md)
+- 架构说明:[`module-architecture.md`](./module-architecture.md)
+- OpenAPI 契约:[`generated/openapi3.yaml`](./generated/openapi3.yaml)
+- 历史完成度快照:[`archive/`](./archive/)
 
 ## 常用本地验证
 ```powershell

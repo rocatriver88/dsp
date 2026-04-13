@@ -29,12 +29,12 @@ codex review --base main "Act as a strict production reviewer for this DSP repos
 - `P2`：缺失测试、边界情况、可观测性或可维护性缺口
 - `Skip`：误报、符合设计的行为或纯样式问题
 
-建议使用 [docs/templates/review-triage-template.md](./docs/templates/review-triage-template.md) 显式记录分流结果。
+建议使用 [templates/review-triage-template.md](./templates/review-triage-template.md) 显式记录分流结果。
 
 ## 4. 把修复任务交给 Claude Code
 只把已经验证过的 `P0/P1` 问题交给 Claude Code，建议每次 1 到 3 条同类问题。
 
-默认使用 [docs/templates/claude-fix-task-template.md](./docs/templates/claude-fix-task-template.md) 作为交接模板。
+默认使用 [templates/claude-fix-task-template.md](./templates/claude-fix-task-template.md) 作为交接模板。
 
 ## 5. 验证修复结果
 根据改动范围执行最小但充分的验证。
@@ -83,6 +83,6 @@ codex review --base main "Re-review this DSP branch after fixes. Focus on whethe
 - `docs/generated/openapi3.yaml` 和 `web/lib/api-types.ts` 的前后端契约同步
 
 ## 8. 相关文档
-- 合并与发版门槛：[RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md)
-- 仓库规则：[AGENTS.md](./AGENTS.md)
-- 贡献入口：[CONTRIBUTING.md](./CONTRIBUTING.md)
+- 合并与发版门槛:[RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md)
+- 仓库规则:[../AGENTS.md](../AGENTS.md)
+- 贡献入口:[../CONTRIBUTING.md](../CONTRIBUTING.md)
