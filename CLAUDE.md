@@ -73,6 +73,7 @@ Standard flow for any feature/phase implementation:
 
 **Key rules:**
 - 验证是完整轮次循环 — 每轮按顺序走完所有步骤，发现问题就地修，走完一轮后从头开始下一轮，直到整轮零问题
+- 只要某一轮进行了任何问题修复，就必须跑下一轮，不能修完直接 push
 - verification + /qa runs at EVERY Phase boundary, not just at the end
 - Compiling + unit tests ≠ working system — must verify against live services
 - /browse screenshots at the end confirm visual compliance with DESIGN.md
