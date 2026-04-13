@@ -231,6 +231,58 @@ func (s *Store) GetGeoBreakdown(ctx context.Context, campaignID uint64, from, to
 	return result, nil
 }
 
+// BidSimulation holds the result of a bid simulation query.
+type BidSimulation struct {
+	CurrentBidCPMCents    int     `json:"current_bid_cpm_cents"`
+	SimulatedBidCPMCents  int     `json:"simulated_bid_cpm_cents"`
+	TotalBids             int64   `json:"total_bids"`
+	ActualWins            int64   `json:"actual_wins"`
+	CurrentWinRate        float64 `json:"current_win_rate"`
+	SimulatedWins         int64   `json:"simulated_wins"`
+	SimulatedWinRate      float64 `json:"simulated_win_rate"`
+	SimulatedSpendCents   int64   `json:"simulated_spend_cents"`
+	MedianClearPriceCents int     `json:"median_clear_price_cents"`
+	MaxClearPriceCents    int     `json:"max_clear_price_cents"`
+	DataDays              int     `json:"data_days"`
+}
+
+// SimulateBid estimates win rate and spend for a hypothetical bid CPM.
+func (s *Store) SimulateBid(ctx context.Context, campaignID uint64, simulatedCPMCents int) (*BidSimulation, error) {
+	var result BidSimulation
+	result.SimulatedBidCPMCents = simulatedCPMCents
+	result.DataDays = 7
+
+	err := s.conn.QueryRow(ctx, `
+		SELECT
+			count()                                                      AS total_bids,
+			countIf(event_type = 'win')                                  AS actual_wins,
+			countIf(clear_price_cents > 0 AND clear_price_cents <= ?)    AS simulated_wins,
+			sumIf(clear_price_cents, clear_price_cents > 0 AND clear_price_cents <= ?) AS simulated_spend_cents,
+			toUInt32(quantileExactIf(0.5)(clear_price_cents, clear_price_cents > 0)) AS median_clear_price,
+			max(clear_price_cents)                                       AS max_clear_price
+		FROM bid_log
+		WHERE campaign_id = ?
+		  AND event_date >= today() - 7
+	`, simulatedCPMCents, simulatedCPMCents, campaignID).Scan(
+		&result.TotalBids,
+		&result.ActualWins,
+		&result.SimulatedWins,
+		&result.SimulatedSpendCents,
+		&result.MedianClearPriceCents,
+		&result.MaxClearPriceCents,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("simulate bid: %w", err)
+	}
+
+	if result.TotalBids > 0 {
+		result.CurrentWinRate = float64(result.ActualWins) / float64(result.TotalBids)
+		result.SimulatedWinRate = float64(result.SimulatedWins) / float64(result.TotalBids)
+	}
+
+	return &result, nil
+}
+
 func (s *Store) Close() error {
 	return s.conn.Close()
 }
