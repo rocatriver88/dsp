@@ -34,7 +34,8 @@ type AutopilotConfig struct {
 	DayQPS         int           // target QPS during daytime
 	NightQPS       int           // target QPS during nighttime
 	HealthInterval time.Duration // how often to check service health (default 1m)
-	ReportHour     int           // hour to generate daily report (default 9)
+	ReportHour          int           // hour to generate daily report (default 9)
+	LowBalanceThreshold int64         // balance threshold in cents for alerts (default 100000)
 
 	// Screenshots
 	ScreenshotDir string // directory to save screenshots
@@ -60,7 +61,8 @@ func LoadAutopilotConfig() *AutopilotConfig {
 		DayQPS:          parseInt("AUTOPILOT_DAY_QPS", 10),
 		NightQPS:        parseInt("AUTOPILOT_NIGHT_QPS", 1),
 		HealthInterval:  parseDuration("AUTOPILOT_HEALTH_INTERVAL", time.Minute),
-		ReportHour:      parseInt("AUTOPILOT_REPORT_HOUR", 9),
+		ReportHour:          parseInt("AUTOPILOT_REPORT_HOUR", 9),
+		LowBalanceThreshold: parseInt64("AUTOPILOT_LOW_BALANCE_CENTS", 100000),
 		ScreenshotDir:   getEnv("AUTOPILOT_SCREENSHOT_DIR", "autopilot-output/screenshots"),
 		ReportDir:       getEnv("AUTOPILOT_REPORT_DIR", "autopilot-output/reports"),
 		GrafanaURL:      getEnv("AUTOPILOT_GRAFANA_URL", "http://localhost:3100"),
@@ -77,6 +79,15 @@ func getEnv(key, fallback string) string {
 func parseInt(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func parseInt64(key string, fallback int64) int64 {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return n
 		}
 	}

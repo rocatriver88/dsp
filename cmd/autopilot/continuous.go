@@ -21,8 +21,10 @@ type ContinuousSimulator struct {
 	browser        *Browser
 	grafanaURL     string
 	alerter        alert.Sender
-	apiURL         string
-	bidderURL      string
+	apiURL              string
+	adminURL            string
+	bidderURL           string
+	lowBalanceThreshold int64
 
 	dayStartHour   int
 	dayEndHour     int
@@ -86,6 +88,7 @@ func (s *ContinuousSimulator) Run(ctx context.Context) {
 
 		case <-healthTicker.C:
 			go s.checkHealth()
+			go s.checkBalances()
 
 		case <-operationTicker.C:
 			go s.randomOperation()
@@ -171,6 +174,28 @@ func (s *ContinuousSimulator) checkHealth() {
 			msg := fmt.Sprintf("Service %s is DOWN: %v", name, err)
 			log.Printf("[HEALTH] ALERT: %s", msg)
 			s.alerter.Send("DSP Service Down", msg)
+		}
+	}
+}
+
+func (s *ContinuousSimulator) checkBalances() {
+	if s.lowBalanceThreshold <= 0 {
+		return
+	}
+	advs, err := s.client.AdminListAdvertisers(s.adminURL)
+	if err != nil {
+		log.Printf("[BALANCE] Failed to list advertisers: %v", err)
+		return
+	}
+	for _, adv := range advs {
+		if adv.ActiveCampaigns > 0 && adv.BalanceCents < s.lowBalanceThreshold {
+			msg := fmt.Sprintf("Advertiser %d (%s): balance ¥%.2f below threshold ¥%.2f, %d active campaigns",
+				adv.ID, adv.CompanyName,
+				float64(adv.BalanceCents)/100,
+				float64(s.lowBalanceThreshold)/100,
+				adv.ActiveCampaigns)
+			log.Printf("[BALANCE] LOW: %s", msg)
+			s.alerter.Send("Low Balance Alert", msg)
 		}
 	}
 }
@@ -323,8 +348,10 @@ func runContinuous(cfg *AutopilotConfig) {
 		browser:        browser,
 		grafanaURL:     cfg.GrafanaURL,
 		alerter:        alerter,
-		apiURL:         cfg.APIURL,
-		bidderURL:      cfg.BidderURL,
+		apiURL:              cfg.APIURL,
+		adminURL:            cfg.AdminURL,
+		bidderURL:           cfg.BidderURL,
+		lowBalanceThreshold: cfg.LowBalanceThreshold,
 		dayStartHour:   cfg.DayStartHour,
 		dayEndHour:     cfg.DayEndHour,
 		dayQPS:         cfg.DayQPS,

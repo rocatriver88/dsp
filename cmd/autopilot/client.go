@@ -389,6 +389,32 @@ func (c *DSPClient) AdminApproveRegistration(adminURL string, registrationID int
 	return &AdvertiserResponse{ID: int64(advID), APIKey: apiKey}, nil
 }
 
+// AdminListAdvertisers lists all advertisers via admin API.
+type AdminAdvertiser struct {
+	ID              int64  `json:"id"`
+	CompanyName     string `json:"company_name"`
+	BalanceCents    int64  `json:"balance_cents"`
+	ActiveCampaigns int    `json:"active_campaigns"`
+	TotalSpentCents int64  `json:"total_spent_cents"`
+}
+
+func (c *DSPClient) AdminListAdvertisers(adminURL string) ([]AdminAdvertiser, error) {
+	req, _ := http.NewRequest("GET", adminURL+"/api/v1/admin/advertisers?limit=500", nil)
+	req.Header.Set("X-Admin-Token", c.AdminToken)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("admin list advertisers: status %d", resp.StatusCode)
+	}
+	var result []AdminAdvertiser
+	json.Unmarshal(data, &result)
+	return result, nil
+}
+
 // HealthCheck checks if a service is responding.
 func (c *DSPClient) HealthCheck(url string) error {
 	resp, err := c.client.Get(url + "/health")
