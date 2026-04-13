@@ -42,7 +42,7 @@ export default function ReportsPage() {
               <tr>
                 <th className="text-left py-3 px-4 font-medium text-gray-500">Campaign</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-500">状态</th>
-                <th className="text-right py-3 px-4 font-medium text-gray-500">CPM (¥)</th>
+                <th className="text-right py-3 px-4 font-medium text-gray-500">出价 (¥)</th>
                 <th className="text-center py-3 px-4 font-medium text-gray-500">操作</th>
               </tr>
             </thead>
@@ -57,7 +57,11 @@ export default function ReportsPage() {
                       "bg-gray-100 text-gray-600"
                     }`}>{c.status}</span>
                   </td>
-                  <td className="py-3 px-4 text-right font-geist tabular-nums">{(c.bid_cpm_cents / 100).toFixed(2)}</td>
+                  <td className="py-3 px-4 text-right font-geist tabular-nums">
+                    {c.billing_model === "cpc"
+                      ? `${(c.bid_cpc_cents / 100).toFixed(2)} CPC`
+                      : `${(c.bid_cpm_cents / 100).toFixed(2)} CPM`}
+                  </td>
                   <td className="py-3 px-4 text-center">
                     <Link href={`/reports/${c.id}`}
                       className="text-sm px-4 py-1.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100">

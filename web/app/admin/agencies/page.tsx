@@ -182,23 +182,23 @@ export default function AgenciesPage() {
             <table className="w-full text-sm" aria-label="待审核注册">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">公司名称</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">邮箱</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">邀请码</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">申请时间</th>
-                  <th className="py-3 px-4 border-b border-gray-100" />
+                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">公司名称</th>
+                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">邮箱</th>
+                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">邀请码</th>
+                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">申请时间</th>
+                  <th className="py-2 px-4 border-b border-gray-100" />
                 </tr>
               </thead>
               <tbody>
                 {registrations.map((reg) => (
                   <tr key={reg.id} className="border-b last:border-0 border-gray-100">
-                    <td className="py-3 px-4 font-medium text-gray-900">{reg.company_name}</td>
-                    <td className="py-3 px-4 text-gray-600">{reg.contact_email}</td>
-                    <td className="py-3 px-4 font-mono text-xs text-gray-500">{reg.invite_code}</td>
-                    <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                    <td className="py-2 px-4 font-medium text-gray-900">{reg.company_name}</td>
+                    <td className="py-2 px-4 text-gray-600">{reg.contact_email}</td>
+                    <td className="py-2 px-4 font-mono text-xs text-gray-500">{reg.invite_code}</td>
+                    <td className="py-2 px-4 text-xs text-gray-500 font-geist tabular-nums">
                       {new Date(reg.created_at).toLocaleString("zh-CN")}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-2 px-4">
                       <div className="flex items-center gap-2 justify-end">
                         <button
                           onClick={() => handleApprove(reg)}
@@ -242,30 +242,30 @@ export default function AgenciesPage() {
             <table className="w-full text-sm" aria-label="广告主列表">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">ID</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">公司</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">邮箱</th>
-                  <th className="text-right py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">余额 (CNY)</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">注册时间</th>
-                  <th className="py-3 px-4 border-b border-gray-100" />
+                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">ID</th>
+                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">公司</th>
+                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">邮箱</th>
+                  <th className="text-right py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">余额 (CNY)</th>
+                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">注册时间</th>
+                  <th className="py-2 px-4 border-b border-gray-100" />
                 </tr>
               </thead>
               <tbody>
                 {advertisers.map((adv) => (
                   <tr key={adv.id} className="border-b last:border-0 border-gray-100">
-                    <td className="py-3 px-4 text-gray-500 font-geist tabular-nums text-xs">{adv.id}</td>
-                    <td className="py-3 px-4 font-medium text-gray-900">{adv.company_name}</td>
-                    <td className="py-3 px-4 text-gray-600 text-xs">{adv.contact_email}</td>
-                    <td className="py-3 px-4 text-right font-geist tabular-nums">
+                    <td className="py-2 px-4 text-gray-500 font-geist tabular-nums text-xs">{adv.id}</td>
+                    <td className="py-2 px-4 font-medium text-gray-900">{adv.company_name}</td>
+                    <td className="py-2 px-4 text-gray-600 text-xs">{adv.contact_email}</td>
+                    <td className="py-2 px-4 text-right font-geist tabular-nums">
                       {topUpSuccess === adv.id && (
                         <span className="mr-2 text-xs text-green-600">✓ 已充值</span>
                       )}
                       ¥{(adv.balance_cents / 100).toLocaleString()}
                     </td>
-                    <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                    <td className="py-2 px-4 text-xs text-gray-500 font-geist tabular-nums">
                       {new Date(adv.created_at).toLocaleDateString("zh-CN")}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="py-2 px-4">
                       <button
                         onClick={() => { setTopUpTarget(adv); setTopUpSuccess(null); }}
                         className="px-3 py-1.5 text-xs font-medium rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
