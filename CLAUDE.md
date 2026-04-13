@@ -59,18 +59,20 @@ Standard flow for any feature/phase implementation:
    ├── 每个 Phase 完成后:
    │   ├── requesting-code-review   阶段性全量审查 → 修 Critical/Important
    │   ├── verification-before-completion   启动真实服务，跑集成验证
-   │   └── /qa                              无头浏览器系统性测试前端
+   │   ├── /qa                              无头浏览器系统性测试前端
+   │   └── 重新执行上面的三个步骤，直到每个步骤都没有问题
    │
    └── 全部实现完成后:
        ├── requesting-code-review   全量审查 → 修 Critical/Important
        ├── verification-before-completion   启动真实服务，跑集成验证
        ├── /qa                              无头浏览器系统性测试前端
-       └── /browse                          截图验证关键页面
-4. Final Code Review                最终全量代码审查
-5. Finishing Branch                  打 tag / 创建 PR / push
+       ├── /browse                          截图验证关键页面
+       └── 重新执行上面的四个步骤，直到每个步骤都没有问题
+4. Finishing Branch                  打 tag / 创建 PR / push
 ```
 
 **Key rules:**
+- 验证环节是循环，不是单次执行 — 发现问题 → 修复 → 重新验证，直到全部通过
 - verification + /qa runs at EVERY Phase boundary, not just at the end
 - Compiling + unit tests ≠ working system — must verify against live services
 - /browse screenshots at the end confirm visual compliance with DESIGN.md
