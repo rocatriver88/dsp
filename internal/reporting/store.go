@@ -235,14 +235,14 @@ func (s *Store) GetGeoBreakdown(ctx context.Context, campaignID uint64, from, to
 type BidSimulation struct {
 	CurrentBidCPMCents    int     `json:"current_bid_cpm_cents"`
 	SimulatedBidCPMCents  int     `json:"simulated_bid_cpm_cents"`
-	TotalBids             int64   `json:"total_bids"`
-	ActualWins            int64   `json:"actual_wins"`
+	TotalBids             uint64  `json:"total_bids"`
+	ActualWins            uint64  `json:"actual_wins"`
 	CurrentWinRate        float64 `json:"current_win_rate"`
-	SimulatedWins         int64   `json:"simulated_wins"`
+	SimulatedWins         uint64  `json:"simulated_wins"`
 	SimulatedWinRate      float64 `json:"simulated_win_rate"`
-	SimulatedSpendCents   int64   `json:"simulated_spend_cents"`
-	MedianClearPriceCents int     `json:"median_clear_price_cents"`
-	MaxClearPriceCents    int     `json:"max_clear_price_cents"`
+	SimulatedSpendCents   uint64  `json:"simulated_spend_cents"`
+	MedianClearPriceCents uint32  `json:"median_clear_price_cents"`
+	MaxClearPriceCents    uint32  `json:"max_clear_price_cents"`
 	DataDays              int     `json:"data_days"`
 }
 
@@ -279,6 +279,7 @@ func (s *Store) SimulateBid(ctx context.Context, campaignID uint64, simulatedCPM
 		result.CurrentWinRate = float64(result.ActualWins) / float64(result.TotalBids)
 		result.SimulatedWinRate = float64(result.SimulatedWins) / float64(result.TotalBids)
 	}
+	// Re-read current bid from caller (set after return)
 
 	return &result, nil
 }
