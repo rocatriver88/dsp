@@ -92,7 +92,13 @@ export const api = {
 
   // Overview (backend scopes by API key)
   getOverviewStats: () =>
-    request<{ today_spend_cents: number; today_impressions: number; today_clicks: number }>(
+    request<{
+      today_spend_cents: number;
+      today_impressions: number;
+      today_clicks: number;
+      ctr: number;
+      balance_cents: number;
+    }>(
       `/api/v1/reports/overview`
     ),
 

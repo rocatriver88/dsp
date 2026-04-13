@@ -185,7 +185,7 @@ services:
     image: prom/prometheus:latest
     restart: unless-stopped
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-10090}:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
     depends_on:
@@ -198,7 +198,7 @@ services:
     image: grafana/grafana:latest
     restart: unless-stopped
     ports:
-      - "3100:3000"
+      - "${GRAFANA_PORT:-4100}:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_AUTH_ANONYMOUS_ENABLED: "true"

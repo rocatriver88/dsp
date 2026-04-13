@@ -49,8 +49,8 @@ docker compose up --build
 - 公共 API：`http://localhost:8181`
 - 管理 / internal API：`http://localhost:8182`
 - Bidder：`http://localhost:8180`
-- Prometheus：`http://localhost:9090`
-- Grafana：`http://localhost:3100`
+- Prometheus：`http://localhost:10090`
+- Grafana：`http://localhost:4100`
 
 关闭并清理容器：
 
@@ -62,6 +62,14 @@ docker compose down
 
 ```powershell
 docker compose down -v
+```
+
+如需自定义监控端口，可以在启动前设置：
+
+```powershell
+$env:PROMETHEUS_PORT="9090"
+$env:GRAFANA_PORT="3100"
+docker compose up --build
 ```
 
 ## 文档入口
