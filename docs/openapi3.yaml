@@ -1041,6 +1041,34 @@ paths:
       summary: Get hourly stats
       tags:
         - reports
+  "/reports/campaign/{id}/simulate":
+    get:
+      parameters:
+        - description: Campaign ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - description: Simulated CPM bid in cents
+          in: query
+          name: bid_cpm_cents
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.BidS\
+                  imulation"
+      security:
+        - ApiKeyAuth: []
+      summary: Simulate bid outcome
+      tags:
+        - reports
   "/reports/campaign/{id}/stats":
     get:
       parameters:
@@ -1414,6 +1442,31 @@ components:
           type: string
         time:
           type: string
+      type: object
+    github_com_heartgryphon_dsp_internal_reporting.BidSimulation:
+      properties:
+        actual_wins:
+          type: integer
+        current_bid_cpm_cents:
+          type: integer
+        current_win_rate:
+          type: number
+        data_days:
+          type: integer
+        max_clear_price_cents:
+          type: integer
+        median_clear_price_cents:
+          type: integer
+        simulated_bid_cpm_cents:
+          type: integer
+        simulated_spend_cents:
+          type: integer
+        simulated_win_rate:
+          type: number
+        simulated_wins:
+          type: integer
+        total_bids:
+          type: integer
       type: object
     github_com_heartgryphon_dsp_internal_reporting.CampaignStats:
       properties:

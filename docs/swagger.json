@@ -1698,6 +1698,46 @@
                 }
             }
         },
+        "/reports/campaign/{id}/simulate": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "reports"
+                ],
+                "summary": "Simulate bid outcome",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Campaign ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Simulated CPM bid in cents",
+                        "name": "bid_cpm_cents",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_reporting.BidSimulation"
+                        }
+                    }
+                }
+            }
+        },
         "/reports/campaign/{id}/stats": {
             "get": {
                 "security": [
@@ -2192,6 +2232,44 @@
                 },
                 "time": {
                     "type": "string"
+                }
+            }
+        },
+        "github_com_heartgryphon_dsp_internal_reporting.BidSimulation": {
+            "type": "object",
+            "properties": {
+                "actual_wins": {
+                    "type": "integer"
+                },
+                "current_bid_cpm_cents": {
+                    "type": "integer"
+                },
+                "current_win_rate": {
+                    "type": "number"
+                },
+                "data_days": {
+                    "type": "integer"
+                },
+                "max_clear_price_cents": {
+                    "type": "integer"
+                },
+                "median_clear_price_cents": {
+                    "type": "integer"
+                },
+                "simulated_bid_cpm_cents": {
+                    "type": "integer"
+                },
+                "simulated_spend_cents": {
+                    "type": "integer"
+                },
+                "simulated_win_rate": {
+                    "type": "number"
+                },
+                "simulated_wins": {
+                    "type": "integer"
+                },
+                "total_bids": {
+                    "type": "integer"
                 }
             }
         },

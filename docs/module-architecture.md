@@ -1,21 +1,21 @@
-# Module Architecture Guide
+# 模块架构说明
 
-## 1. System Overview
-The repository is organized as a multi-service DSP platform:
+## 1. 系统总览
+该仓库组织成一个多服务 DSP 平台：
 
-- `cmd/api` exposes advertiser APIs, admin APIs, uploads, reporting, and billing endpoints
-- `cmd/bidder` handles bid requests and callback traffic
-- `cmd/consumer` persists event streams to ClickHouse for analytics
-- `web/` provides the operator-facing UI
-- `cmd/autopilot`, `cmd/exchange-sim`, `cmd/simulate`, and `cmd/resetbudget` support verification and operations
+- `cmd/api` 暴露广告主 API、管理 API、上传、报表和账务接口
+- `cmd/bidder` 处理竞价请求和回调流量
+- `cmd/consumer` 将事件流写入 ClickHouse 用于分析
+- `web/` 提供操作侧 UI
+- `cmd/autopilot`、`cmd/exchange-sim`、`cmd/simulate`、`cmd/resetbudget` 提供验证与运维辅助
 
-Runtime dependencies are PostgreSQL for transactional state, Redis for hot-path controls and coordination, Kafka for event transport, and ClickHouse for reporting queries.
+运行时依赖主要包括：PostgreSQL 用于事务状态，Redis 用于热路径控制与协调，Kafka 用于事件传输，ClickHouse 用于报表查询。
 
-## 2. API Service Architecture
-`cmd/api/main.go` wires the main control-plane surface.
+## 2. API 服务架构
+`cmd/api/main.go` 负责装配控制面主服务。
 
-### Public API
-The public mux serves advertiser-scoped endpoints under `/api/v1/` for:
+### 公共 API
+公共 mux 在 `/api/v1/` 下提供广告主侧能力，包括：
 - advertisers
 - campaigns
 - creatives
@@ -25,82 +25,82 @@ The public mux serves advertiser-scoped endpoints under `/api/v1/` for:
 - uploads
 - registration
 
-Authentication is handled with API keys through `internal/auth`. CORS, request IDs, structured logging, and rate limiting are applied in the HTTP stack.
+鉴权由 `internal/auth` 里的 API Key 机制处理。HTTP 栈中同时接入了 CORS、request ID、结构化日志和限流。
 
-### Internal and Admin API
-Admin routes are mounted behind `handler.AdminAuthMiddleware` and exposed on the separate internal port. This isolates operational APIs such as registration approval, creative review, invite codes, audit log access, circuit controls, and health views from the public advertiser surface.
+### 内部与管理 API
+管理路由通过 `handler.AdminAuthMiddleware` 保护，并暴露在独立 internal 端口上。这样可以把注册审批、素材审核、邀请码、审计日志、熔断控制和健康检查等运营接口与广告主公共接口隔离开。
 
-### Domain Modules
-The API service composes these main packages:
-- `internal/campaign` for advertiser, campaign, and creative persistence
-- `internal/billing` for balance, top-up, and spend bookkeeping
-- `internal/registration` for invite and onboarding flow
-- `internal/reporting` for ClickHouse-backed reporting queries
-- `internal/audit` for sensitive action logging
-- `internal/autopause`, `internal/reconciliation`, and `internal/guardrail` for background protection tasks
+### 领域模块
+API 服务主要由以下包组成：
+- `internal/campaign`：广告主、Campaign、素材持久化
+- `internal/billing`：余额、充值与花费记账
+- `internal/registration`：邀请码与接入流程
+- `internal/reporting`：基于 ClickHouse 的报表查询
+- `internal/audit`：敏感操作审计日志
+- `internal/autopause`、`internal/reconciliation`、`internal/guardrail`：后台保护任务
 
-## 3. Bidder Architecture
-`cmd/bidder/main.go` is the data-plane service responsible for request-time decisioning.
+## 3. Bidder 架构
+`cmd/bidder/main.go` 是负责请求时决策的数据面服务。
 
-### Request Flow
-1. Receive OpenRTB or exchange-normalized request
-2. Parse device and geo context
-3. Load active campaign state through `internal/bidder`
-4. Run anti-fraud filters in `internal/antifraud`
-5. Enforce budget and frequency limits via `internal/budget`
-6. Apply bid strategy with pacing and performance signals
-7. Enforce guardrail checks
-8. Emit bid response and event stream
-9. Process win, click, and convert callbacks with HMAC verification
+### 请求流
+1. 接收 OpenRTB 或交易所归一化后的请求
+2. 解析设备与地域上下文
+3. 通过 `internal/bidder` 加载活动 Campaign 状态
+4. 运行 `internal/antifraud` 反作弊过滤
+5. 通过 `internal/budget` 执行预算与频控限制
+6. 应用 pacing 和性能信号驱动的出价策略
+7. 执行 guardrail 检查
+8. 生成竞价响应并发送事件
+9. 处理带 HMAC 校验的 win、click、convert 回调
 
-### Supporting Components
-- `internal/bidder/loader.go` maintains active campaign state
-- `internal/bidder/strategy.go` adjusts bids using performance and pacing signals
-- `internal/bidder/statscache.go` refreshes CTR or CVR inputs from ClickHouse to Redis
-- `internal/exchange` abstracts exchange-specific protocol normalization
-- `internal/events` produces Kafka events with replay and dead-letter support
+### 支撑组件
+- `internal/bidder/loader.go`：维护活动 Campaign 状态
+- `internal/bidder/strategy.go`：结合性能和 pacing 信号调整出价
+- `internal/bidder/statscache.go`：把 ClickHouse 的 CTR/CVR 信号刷新到 Redis
+- `internal/exchange`：抽象交易所协议归一化
+- `internal/events`：提供 Kafka 事件生产、重放和 dead-letter 支持
 
-## 4. Analytics and Reporting Pipeline
-The reporting pipeline is split between online event production and offline query serving.
+## 4. 分析与报表链路
+报表链路拆分为在线事件生产和离线查询服务两部分。
 
-- Bidder publishes events to Kafka topics
-- `cmd/consumer` reads analytics topics and persists normalized events to ClickHouse
-- `internal/reporting` provides query APIs for campaign stats, hourly views, geo distribution, bid transparency, attribution, and overview metrics
-- Export endpoints and SSE analytics surfaces are layered on top of the reporting package
+- Bidder 将事件写入 Kafka topic
+- `cmd/consumer` 读取分析 topic，并将标准化事件写入 ClickHouse
+- `internal/reporting` 提供 Campaign 统计、小时报表、地域分布、竞价透明度、归因和总览查询
+- 导出接口和 SSE 分析能力建立在 reporting 包之上
 
-This split keeps bidder latency-sensitive logic separate from heavier reporting queries.
+这种拆分让 bidder 的延迟敏感逻辑与较重的报表查询解耦。
 
-## 5. Web Application Architecture
-The frontend under `web/` uses Next.js App Router.
+## 5. Web 应用架构
+`web/` 下的前端使用 Next.js App Router。
 
-- `web/app/` contains route segments for advertiser and admin pages
-- `web/lib/` contains shared client logic, including generated API types
-- `web/public/` holds static assets
+- `web/app/`：广告主和管理端路由
+- `web/lib/`：共享客户端逻辑，包括生成的 API 类型
+- `web/public/`：静态资源
 
-The frontend depends on the backend contract generated from OpenAPI. When API shapes change, `make api-gen` must refresh both `docs/openapi3.yaml` and `web/lib/api-types.ts`.
+前端依赖后端生成的 OpenAPI 契约。只要 API 形状变化，就必须执行 `make api-gen` 同步刷新 `docs/openapi3.yaml` 和 `web/lib/api-types.ts`。
 
-## 6. Cross-Cutting Concerns
-- `internal/config` centralizes environment-driven configuration
-- `internal/observability` provides structured logging and request IDs
-- Prometheus metrics are exposed by API and bidder services
-- Docker Compose files define the local platform topology
-- `scripts/test-env.sh` orchestrates isolated integration validation
-- `cmd/autopilot` provides scenario-based end-to-end verification
+## 6. 横切能力
+- `internal/config`：集中处理基于环境变量的配置
+- `internal/observability`：结构化日志与 request ID
+- API 与 bidder 服务都暴露 Prometheus 指标
+- Docker Compose 文件定义本地平台拓扑
+- `scripts/test-env.sh` 负责隔离集成验证环境编排
+- `cmd/autopilot` 提供场景化端到端验证
 
-## 7. Architecture Characteristics
+## 7. 架构特征
 
-### Strengths
-- clear split between control plane, bidding plane, analytics ingestion, and UI
-- good package separation across campaign, billing, reporting, fraud, and guardrail concerns
-- local observability and replay mechanisms already included
+### 优势
+- 控制面、竞价面、分析写入和 UI 分层清晰
+- campaign、billing、reporting、fraud、guardrail 等领域边界较清楚
+- 已具备本地可观测性与重放机制
 
-### Current Constraints
-- exchange coverage is still narrow
-- compliance and finance hardening remain roadmap items
-- some product flows are implemented at operational depth, not full enterprise depth
+### 当前约束
+- 交易所覆盖仍然偏少
+- 合规与账务强化仍在 roadmap 中
+- 部分产品流达到的是运营可用深度，而不是完整企业级深度
 
-## 8. Recommended Reading Order
-For a new contributor, read in this order:
+## 8. 推荐阅读顺序
+新贡献者建议按以下顺序阅读：
 1. `cmd/api/main.go`
 2. `cmd/bidder/main.go`
 3. `cmd/consumer/main.go`

@@ -1,81 +1,81 @@
-# Current Version Completion Report
+# 当前版本完成度报告
 
-## Report Basis
-- Repository state as of 2026-04-13
-- Source of truth: current code under `cmd/`, `internal/`, `web/`, plus `TODOS.md`
+## 报告依据
+- 仓库状态以 2026-04-13 为准
+- 事实来源为 `cmd/`、`internal/`、`web/` 下的当前代码，以及 `TODOS.md`
 
-## Executive Summary
-The project has moved beyond prototype status. The repository now contains a working DSP platform with implemented advertiser onboarding, campaign operations, bidding, fraud controls, reporting, billing foundations, admin workflows, and local observability. The remaining gaps are mostly compliance, external integrations, and product hardening rather than missing core system shape.
+## 执行摘要
+该项目已经超出原型阶段。仓库中已经具备可运行的 DSP 平台，包括广告主接入、Campaign 运营、竞价、反作弊、报表、账务基础能力、管理后台流程和本地可观测性。当前剩余缺口主要集中在合规、外部集成和产品强化，而不是核心系统形态缺失。
 
-## Completion Assessment
+## 完成度判断
 
-### P0 - Completed
-The repository has already closed the initial correctness and security blockers recorded in `TODOS.md`, including bidder endpoint protection, multi-tenant advertiser access, and billing model ranking behavior.
+### P0 - 已完成
+`TODOS.md` 中记录的初始正确性与安全阻塞项已经关闭，包括 bidder 端点保护、多租户广告主访问和计费模型排序逻辑。
 
-### P0.5 - Completed
-The intermediate billing and reliability fixes are present, including CPC charge placement on click and dead-letter queue retry count persistence.
+### P0.5 - 已完成
+中间阶段的计费与可靠性修复已经落地，包括 CPC 在 click 路径扣费，以及 dead-letter queue 重试计数持久化。
 
-### P1 - Completed
-The platform includes the major productization layer that was previously missing:
-- frontend loading, error, and empty states
-- Grafana and Prometheus based observability
-- Kafka replay on service start
-- separated internal API surface
-- authenticated infrastructure dependencies
-- full structured logging and request tracing
+### P1 - 已完成
+此前缺少的产品化层也已经具备：
+- 前端 loading、error、empty state
+- 基于 Grafana 和 Prometheus 的可观测性
+- 服务启动时的 Kafka replay
+- 独立的 internal API 面
+- 带认证的基础设施依赖
+- 完整的结构化日志和 request tracing
 
-## Functional Readiness by Area
+## 按领域的就绪度
 
-### 1. Core DSP Flow - Strong
-- OpenRTB bid handling
-- exchange adapter entry point
-- callback processing for win, click, and convert
-- budget, frequency, fraud, and guardrail checks
-- creative selection and response generation
+### 1. 核心 DSP 流程 - 强
+- OpenRTB 竞价处理
+- 交易所适配入口
+- win、click、convert 回调处理
+- 预算、频控、反作弊和护栏检查
+- 素材选择与竞价响应生成
 
-### 2. Advertiser Product Surface - Strong
-- advertiser onboarding
-- campaign CRUD and lifecycle
-- creative management and review states
-- billing views and top-up flows
-- reporting and analytics access
+### 2. 广告主产品面 - 强
+- 广告主接入
+- Campaign CRUD 与生命周期管理
+- 素材管理与审核状态
+- 账务查看与充值流程
+- 报表与分析访问
 
-### 3. Data and Analytics - Strong
-- Kafka event production
-- ClickHouse ingestion
-- attribution, transparency, geo, hourly, and overview reporting
-- CSV export and SSE snapshot or stream support
+### 3. 数据与分析 - 强
+- Kafka 事件生产
+- ClickHouse 写入
+- 归因、透明度、地域、小时和总览报表
+- CSV 导出与 SSE snapshot/stream 支持
 
-### 4. Admin and Operations - Strong
-- registration approval flows
-- creative moderation
-- advertiser list and admin top-up
-- circuit breaker controls
-- system health and audit log visibility
+### 4. 管理与运维 - 强
+- 注册审批流程
+- 素材审核
+- 广告主列表与管理端充值
+- 熔断控制
+- 系统健康与审计日志可见性
 
-### 5. Testing and Verification - Moderate to Strong
-- broad Go unit test coverage across `internal/` and `cmd/`
-- isolated Docker-backed test environment in `docker-compose.test.yml`
-- scripted environment bootstrap in `scripts/test-env.sh`
-- autopilot verification flow for end-to-end checks
+### 5. 测试与验证 - 中等偏强
+- `internal/` 与 `cmd/` 下已有较广的 Go 单测覆盖
+- `docker-compose.test.yml` 提供隔离 Docker 测试环境
+- `scripts/test-env.sh` 提供环境拉起脚本
+- autopilot 验证流覆盖端到端检查
 
-## Known Boundaries
-The codebase is not feature-complete for every production concern. The main unfinished or intentionally deferred items are:
-- PIPL and compliance controls
-- more exchange integrations beyond the current adapter base
-- deeper finance automation and payment integrations
-- low balance alert product flow
-- API SDK distribution
-- advanced admin capabilities beyond the current operational core
+## 已知边界
+该代码库还不能被描述为所有生产问题都已解决。当前主要未完成或明确延后的项包括：
+- PIPL 与合规控制
+- 当前适配层之外的更多交易所接入
+- 更深入的账务自动化和支付能力
+- 低余额告警产品流
+- API SDK 分发
+- 超出当前运营核心范围的高级管理功能
 
-## Delivery Conclusion
-This version should be described as:
+## 交付结论
+当前版本更准确的描述应为：
 
-`Core DSP platform complete, primary workflows implemented, production-style validation and observability present, advanced expansion items deferred.`
+`DSP 核心平台已完成，主要工作流已实现，具备接近生产形态的验证与可观测性，进阶扩展项已延后。`
 
-That framing is more accurate than calling it a prototype, but still avoids over-claiming full enterprise completeness.
+这个表述比“原型”更准确，同时也避免过度宣称已经达到完整企业级成熟度。
 
-## Recommended Next Steps
-1. Freeze and document the current contract surface in `docs/openapi3.yaml` and generated frontend types.
-2. Turn deferred items into explicit roadmap milestones with acceptance criteria.
-3. Add a formal release checklist around `make test`, frontend lint/build, `make api-gen`, and `./scripts/test-env.sh verify`.
+## 建议的下一步
+1. 冻结并文档化当前契约面，确保 `docs/openapi3.yaml` 和前端生成类型同步。
+2. 将已延后的事项转成带验收标准的明确 roadmap 里程碑。
+3. 围绕 `make test`、前端 lint/build、`make api-gen` 和 `./scripts/test-env.sh verify` 建立正式发布检查清单。

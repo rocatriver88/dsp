@@ -1679,6 +1679,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/campaign/{id}/simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Simulate bid outcome */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Simulated CPM bid in cents */
+                    bid_cpm_cents: number;
+                };
+                header?: never;
+                path: {
+                    /** @description Campaign ID */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_heartgryphon_dsp_internal_reporting.BidSimulation"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/reports/campaign/{id}/stats": {
         parameters: {
             query?: never;
@@ -1940,6 +1982,19 @@ export interface components {
             loss_reason?: string;
             request_id?: string;
             time?: string;
+        };
+        "github_com_heartgryphon_dsp_internal_reporting.BidSimulation": {
+            actual_wins?: number;
+            current_bid_cpm_cents?: number;
+            current_win_rate?: number;
+            data_days?: number;
+            max_clear_price_cents?: number;
+            median_clear_price_cents?: number;
+            simulated_bid_cpm_cents?: number;
+            simulated_spend_cents?: number;
+            simulated_win_rate?: number;
+            simulated_wins?: number;
+            total_bids?: number;
         };
         "github_com_heartgryphon_dsp_internal_reporting.CampaignStats": {
             /** @description ADX settlement cost (cents) */
