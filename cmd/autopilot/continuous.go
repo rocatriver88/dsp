@@ -21,6 +21,8 @@ type ContinuousSimulator struct {
 	browser        *Browser
 	grafanaURL     string
 	alerter        alert.Sender
+	apiURL         string
+	bidderURL      string
 
 	dayStartHour   int
 	dayEndHour     int
@@ -161,8 +163,8 @@ func (s *ContinuousSimulator) sendTraffic(qps int) {
 
 func (s *ContinuousSimulator) checkHealth() {
 	services := map[string]string{
-		"API":    "http://localhost:8181",
-		"Bidder": "http://localhost:8180",
+		"API":    s.apiURL,
+		"Bidder": s.bidderURL,
 	}
 	for name, url := range services {
 		if err := s.client.HealthCheck(url); err != nil {
@@ -321,6 +323,8 @@ func runContinuous(cfg *AutopilotConfig) {
 		browser:        browser,
 		grafanaURL:     cfg.GrafanaURL,
 		alerter:        alerter,
+		apiURL:         cfg.APIURL,
+		bidderURL:      cfg.BidderURL,
 		dayStartHour:   cfg.DayStartHour,
 		dayEndHour:     cfg.DayEndHour,
 		dayQPS:         cfg.DayQPS,

@@ -11,6 +11,7 @@ import (
 type ScenarioRunner struct {
 	client         *DSPClient
 	exchangeSimURL string
+	bidderURL      string
 	browser        *Browser
 	grafanaURL     string
 	trafficWait    time.Duration
@@ -260,7 +261,7 @@ func (s *ScenarioRunner) RunFaultScenarios(faultInjector *FaultInjector) []StepR
 			return "", fmt.Errorf("restart bidder: %w", err)
 		}
 
-		recoveryTime, err := WaitForHealthy("http://localhost:8180", 60*time.Second)
+		recoveryTime, err := WaitForHealthy(s.bidderURL, 60*time.Second)
 		if err != nil {
 			return "", err
 		}

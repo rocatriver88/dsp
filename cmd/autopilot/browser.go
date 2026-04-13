@@ -30,7 +30,9 @@ func NewBrowser(frontendURL, apiKey, screenshotDir string) *Browser {
 }
 
 func (b *Browser) Start() error {
-	os.MkdirAll(b.screenshotDir, 0o755)
+	if err := os.MkdirAll(b.screenshotDir, 0o755); err != nil {
+		return fmt.Errorf("create screenshot dir: %w", err)
+	}
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", true),
@@ -110,7 +112,9 @@ func (b *Browser) ScreenshotGrafana(name, grafanaURL, dashboardPath string) (str
 		return "", fmt.Errorf("grafana screenshot %s: %w", name, err)
 	}
 
-	os.WriteFile(filename, buf, 0o644)
+	if err := os.WriteFile(filename, buf, 0o644); err != nil {
+		return "", fmt.Errorf("save grafana screenshot %s: %w", name, err)
+	}
 	log.Printf("[SCREENSHOT] %s -> %s (%d bytes)", name, filename, len(buf))
 	return filename, nil
 }

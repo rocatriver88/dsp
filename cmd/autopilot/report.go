@@ -56,6 +56,19 @@ func GenerateHTMLReport(report *VerifyReport, outputPath string) error {
 	}
 
 	passed, failed := report.Summary()
+
+	// Make screenshot paths relative to the report file
+	reportDir := filepath.Dir(outputPath)
+	adjustedSteps := make([]StepResult, len(report.Steps))
+	copy(adjustedSteps, report.Steps)
+	for i, s := range adjustedSteps {
+		if s.Screenshot != "" {
+			if rel, err := filepath.Rel(reportDir, s.Screenshot); err == nil {
+				adjustedSteps[i].Screenshot = filepath.ToSlash(rel)
+			}
+		}
+	}
+
 	data := reportData{
 		StartTime:   report.StartTime,
 		EndTime:     report.EndTime,
@@ -63,7 +76,7 @@ func GenerateHTMLReport(report *VerifyReport, outputPath string) error {
 		TotalSteps:  len(report.Steps),
 		PassedCount: passed,
 		FailedCount: failed,
-		Steps:       report.Steps,
+		Steps:       adjustedSteps,
 	}
 
 	os.MkdirAll(filepath.Dir(outputPath), 0o755)

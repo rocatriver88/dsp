@@ -43,6 +43,9 @@ func main() {
 	log.Println("")
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, `{"status":"ok","time":"%s"}`, time.Now().UTC().Format(time.RFC3339))
+	})
 	mux.HandleFunc("GET /single", handleSingle)
 	mux.HandleFunc("GET /burst", handleBurst)
 	mux.HandleFunc("GET /load", handleLoad)

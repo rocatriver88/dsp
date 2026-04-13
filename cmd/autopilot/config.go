@@ -14,6 +14,9 @@ type AutopilotConfig struct {
 	AdminToken  string // for admin endpoints
 	FrontendURL string // http://localhost:4000
 
+	// Bidder
+	BidderURL string // http://localhost:8180
+
 	// Exchange simulator
 	ExchangeSimURL string // http://localhost:9090
 
@@ -45,6 +48,7 @@ func LoadAutopilotConfig() *AutopilotConfig {
 		APIURL:          getEnv("AUTOPILOT_API_URL", "http://localhost:8181"),
 		AdminToken:      getEnv("ADMIN_TOKEN", "admin-secret"),
 		FrontendURL:     getEnv("AUTOPILOT_FRONTEND_URL", "http://localhost:4000"),
+		BidderURL:       getEnv("AUTOPILOT_BIDDER_URL", "http://localhost:8180"),
 		ExchangeSimURL:  getEnv("AUTOPILOT_EXCHANGE_SIM_URL", "http://localhost:9090"),
 		WebhookURL:      getEnv("AUTOPILOT_WEBHOOK_URL", ""),
 		WebhookType:     getEnv("AUTOPILOT_WEBHOOK_TYPE", "dingtalk"),

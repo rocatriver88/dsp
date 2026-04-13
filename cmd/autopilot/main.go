@@ -80,6 +80,7 @@ func runVerify(cfg *AutopilotConfig) {
 	runner := &ScenarioRunner{
 		client:         client,
 		exchangeSimURL: cfg.ExchangeSimURL,
+		bidderURL:      cfg.BidderURL,
 		browser:        browser,
 		grafanaURL:     cfg.GrafanaURL,
 		trafficWait:    cfg.TrafficDuration,
