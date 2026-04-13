@@ -13,6 +13,21 @@ import (
 	"github.com/heartgryphon/dsp/internal/registration"
 )
 
+func parsePagination(r *http.Request) (limit, offset int) {
+	limit = 100
+	offset = 0
+	if l := r.URL.Query().Get("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &limit)
+	}
+	if o := r.URL.Query().Get("offset"); o != "" {
+		fmt.Sscanf(o, "%d", &offset)
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	return
+}
+
 func (d *Deps) HandleActiveCampaigns(w http.ResponseWriter, r *http.Request) {
 	campaigns, err := d.Store.ListActiveCampaigns(r.Context())
 	if err != nil {
@@ -150,7 +165,8 @@ func (d *Deps) HandleListCreativesForReview(w http.ResponseWriter, r *http.Reque
 	if status == "" {
 		status = "pending"
 	}
-	creatives, err := d.Store.ListCreativesByStatus(r.Context(), status)
+	limit, offset := parsePagination(r)
+	creatives, err := d.Store.ListCreativesByStatus(r.Context(), status, limit, offset)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -233,7 +249,8 @@ func (d *Deps) HandleRejectRegistration(w http.ResponseWriter, r *http.Request) 
 // @Success 200 {array} campaign.Advertiser
 // @Router /admin/advertisers [get]
 func (d *Deps) HandleListAdvertisers(w http.ResponseWriter, r *http.Request) {
-	advs, err := d.Store.ListAllAdvertisers(r.Context())
+	limit, offset := parsePagination(r)
+	advs, err := d.Store.ListAllAdvertisers(r.Context(), limit, offset)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "failed to list advertisers")
 		return
@@ -327,7 +344,8 @@ func (d *Deps) HandleCreateInviteCode(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {array} registration.InviteCode
 // @Router /admin/invite-codes [get]
 func (d *Deps) HandleListInviteCodes(w http.ResponseWriter, r *http.Request) {
-	codes, err := d.RegSvc.ListInviteCodes(r.Context())
+	limit, offset := parsePagination(r)
+	codes, err := d.RegSvc.ListInviteCodes(r.Context(), limit, offset)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return

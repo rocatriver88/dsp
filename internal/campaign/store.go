@@ -374,12 +374,17 @@ func (s *Store) CreateCreative(ctx context.Context, cr *Creative) (int64, error)
 	return id, err
 }
 
-// ListCreativesByStatus returns all creatives with the given status.
-func (s *Store) ListCreativesByStatus(ctx context.Context, status string) ([]*Creative, error) {
+// ListCreativesByStatus returns creatives with the given status, paginated.
+func (s *Store) ListCreativesByStatus(ctx context.Context, status string, limit, offset int) ([]*Creative, error) {
+	if limit <= 0 {
+		limit = 100
+	}
 	rows, err := s.db.Query(ctx,
 		`SELECT id, campaign_id, name, ad_type, format, size, ad_markup, destination_url, status,
 		  native_title, native_desc, native_icon_url, native_image_url, native_cta, created_at
-		 FROM creatives WHERE status = $1 ORDER BY created_at ASC`, status)
+		 FROM creatives WHERE status = $1 ORDER BY created_at ASC LIMIT $2 OFFSET $3`,
+		status, limit, offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -427,11 +432,16 @@ func (s *Store) UpdateCreativeStatus(ctx context.Context, creativeID int64, stat
 }
 
 // ListAllAdvertisers returns all advertisers for admin dashboard.
-func (s *Store) ListAllAdvertisers(ctx context.Context) ([]*Advertiser, error) {
+func (s *Store) ListAllAdvertisers(ctx context.Context, limit, offset int) ([]*Advertiser, error) {
+	if limit <= 0 {
+		limit = 100
+	}
 	rows, err := s.db.Query(ctx,
 		`SELECT id, company_name, contact_email, api_key, balance_cents,
 		        billing_type, created_at, updated_at
-		 FROM advertisers ORDER BY created_at DESC`)
+		 FROM advertisers ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+		limit, offset,
+	)
 	if err != nil {
 		return nil, err
 	}

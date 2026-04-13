@@ -56,10 +56,15 @@ type InviteCode struct {
 	CreatedAt time.Time  `json:"created_at"`
 }
 
-func (s *Service) ListInviteCodes(ctx context.Context) ([]InviteCode, error) {
+func (s *Service) ListInviteCodes(ctx context.Context, limit, offset int) ([]InviteCode, error) {
+	if limit <= 0 {
+		limit = 100
+	}
 	rows, err := s.db.Query(ctx,
 		`SELECT id, code, created_by, max_uses, used_count, expires_at, created_at
-		 FROM invite_codes ORDER BY created_at DESC`)
+		 FROM invite_codes ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+		limit, offset,
+	)
 	if err != nil {
 		return nil, err
 	}
