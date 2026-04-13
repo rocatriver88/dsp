@@ -1895,6 +1895,9 @@ const docTemplate = `{
         "github_com_heartgryphon_dsp_internal_campaign.Advertiser": {
             "type": "object",
             "properties": {
+                "active_campaigns": {
+                    "type": "integer"
+                },
                 "api_key": {
                     "type": "string"
                 },
@@ -1914,6 +1917,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
+                    "type": "integer"
+                },
+                "total_spent_cents": {
                     "type": "integer"
                 },
                 "updated_at": {
