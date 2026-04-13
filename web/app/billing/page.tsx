@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { ErrorState } from "../components/LoadingState";
+import { ErrorState } from "../_components/LoadingState";
 
 interface Transaction {
   id: number;

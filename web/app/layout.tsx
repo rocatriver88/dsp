@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import ApiKeyGate from "./components/ApiKeyGate";
-import Sidebar from "./components/Sidebar";
+import ApiKeyGate from "./_components/ApiKeyGate";
+import Sidebar from "./_components/Sidebar";
 import "./globals.css";
 
 export const metadata: Metadata = {

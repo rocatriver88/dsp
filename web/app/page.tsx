@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
-import { StatCard, HeroStatCard } from "./components/StatCard";
-import { StatusBadge } from "./components/StatusBadge";
+import { StatCard, HeroStatCard } from "./_components/StatCard";
+import { StatusBadge } from "./_components/StatusBadge";
 
 export default function OverviewPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);

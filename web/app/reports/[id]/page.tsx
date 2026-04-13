@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, Campaign, CampaignStats, HourlyStats, GeoStats, BidDetail } from "@/lib/api";
-import { StatCard } from "../../components/StatCard";
-import { EventBadge } from "../../components/StatusBadge";
+import { StatCard } from "../../_components/StatCard";
+import { EventBadge } from "../../_components/StatusBadge";
 
 export default function CampaignReportPage() {
   const params = useParams();

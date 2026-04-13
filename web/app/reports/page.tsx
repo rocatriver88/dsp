@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
-import { LoadingSkeleton, ErrorState } from "../components/LoadingState";
+import { LoadingSkeleton, ErrorState } from "../_components/LoadingState";
 
 export default function ReportsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);

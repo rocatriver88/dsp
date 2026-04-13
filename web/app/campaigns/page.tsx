@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
-import { LoadingSkeleton, ErrorState } from "../components/LoadingState";
-import { StatusBadge } from "../components/StatusBadge";
+import { LoadingSkeleton, ErrorState } from "../_components/LoadingState";
+import { StatusBadge } from "../_components/StatusBadge";
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);

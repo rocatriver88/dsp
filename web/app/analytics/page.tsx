@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { LoadingSkeleton, ErrorState, EmptyState } from "../components/LoadingState";
-import { StatCard } from "../components/StatCard";
+import { LoadingSkeleton, ErrorState, EmptyState } from "../_components/LoadingState";
+import { StatCard } from "../_components/StatCard";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 

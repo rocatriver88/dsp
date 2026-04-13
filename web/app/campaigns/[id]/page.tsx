@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, Campaign, CampaignStats, Creative } from "@/lib/api";
-import { StatCard } from "../../components/StatCard";
-import { StatusBadge } from "../../components/StatusBadge";
+import { StatCard } from "../../_components/StatCard";
+import { StatusBadge } from "../../_components/StatusBadge";
 
 export default function CampaignDetailPage() {
   const params = useParams();
