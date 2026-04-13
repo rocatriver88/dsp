@@ -108,6 +108,9 @@ func (d *Deps) HandleExportBidsCSV(w http.ResponseWriter, r *http.Request) {
 	if l := r.URL.Query().Get("limit"); l != "" {
 		fmt.Sscanf(l, "%d", &exportLimit)
 	}
+	if exportLimit <= 0 {
+		exportLimit = 10000
+	}
 	if exportLimit > 50000 {
 		exportLimit = 50000
 	}

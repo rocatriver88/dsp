@@ -22,8 +22,14 @@ func parsePagination(r *http.Request) (limit, offset int) {
 	if o := r.URL.Query().Get("offset"); o != "" {
 		fmt.Sscanf(o, "%d", &offset)
 	}
+	if limit <= 0 {
+		limit = 100
+	}
 	if limit > 500 {
 		limit = 500
+	}
+	if offset < 0 {
+		offset = 0
 	}
 	return
 }
