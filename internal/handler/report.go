@@ -9,6 +9,16 @@ import (
 	"github.com/heartgryphon/dsp/internal/reporting"
 )
 
+// HandleCampaignStats godoc
+// @Summary Get campaign stats
+// @Tags reports
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "Campaign ID"
+// @Param from query string false "Start date (YYYY-MM-DD)"
+// @Param to query string false "End date (YYYY-MM-DD)"
+// @Success 200 {object} reporting.CampaignStats
+// @Router /reports/campaign/{id}/stats [get]
 func (d *Deps) HandleCampaignStats(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
 		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
@@ -28,6 +38,15 @@ func (d *Deps) HandleCampaignStats(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, stats)
 }
 
+// HandleHourlyStats godoc
+// @Summary Get hourly stats
+// @Tags reports
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "Campaign ID"
+// @Param date query string false "Date (YYYY-MM-DD)"
+// @Success 200 {array} reporting.HourlyStats
+// @Router /reports/campaign/{id}/hourly [get]
 func (d *Deps) HandleHourlyStats(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
 		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
@@ -56,6 +75,14 @@ func (d *Deps) HandleHourlyStats(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, stats)
 }
 
+// HandleGeoBreakdown godoc
+// @Summary Get geo breakdown
+// @Tags reports
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "Campaign ID"
+// @Success 200 {array} reporting.GeoStats
+// @Router /reports/campaign/{id}/geo [get]
 func (d *Deps) HandleGeoBreakdown(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
 		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
@@ -78,6 +105,16 @@ func (d *Deps) HandleGeoBreakdown(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, stats)
 }
 
+// HandleBidTransparency godoc
+// @Summary Get bid-level details
+// @Tags reports
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "Campaign ID"
+// @Param limit query int false "Limit" default(100)
+// @Param offset query int false "Offset" default(0)
+// @Success 200 {array} reporting.BidDetail
+// @Router /reports/campaign/{id}/bids [get]
 func (d *Deps) HandleBidTransparency(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
 		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
@@ -105,6 +142,14 @@ func (d *Deps) HandleBidTransparency(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, bids)
 }
 
+// HandleAttribution godoc
+// @Summary Get attribution report
+// @Tags reports
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "Campaign ID"
+// @Success 200 {object} reporting.AttributionReport
+// @Router /reports/campaign/{id}/attribution [get]
 func (d *Deps) HandleAttribution(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
 		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
@@ -130,6 +175,13 @@ func (d *Deps) HandleAttribution(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, report)
 }
 
+// HandleOverviewStats godoc
+// @Summary Get today overview stats
+// @Tags reports
+// @Security ApiKeyAuth
+// @Produce json
+// @Success 200 {object} object{today_spend_cents=integer,today_impressions=integer,today_clicks=integer,ctr=number,balance_cents=integer}
+// @Router /reports/overview [get]
 func (d *Deps) HandleOverviewStats(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
 		WriteJSON(w, http.StatusOK, map[string]any{"today_spend_cents": 0})

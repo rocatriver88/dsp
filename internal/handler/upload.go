@@ -20,7 +20,15 @@ var allowedExts = map[string]bool{
 	".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true,
 }
 
-// HandleUpload accepts a multipart file upload and returns the file URL.
+// HandleUpload godoc
+// @Summary Upload creative image
+// @Tags creatives
+// @Security ApiKeyAuth
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "Image file"
+// @Success 200 {object} object{url=string}
+// @Router /upload [post]
 func (d *Deps) HandleUpload(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 

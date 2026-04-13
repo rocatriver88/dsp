@@ -10,8 +10,13 @@ import (
 	"github.com/heartgryphon/dsp/internal/auth"
 )
 
-// HandleAnalyticsStream provides real-time bidding analytics via Server-Sent Events (SSE).
-// The client connects once and receives updates every 5 seconds with fresh ClickHouse data.
+// HandleAnalyticsStream godoc
+// @Summary Real-time analytics SSE stream
+// @Tags analytics
+// @Security ApiKeyAuth
+// @Produce text/event-stream
+// @Success 200 {string} string "SSE stream"
+// @Router /analytics/stream [get]
 func (d *Deps) HandleAnalyticsStream(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
 		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
@@ -53,7 +58,13 @@ func (d *Deps) HandleAnalyticsStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleAnalyticsSnapshot returns a single snapshot of real-time analytics (non-streaming).
+// HandleAnalyticsSnapshot godoc
+// @Summary Get analytics snapshot
+// @Tags analytics
+// @Security ApiKeyAuth
+// @Produce json
+// @Success 200 {object} object
+// @Router /analytics/snapshot [get]
 func (d *Deps) HandleAnalyticsSnapshot(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
 		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")

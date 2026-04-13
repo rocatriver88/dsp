@@ -6,10 +6,20 @@ import (
 	"net/http"
 	"strconv"
 
+	_ "github.com/heartgryphon/dsp/internal/audit" // swaggo: audit.Entry
 	"github.com/heartgryphon/dsp/internal/auth"
 )
 
-// HandleExportCampaignCSV exports campaign stats as CSV.
+// HandleExportCampaignCSV godoc
+// @Summary Export campaign stats as CSV
+// @Tags export
+// @Security ApiKeyAuth
+// @Produce text/csv
+// @Param id path int true "Campaign ID"
+// @Param from query string false "Start date"
+// @Param to query string false "End date"
+// @Success 200 {file} file
+// @Router /export/campaign/{id}/stats [get]
 func (d *Deps) HandleExportCampaignCSV(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
 		WriteError(w, http.StatusServiceUnavailable, "reports not available")
@@ -67,7 +77,14 @@ func (d *Deps) HandleExportCampaignCSV(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleExportBidsCSV exports bid-level detail as CSV.
+// HandleExportBidsCSV godoc
+// @Summary Export bid details as CSV
+// @Tags export
+// @Security ApiKeyAuth
+// @Produce text/csv
+// @Param id path int true "Campaign ID"
+// @Success 200 {file} file
+// @Router /export/campaign/{id}/bids [get]
 func (d *Deps) HandleExportBidsCSV(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
 		WriteError(w, http.StatusServiceUnavailable, "reports not available")
@@ -118,7 +135,15 @@ func (d *Deps) HandleExportBidsCSV(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleMyAuditLog returns audit entries for the authenticated advertiser.
+// HandleMyAuditLog godoc
+// @Summary Get my audit log
+// @Tags audit
+// @Security ApiKeyAuth
+// @Produce json
+// @Param limit query int false "Limit" default(50)
+// @Param offset query int false "Offset" default(0)
+// @Success 200 {array} audit.Entry
+// @Router /audit-log [get]
 func (d *Deps) HandleMyAuditLog(w http.ResponseWriter, r *http.Request) {
 	if d.AuditLog == nil {
 		WriteError(w, http.StatusServiceUnavailable, "audit log not available")
