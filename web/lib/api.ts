@@ -1,3 +1,10 @@
+import type { components } from './api-types';
+
+// Types from generated OpenAPI spec
+export type Advertiser = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Advertiser']>;
+export type Campaign = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Campaign']>;
+export type Creative = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Creative']>;
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 
 // API Key: read from env or localStorage (set on first visit via key input UI)
@@ -29,49 +36,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(body.error || `API error: ${res.status}`);
   }
   return res.json();
-}
-
-export interface Advertiser {
-  id: number;
-  company_name: string;
-  contact_email: string;
-  api_key: string;
-  balance_cents: number;
-  billing_type: string;
-}
-
-export interface Campaign {
-  id: number;
-  advertiser_id: number;
-  name: string;
-  status: "draft" | "active" | "paused" | "completed";
-  budget_total_cents: number;
-  budget_daily_cents: number;
-  spent_cents: number;
-  billing_model: string;
-  bid_cpm_cents: number;
-  bid_cpc_cents: number;
-  ocpm_target_cpa_cents: number;
-  start_date: string | null;
-  end_date: string | null;
-  targeting: Record<string, unknown>;
-  pause_reason?: string;
-  paused_at?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Creative {
-  id: number;
-  campaign_id: number;
-  name: string;
-  ad_type: string;
-  format: string;
-  size: string;
-  ad_markup: string;
-  destination_url: string;
-  status: string;
-  created_at: string;
 }
 
 export interface CampaignStats {

@@ -1,3 +1,12 @@
+import type { components } from './api-types';
+
+// Types from generated OpenAPI spec
+export type AdminAdvertiser = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Advertiser']>;
+export type InviteCode = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_registration.InviteCode']>;
+export type AdminCreative = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Creative']>;
+export type AuditEntry = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_audit.Entry']>;
+export type Registration = NonNullable<components['schemas']['github_com_heartgryphon_dsp_internal_registration.Request']>;
+
 const ADMIN_API_BASE = process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8182";
 
 function getAdminToken(): string {
@@ -30,67 +39,10 @@ async function adminRequest<T>(path: string, options?: RequestInit): Promise<T> 
   return res.json();
 }
 
-export interface AdminAdvertiser {
-  id: number;
-  company_name: string;
-  contact_email: string;
-  api_key: string;
-  balance_cents: number;
-  billing_type: string;
-  status: string;
-  created_at: string;
-}
-
-export interface InviteCode {
-  id: number;
-  code: string;
-  created_by: string;
-  max_uses: number;
-  used_count: number;
-  expires_at?: string | null;
-  created_at: string;
-}
-
-export interface AdminCreative {
-  id: number;
-  campaign_id: number;
-  name: string;
-  ad_type: string;
-  format: string;
-  size: string;
-  ad_markup: string;
-  destination_url: string;
-  status: string;
-  created_at: string;
-}
-
 export interface CircuitStatus {
   circuit_breaker: string;
   reason: string;
   global_spend_today_cents: number;
-}
-
-export interface AuditEntry {
-  id: number;
-  advertiser_id: number;
-  actor: string;
-  action: string;
-  resource_type: string;
-  resource_id: number;
-  details: Record<string, unknown>;
-  created_at: string;
-}
-
-export interface Registration {
-  id: number;
-  company_name: string;
-  contact_email: string;
-  contact_phone: string;
-  business_type: string;
-  website: string;
-  invite_code: string;
-  status: "pending" | "approved" | "rejected";
-  created_at: string;
 }
 
 export interface SystemHealth {
