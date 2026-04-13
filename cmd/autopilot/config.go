@@ -10,6 +10,7 @@ import (
 type AutopilotConfig struct {
 	// DSP API
 	APIURL      string // http://localhost:8181
+	AdminURL    string // http://localhost:8182 (internal port)
 	APIKey      string // will be created during verify
 	AdminToken  string // for admin endpoints
 	FrontendURL string // http://localhost:4000
@@ -46,6 +47,7 @@ type AutopilotConfig struct {
 func LoadAutopilotConfig() *AutopilotConfig {
 	return &AutopilotConfig{
 		APIURL:          getEnv("AUTOPILOT_API_URL", "http://localhost:8181"),
+		AdminURL:        getEnv("AUTOPILOT_ADMIN_URL", "http://localhost:8182"),
 		AdminToken:      getEnv("ADMIN_TOKEN", "admin-secret"),
 		FrontendURL:     getEnv("AUTOPILOT_FRONTEND_URL", "http://localhost:4000"),
 		BidderURL:       getEnv("AUTOPILOT_BIDDER_URL", "http://localhost:8180"),

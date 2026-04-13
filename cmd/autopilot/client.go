@@ -325,6 +325,70 @@ func (c *DSPClient) GetCircuitStatus() (*CircuitStatus, error) {
 	return &resp, nil
 }
 
+// --- Admin API methods (use AdminToken, hit internal port) ---
+
+// AdminCreateInviteCode creates an invite code via admin API.
+// adminURL is the internal API base (e.g., http://localhost:8182).
+func (c *DSPClient) AdminCreateInviteCode(adminURL string, maxUses int) (string, error) {
+	body, _ := json.Marshal(map[string]any{"max_uses": maxUses})
+	req, _ := http.NewRequest("POST", adminURL+"/api/v1/admin/invite-codes", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Admin-Token", c.AdminToken)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("create invite code: %w", err)
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return "", fmt.Errorf("create invite code: status %d, body: %s", resp.StatusCode, data)
+	}
+	var result map[string]any
+	json.Unmarshal(data, &result)
+	code, _ := result["code"].(string)
+	return code, nil
+}
+
+// Register submits a registration request (auth-exempt endpoint).
+func (c *DSPClient) Register(companyName, email, inviteCode string) (int64, error) {
+	data, status, err := c.do("POST", "/api/v1/register", map[string]string{
+		"company_name":  companyName,
+		"contact_email": email,
+		"invite_code":   inviteCode,
+	})
+	if err != nil {
+		return 0, err
+	}
+	if status != 200 && status != 201 {
+		return 0, fmt.Errorf("register: status %d, body: %s", status, data)
+	}
+	var resp map[string]any
+	json.Unmarshal(data, &resp)
+	id, _ := resp["id"].(float64)
+	return int64(id), nil
+}
+
+// AdminApproveRegistration approves a registration and returns advertiser ID + API key.
+func (c *DSPClient) AdminApproveRegistration(adminURL string, registrationID int64) (*AdvertiserResponse, error) {
+	req, _ := http.NewRequest("POST",
+		fmt.Sprintf("%s/api/v1/admin/registrations/%d/approve", adminURL, registrationID), nil)
+	req.Header.Set("X-Admin-Token", c.AdminToken)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("approve registration: %w", err)
+	}
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("approve registration: status %d, body: %s", resp.StatusCode, data)
+	}
+	var result map[string]any
+	json.Unmarshal(data, &result)
+	advID, _ := result["advertiser_id"].(float64)
+	apiKey, _ := result["api_key"].(string)
+	return &AdvertiserResponse{ID: int64(advID), APIKey: apiKey}, nil
+}
+
 // HealthCheck checks if a service is responding.
 func (c *DSPClient) HealthCheck(url string) error {
 	resp, err := c.client.Get(url + "/health")

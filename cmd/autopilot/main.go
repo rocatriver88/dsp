@@ -81,6 +81,7 @@ func runVerify(cfg *AutopilotConfig) {
 		client:         client,
 		exchangeSimURL: cfg.ExchangeSimURL,
 		bidderURL:      cfg.BidderURL,
+		adminURL:       cfg.AdminURL,
 		browser:        browser,
 		grafanaURL:     cfg.GrafanaURL,
 		trafficWait:    cfg.TrafficDuration,

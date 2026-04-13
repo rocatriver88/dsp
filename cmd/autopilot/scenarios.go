@@ -12,6 +12,7 @@ type ScenarioRunner struct {
 	client         *DSPClient
 	exchangeSimURL string
 	bidderURL      string
+	adminURL       string
 	browser        *Browser
 	grafanaURL     string
 	trafficWait    time.Duration
@@ -72,19 +73,33 @@ func (s *ScenarioRunner) screenshotGrafana(name, dashPath string) string {
 func (s *ScenarioRunner) RunNormalFlow() []StepResult {
 	var steps []StepResult
 
-	// Step 1: Create Advertiser
+	// Step 1: Create Advertiser (register flow: create invite → register → approve)
 	step := s.runStep("Create Advertiser", func() (string, error) {
-		adv, err := s.client.CreateAdvertiser(
-			fmt.Sprintf("Autopilot Test %s", time.Now().Format("0102-1504")),
-			"autopilot@test.local",
-		)
+		companyName := fmt.Sprintf("Autopilot Test %s", time.Now().Format("0102-1504"))
+		email := fmt.Sprintf("autopilot-%d@test.local", time.Now().UnixMilli())
+
+		// 1a. Create invite code via admin API
+		code, err := s.client.AdminCreateInviteCode(s.adminURL, 1)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("create invite code: %w", err)
 		}
+
+		// 1b. Register via public API (auth-exempt)
+		regID, err := s.client.Register(companyName, email, code)
+		if err != nil {
+			return "", fmt.Errorf("register: %w", err)
+		}
+
+		// 1c. Approve via admin API
+		adv, err := s.client.AdminApproveRegistration(s.adminURL, regID)
+		if err != nil {
+			return "", fmt.Errorf("approve: %w", err)
+		}
+
 		s.advertiserID = adv.ID
 		s.apiKey = adv.APIKey
 		s.client.APIKey = adv.APIKey
-		return fmt.Sprintf("Advertiser id=%d, api_key=%s", adv.ID, adv.APIKey), nil
+		return fmt.Sprintf("Advertiser id=%d, api_key=%s (invite=%s, reg=%d)", adv.ID, adv.APIKey, code, regID), nil
 	})
 	step.Screenshot = s.screenshot("01-dashboard-empty", "/")
 	steps = append(steps, step)
@@ -212,6 +227,16 @@ func (s *ScenarioRunner) RunNormalFlow() []StepResult {
 func (s *ScenarioRunner) RunFaultScenarios(faultInjector *FaultInjector) []StepResult {
 	var steps []StepResult
 	ctx := context.Background()
+
+	// Skip all fault scenarios if normal flow didn't create a campaign
+	if s.campaignID == 0 {
+		steps = append(steps, StepResult{
+			Name:   "Fault Scenarios",
+			Passed: false,
+			Error:  "skipped — normal flow did not create a campaign",
+		})
+		return steps
+	}
 
 	// Step 7: Budget Exhaustion
 	step := s.runStep("Fault: Budget Exhaustion", func() (string, error) {

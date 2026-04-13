@@ -12,12 +12,19 @@ import (
 func TestRunNormalScenarios(t *testing.T) {
 	var callCount atomic.Int32
 
+	// Mock DSP API (public + admin on same server for testing)
 	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount.Add(1)
 		switch {
-		case r.Method == "POST" && r.URL.Path == "/api/v1/advertisers":
-			w.WriteHeader(201)
-			json.NewEncoder(w).Encode(map[string]any{"id": 1, "api_key": "dsp_auto"})
+		// Register flow
+		case r.Method == "POST" && r.URL.Path == "/api/v1/admin/invite-codes":
+			json.NewEncoder(w).Encode(map[string]any{"code": "test-invite-123"})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/register":
+			json.NewEncoder(w).Encode(map[string]any{"id": 1})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/admin/registrations/1/approve":
+			json.NewEncoder(w).Encode(map[string]any{"advertiser_id": 1, "api_key": "dsp_auto"})
+
+		// Campaign flow
 		case r.Method == "POST" && r.URL.Path == "/api/v1/billing/topup":
 			json.NewEncoder(w).Encode(map[string]any{"balance_cents": 100000})
 		case r.Method == "POST" && r.URL.Path == "/api/v1/campaigns":
@@ -50,9 +57,13 @@ func TestRunNormalScenarios(t *testing.T) {
 	}))
 	defer simSrv.Close()
 
+	client := NewDSPClient(apiSrv.URL, "")
+	client.AdminToken = "test-token"
+
 	runner := &ScenarioRunner{
-		client:         NewDSPClient(apiSrv.URL, ""),
+		client:         client,
 		exchangeSimURL: simSrv.URL,
+		adminURL:       apiSrv.URL, // same mock server handles admin routes
 		browser:        nil,
 		trafficWait:    1 * time.Second,
 	}
