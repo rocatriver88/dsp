@@ -26,29 +26,24 @@ func (s *Service) CreateInviteCode(ctx context.Context, createdBy string, maxUse
 	return code, nil
 }
 
-func (s *Service) ValidateInviteCode(ctx context.Context, code string) error {
-	var maxUses, usedCount int
-	var expiresAt *time.Time
+// ValidateAndUseInviteCode atomically validates and consumes one use of an invite code.
+// Returns nil on success. Returns an error if the code is invalid, exhausted, or expired.
+// This is atomic: concurrent requests cannot both succeed for a max_uses=1 code.
+func (s *Service) ValidateAndUseInviteCode(ctx context.Context, code string) error {
+	var id int64
 	err := s.db.QueryRow(ctx,
-		`SELECT max_uses, used_count, expires_at FROM invite_codes WHERE code = $1`, code,
-	).Scan(&maxUses, &usedCount, &expiresAt)
+		`UPDATE invite_codes
+		 SET used_count = used_count + 1
+		 WHERE code = $1
+		   AND used_count < max_uses
+		   AND (expires_at IS NULL OR expires_at > NOW())
+		 RETURNING id`,
+		code,
+	).Scan(&id)
 	if err != nil {
-		return fmt.Errorf("invalid invite code")
-	}
-	if usedCount >= maxUses {
-		return fmt.Errorf("invite code has been fully used")
-	}
-	if expiresAt != nil && time.Now().After(*expiresAt) {
-		return fmt.Errorf("invite code has expired")
+		return fmt.Errorf("invalid, expired, or fully used invite code")
 	}
 	return nil
-}
-
-func (s *Service) UseInviteCode(ctx context.Context, code string) error {
-	_, err := s.db.Exec(ctx,
-		`UPDATE invite_codes SET used_count = used_count + 1 WHERE code = $1`, code,
-	)
-	return err
 }
 
 type InviteCode struct {

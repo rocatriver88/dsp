@@ -69,9 +69,6 @@ func (s *Service) Submit(ctx context.Context, req *Request) (int64, error) {
 	if req.InviteCode == "" {
 		return 0, fmt.Errorf("invite code is required")
 	}
-	if err := s.ValidateInviteCode(ctx, req.InviteCode); err != nil {
-		return 0, err
-	}
 
 	// Check for duplicate email
 	var count int
@@ -99,15 +96,17 @@ func (s *Service) Submit(ctx context.Context, req *Request) (int64, error) {
 		return 0, fmt.Errorf("too many registration attempts, try again tomorrow")
 	}
 
+	// Atomically validate and consume the invite code (prevents race condition)
+	if err := s.ValidateAndUseInviteCode(ctx, req.InviteCode); err != nil {
+		return 0, err
+	}
+
 	var id int64
 	err = s.db.QueryRow(ctx,
 		`INSERT INTO registration_requests (company_name, contact_email, contact_phone, business_type, website, invite_code)
 		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
 		req.CompanyName, req.ContactEmail, req.ContactPhone, req.BusinessType, req.Website, req.InviteCode,
 	).Scan(&id)
-	if err == nil {
-		s.UseInviteCode(ctx, req.InviteCode)
-	}
 	return id, err
 }
 
