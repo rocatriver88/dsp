@@ -47,6 +47,7 @@ func TestValidate_DevMode_NoFatal(t *testing.T) {
 func TestValidate_ProductionWithCustomSecret_NoFatal(t *testing.T) {
 	t.Setenv("ENV", "production")
 	t.Setenv("BIDDER_HMAC_SECRET", "real-production-secret-32chars-min")
+	t.Setenv("ADMIN_TOKEN", "test-admin-token")
 	cfg := Load()
 	cfg.Validate() // should not panic
 }
