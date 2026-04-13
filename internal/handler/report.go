@@ -175,6 +175,51 @@ func (d *Deps) HandleAttribution(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, report)
 }
 
+// HandleBidSimulate godoc
+// @Summary Simulate bid outcome
+// @Tags reports
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "Campaign ID"
+// @Param bid_cpm_cents query int true "Simulated CPM bid in cents"
+// @Success 200 {object} reporting.BidSimulation
+// @Router /reports/campaign/{id}/simulate [get]
+func (d *Deps) HandleBidSimulate(w http.ResponseWriter, r *http.Request) {
+	if d.ReportStore == nil {
+		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+
+	bidStr := r.URL.Query().Get("bid_cpm_cents")
+	bidCPM, err := strconv.Atoi(bidStr)
+	if err != nil || bidCPM <= 0 {
+		WriteError(w, http.StatusBadRequest, "bid_cpm_cents must be a positive integer")
+		return
+	}
+
+	// Get campaign to fill current bid and verify ownership
+	advID := auth.AdvertiserIDFromContext(r.Context())
+	camp, err := d.Store.GetCampaignForAdvertiser(r.Context(), id, advID)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, "campaign not found")
+		return
+	}
+
+	sim, err := d.ReportStore.SimulateBid(r.Context(), uint64(id), bidCPM)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	sim.CurrentBidCPMCents = camp.BidCPMCents
+
+	WriteJSON(w, http.StatusOK, sim)
+}
+
 // HandleOverviewStats godoc
 // @Summary Get today overview stats
 // @Tags reports

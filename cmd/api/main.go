@@ -141,6 +141,7 @@ func main() {
 	publicMux.HandleFunc("GET /api/v1/reports/campaign/{id}/geo", h.HandleGeoBreakdown)
 	publicMux.HandleFunc("GET /api/v1/reports/campaign/{id}/bids", h.HandleBidTransparency)
 	publicMux.HandleFunc("GET /api/v1/reports/campaign/{id}/attribution", h.HandleAttribution)
+	publicMux.HandleFunc("GET /api/v1/reports/campaign/{id}/simulate", h.HandleBidSimulate)
 	publicMux.HandleFunc("GET /api/v1/reports/overview", h.HandleOverviewStats)
 	publicMux.HandleFunc("GET /api/v1/export/campaign/{id}/stats", h.HandleExportCampaignCSV)
 	publicMux.HandleFunc("GET /api/v1/export/campaign/{id}/bids", h.HandleExportBidsCSV)
