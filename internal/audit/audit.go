@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -23,6 +24,15 @@ const (
 	ActionRegistrationApprove = "registration.approve"
 	ActionRegistrationReject  = "registration.reject"
 )
+
+var auditErrors = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "dsp_audit_errors_total",
+	Help: "Total number of failed audit log writes",
+})
+
+func init() {
+	prometheus.MustRegister(auditErrors)
+}
 
 type Entry struct {
 	ID           int64          `json:"id"`
@@ -52,6 +62,7 @@ func (l *Logger) Record(ctx context.Context, e Entry) {
 	)
 	if err != nil {
 		log.Printf("[AUDIT] Failed to record %s: %v", e.Action, err)
+		auditErrors.Inc()
 	}
 }
 
