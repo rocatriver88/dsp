@@ -1207,6 +1207,8 @@ components:
       type: object
     github_com_heartgryphon_dsp_internal_campaign.Advertiser:
       properties:
+        active_campaigns:
+          type: integer
         api_key:
           type: string
         balance_cents:
@@ -1220,6 +1222,8 @@ components:
         created_at:
           type: string
         id:
+          type: integer
+        total_spent_cents:
           type: integer
         updated_at:
           type: string

@@ -1840,6 +1840,7 @@ export interface components {
             type?: string;
         };
         "github_com_heartgryphon_dsp_internal_campaign.Advertiser": {
+            active_campaigns?: number;
             api_key?: string;
             balance_cents?: number;
             billing_type?: string;
@@ -1847,6 +1848,7 @@ export interface components {
             contact_email?: string;
             created_at?: string;
             id?: number;
+            total_spent_cents?: number;
             updated_at?: string;
         };
         "github_com_heartgryphon_dsp_internal_campaign.Campaign": {
