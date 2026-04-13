@@ -44,6 +44,8 @@ make api-gen
 docker compose up --build
 ```
 
+首次启动会自动执行 PostgreSQL 和 ClickHouse 的基础 migrations，然后再拉起 `api`、`bidder`、`consumer`、`web`。
+
 常用访问地址：
 - 前端：`http://localhost:4000`
 - 公共 API：`http://localhost:8181`

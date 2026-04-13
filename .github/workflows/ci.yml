@@ -72,9 +72,9 @@ jobs:
 
       - name: Build Docker images
         run: |
-          docker build -f deploy/Dockerfile.bidder -t dsp-bidder:${{ github.sha }} .
-          docker build -f deploy/Dockerfile.api -t dsp-api:${{ github.sha }} .
-          docker build -f deploy/Dockerfile.consumer -t dsp-consumer:${{ github.sha }} .
+          docker build -f deploy/docker/Dockerfile.bidder -t dsp-bidder:${{ github.sha }} .
+          docker build -f deploy/docker/Dockerfile.api -t dsp-api:${{ github.sha }} .
+          docker build -f deploy/docker/Dockerfile.consumer -t dsp-consumer:${{ github.sha }} .
 
       # Push to registry when configured:
       # - name: Push

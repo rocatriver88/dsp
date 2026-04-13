@@ -4,6 +4,7 @@ bin/
 
 # Go
 vendor/
+.gocache/
 
 # Node
 web/node_modules/
