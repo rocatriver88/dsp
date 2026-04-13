@@ -437,9 +437,15 @@ func (s *Store) ListAllAdvertisers(ctx context.Context, limit, offset int) ([]*A
 		limit = 100
 	}
 	rows, err := s.db.Query(ctx,
-		`SELECT id, company_name, contact_email, api_key, balance_cents,
-		        billing_type, created_at, updated_at
-		 FROM advertisers ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+		`SELECT a.id, a.company_name, a.contact_email, a.api_key, a.balance_cents,
+		        a.billing_type, a.created_at, a.updated_at,
+		        COUNT(c.id) FILTER (WHERE c.status = 'active') AS active_campaigns,
+		        COALESCE(SUM(c.spent_cents), 0) AS total_spent_cents
+		 FROM advertisers a
+		 LEFT JOIN campaigns c ON c.advertiser_id = a.id
+		 GROUP BY a.id
+		 ORDER BY a.created_at DESC
+		 LIMIT $1 OFFSET $2`,
 		limit, offset,
 	)
 	if err != nil {
@@ -451,7 +457,8 @@ func (s *Store) ListAllAdvertisers(ctx context.Context, limit, offset int) ([]*A
 	for rows.Next() {
 		a := &Advertiser{}
 		if err := rows.Scan(&a.ID, &a.CompanyName, &a.ContactEmail, &a.APIKey,
-			&a.BalanceCents, &a.BillingType, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			&a.BalanceCents, &a.BillingType, &a.CreatedAt, &a.UpdatedAt,
+			&a.ActiveCampaigns, &a.TotalSpentCents); err != nil {
 			return nil, err
 		}
 		advs = append(advs, a)

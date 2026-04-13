@@ -185,12 +185,14 @@ type Creative struct {
 }
 
 type Advertiser struct {
-	ID           int64     `json:"id" db:"id"`
-	CompanyName  string    `json:"company_name" db:"company_name"`
-	ContactEmail string    `json:"contact_email" db:"contact_email"`
-	APIKey       string    `json:"api_key" db:"api_key"`
-	BalanceCents int64     `json:"balance_cents" db:"balance_cents"`
-	BillingType  string    `json:"billing_type" db:"billing_type"`
-	CreatedAt    time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
+	ID              int64     `json:"id" db:"id"`
+	CompanyName     string    `json:"company_name" db:"company_name"`
+	ContactEmail    string    `json:"contact_email" db:"contact_email"`
+	APIKey          string    `json:"api_key" db:"api_key"`
+	BalanceCents    int64     `json:"balance_cents" db:"balance_cents"`
+	BillingType     string    `json:"billing_type" db:"billing_type"`
+	CreatedAt       time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at" db:"updated_at"`
+	ActiveCampaigns int       `json:"active_campaigns,omitempty"`
+	TotalSpentCents int64     `json:"total_spent_cents,omitempty"`
 }

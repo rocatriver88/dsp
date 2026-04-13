@@ -45,9 +45,10 @@ export default function AdminOverviewPage() {
       .then(([advertisers, circuitData, healthData]) => {
         // Derive stats from available data
         const totalBalance = advertisers.reduce((sum, a) => sum + a.balance_cents, 0);
+        const activeCampaigns = advertisers.reduce((sum, a) => sum + (a.active_campaigns ?? 0), 0);
         setStats({
           agencyCount: advertisers.length,
-          activeCampaigns: healthData.active_campaigns ?? 0,
+          activeCampaigns,
           todaySpend: circuitData.global_spend_today_cents,
           totalBalance,
         });
