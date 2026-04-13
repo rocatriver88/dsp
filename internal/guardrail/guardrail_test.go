@@ -10,7 +10,7 @@ func TestBidCeiling_Blocks(t *testing.T) {
 	rdb := newTestRedis(t)
 	g := New(rdb, Config{MaxBidCPMCents: 5000})
 
-	result := g.CheckBid(context.Background(), 6000)
+	result := g.CheckBidCeiling(context.Background(), 6000)
 	if result.Allowed {
 		t.Error("bid above ceiling should be blocked")
 	}
@@ -23,7 +23,7 @@ func TestBidCeiling_Allows(t *testing.T) {
 	rdb := newTestRedis(t)
 	g := New(rdb, Config{MaxBidCPMCents: 5000})
 
-	result := g.CheckBid(context.Background(), 3000)
+	result := g.CheckBidCeiling(context.Background(), 3000)
 	if !result.Allowed {
 		t.Errorf("bid below ceiling should be allowed, reason: %s", result.Reason)
 	}
@@ -33,7 +33,7 @@ func TestBidCeiling_ZeroMeansNoLimit(t *testing.T) {
 	rdb := newTestRedis(t)
 	g := New(rdb, Config{MaxBidCPMCents: 0})
 
-	result := g.CheckBid(context.Background(), 999999)
+	result := g.CheckBidCeiling(context.Background(), 999999)
 	if !result.Allowed {
 		t.Error("zero ceiling should mean no limit")
 	}
@@ -96,7 +96,7 @@ func TestCircuitBreakerCheck(t *testing.T) {
 	g.CB.Trip(ctx, "test")
 	defer g.CB.Reset(ctx)
 
-	result := g.CheckBid(ctx, 100)
+	result := g.PreCheck(ctx)
 	if result.Allowed {
 		t.Error("should block when circuit breaker is tripped")
 	}

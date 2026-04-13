@@ -104,7 +104,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 
 	// Guardrail: circuit breaker + global budget
 	if e.guardrail != nil {
-		preCheck := e.guardrail.CheckBid(ctx, 0)
+		preCheck := e.guardrail.PreCheck(ctx)
 		if !preCheck.Allowed {
 			return nil, nil
 		}
@@ -151,7 +151,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 
 		// Guardrail: bid ceiling
 		if e.guardrail != nil {
-			capCheck := e.guardrail.CheckBid(ctx, bidCPM)
+			capCheck := e.guardrail.CheckBidCeiling(ctx, bidCPM)
 			if !capCheck.Allowed {
 				continue
 			}

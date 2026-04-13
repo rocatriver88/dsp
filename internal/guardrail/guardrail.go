@@ -36,23 +36,25 @@ func New(rdb *redis.Client, cfg Config) *Guardrail {
 	}
 }
 
-// CheckBid validates a bid against all guardrails.
-func (g *Guardrail) CheckBid(ctx context.Context, bidCPMCents int) CheckResult {
+// PreCheck validates circuit breaker and global budget. Call once per bid request.
+func (g *Guardrail) PreCheck(ctx context.Context) CheckResult {
 	if !g.CB.IsOpen(ctx) {
 		return CheckResult{Allowed: false, Reason: "circuit_breaker_tripped"}
 	}
-
-	if g.config.MaxBidCPMCents > 0 && bidCPMCents > g.config.MaxBidCPMCents {
-		return CheckResult{Allowed: false, Reason: "bid_ceiling_exceeded"}
-	}
-
 	if g.config.GlobalDailyBudgetCents > 0 {
 		result := g.CheckGlobalBudget(ctx)
 		if !result.Allowed {
 			return result
 		}
 	}
+	return CheckResult{Allowed: true}
+}
 
+// CheckBidCeiling validates a specific bid against the max CPM ceiling.
+func (g *Guardrail) CheckBidCeiling(ctx context.Context, bidCPMCents int) CheckResult {
+	if g.config.MaxBidCPMCents > 0 && bidCPMCents > g.config.MaxBidCPMCents {
+		return CheckResult{Allowed: false, Reason: "bid_ceiling_exceeded"}
+	}
 	return CheckResult{Allowed: true}
 }
 
