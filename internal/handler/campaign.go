@@ -12,6 +12,15 @@ import (
 	"github.com/heartgryphon/dsp/internal/campaign"
 )
 
+// HandleCreateAdvertiser godoc
+// @Summary Create advertiser
+// @Tags advertisers
+// @Accept json
+// @Produce json
+// @Param body body object{company_name=string,contact_email=string,balance_cents=integer} true "Advertiser data"
+// @Success 201 {object} object{id=integer,api_key=string}
+// @Failure 400 {object} object{error=string}
+// @Router /advertisers [post]
 func (d *Deps) HandleCreateAdvertiser(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CompanyName  string `json:"company_name"`
@@ -49,6 +58,14 @@ func (d *Deps) HandleCreateAdvertiser(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// HandleGetAdvertiser godoc
+// @Summary Get advertiser by ID
+// @Tags advertisers
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "Advertiser ID"
+// @Success 200 {object} campaign.Advertiser
+// @Router /advertisers/{id} [get]
 func (d *Deps) HandleGetAdvertiser(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -63,6 +80,16 @@ func (d *Deps) HandleGetAdvertiser(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, adv)
 }
 
+// HandleCreateCampaign godoc
+// @Summary Create campaign
+// @Tags campaigns
+// @Security ApiKeyAuth
+// @Accept json
+// @Produce json
+// @Param body body object{advertiser_id=integer,name=string,billing_model=string,budget_total_cents=integer,budget_daily_cents=integer,bid_cpm_cents=integer} true "Campaign data"
+// @Success 201 {object} object{id=integer}
+// @Failure 400 {object} object{error=string}
+// @Router /campaigns [post]
 func (d *Deps) HandleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		AdvertiserID       int64           `json:"advertiser_id"`
@@ -143,6 +170,13 @@ func (d *Deps) HandleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusCreated, map[string]any{"id": id, "status": "draft"})
 }
 
+// HandleListCampaigns godoc
+// @Summary List campaigns for advertiser
+// @Tags campaigns
+// @Security ApiKeyAuth
+// @Produce json
+// @Success 200 {array} campaign.Campaign
+// @Router /campaigns [get]
 func (d *Deps) HandleListCampaigns(w http.ResponseWriter, r *http.Request) {
 	advID := auth.AdvertiserIDFromContext(r.Context())
 	if advID == 0 {
@@ -171,6 +205,14 @@ func (d *Deps) HandleListCampaigns(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, campaigns)
 }
 
+// HandleGetCampaign godoc
+// @Summary Get campaign by ID
+// @Tags campaigns
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "Campaign ID"
+// @Success 200 {object} campaign.Campaign
+// @Router /campaigns/{id} [get]
 func (d *Deps) HandleGetCampaign(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -186,6 +228,16 @@ func (d *Deps) HandleGetCampaign(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, c)
 }
 
+// HandleUpdateCampaign godoc
+// @Summary Update campaign
+// @Tags campaigns
+// @Security ApiKeyAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "Campaign ID"
+// @Param body body object{name=string,bid_cpm_cents=integer,budget_daily_cents=integer,targeting=object} true "Update fields"
+// @Success 200 {object} object{status=string}
+// @Router /campaigns/{id} [put]
 func (d *Deps) HandleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -210,6 +262,14 @@ func (d *Deps) HandleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
+// HandleStartCampaign godoc
+// @Summary Start campaign
+// @Tags campaigns
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "Campaign ID"
+// @Success 200 {object} object{status=string}
+// @Router /campaigns/{id}/start [post]
 func (d *Deps) HandleStartCampaign(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -260,6 +320,14 @@ func (d *Deps) HandleStartCampaign(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "active"})
 }
 
+// HandlePauseCampaign godoc
+// @Summary Pause campaign
+// @Tags campaigns
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "Campaign ID"
+// @Success 200 {object} object{status=string}
+// @Router /campaigns/{id}/pause [post]
 func (d *Deps) HandlePauseCampaign(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
@@ -277,6 +345,14 @@ func (d *Deps) HandlePauseCampaign(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "paused"})
 }
 
+// HandleListCreatives godoc
+// @Summary List creatives for campaign
+// @Tags creatives
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "Campaign ID"
+// @Success 200 {array} campaign.Creative
+// @Router /campaigns/{id}/creatives [get]
 func (d *Deps) HandleListCreatives(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	creatives, err := d.Store.GetAllCreativesByCampaign(r.Context(), id)
@@ -290,6 +366,13 @@ func (d *Deps) HandleListCreatives(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, creatives)
 }
 
+// HandleDeleteCreative godoc
+// @Summary Delete creative
+// @Tags creatives
+// @Security ApiKeyAuth
+// @Param id path int true "Creative ID"
+// @Success 200 {object} object{status=string}
+// @Router /creatives/{id} [delete]
 func (d *Deps) HandleDeleteCreative(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err := d.Store.DeleteCreative(r.Context(), id); err != nil {
@@ -299,6 +382,15 @@ func (d *Deps) HandleDeleteCreative(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
+// HandleUpdateCreative godoc
+// @Summary Update creative
+// @Tags creatives
+// @Security ApiKeyAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "Creative ID"
+// @Success 200 {object} object{status=string}
+// @Router /creatives/{id} [put]
 func (d *Deps) HandleUpdateCreative(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	var req struct {
@@ -329,6 +421,15 @@ func (d *Deps) HandleUpdateCreative(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
+// HandleCreateCreative godoc
+// @Summary Create creative
+// @Tags creatives
+// @Security ApiKeyAuth
+// @Accept json
+// @Produce json
+// @Param body body object{campaign_id=integer,name=string,ad_type=string,format=string,size=string,ad_markup=string,destination_url=string} true "Creative data"
+// @Success 201 {object} object{id=integer}
+// @Router /creatives [post]
 func (d *Deps) HandleCreateCreative(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CampaignID     int64  `json:"campaign_id"`
@@ -384,6 +485,12 @@ func (d *Deps) HandleCreateCreative(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusCreated, map[string]any{"id": id, "status": status})
 }
 
+// HandleAdTypes godoc
+// @Summary List available ad types
+// @Tags reference
+// @Produce json
+// @Success 200 {object} object
+// @Router /ad-types [get]
 func (d *Deps) HandleAdTypes(w http.ResponseWriter, r *http.Request) {
 	types := make([]map[string]any, 0)
 	for key, cfg := range campaign.AdTypeConfig {
@@ -398,6 +505,12 @@ func (d *Deps) HandleAdTypes(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, types)
 }
 
+// HandleBillingModels godoc
+// @Summary List billing models
+// @Tags reference
+// @Produce json
+// @Success 200 {object} object
+// @Router /billing-models [get]
 func (d *Deps) HandleBillingModels(w http.ResponseWriter, r *http.Request) {
 	models := make([]map[string]any, 0)
 	for key, cfg := range campaign.BillingModelConfig {

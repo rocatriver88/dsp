@@ -1,11 +1,480 @@
 basePath: /api/v1
+definitions:
+  github_com_heartgryphon_dsp_internal_campaign.Advertiser:
+    properties:
+      api_key:
+        type: string
+      balance_cents:
+        type: integer
+      billing_type:
+        type: string
+      company_name:
+        type: string
+      contact_email:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  github_com_heartgryphon_dsp_internal_campaign.Campaign:
+    properties:
+      advertiser_id:
+        type: integer
+      bid_cpc_cents:
+        type: integer
+      bid_cpm_cents:
+        type: integer
+      billing_model:
+        type: string
+      budget_daily_cents:
+        type: integer
+      budget_total_cents:
+        type: integer
+      created_at:
+        type: string
+      end_date:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      ocpm_target_cpa_cents:
+        type: integer
+      pause_reason:
+        type: string
+      paused_at:
+        type: string
+      sandbox:
+        type: boolean
+      spent_cents:
+        type: integer
+      start_date:
+        type: string
+      status:
+        $ref: '#/definitions/github_com_heartgryphon_dsp_internal_campaign.Status'
+      targeting:
+        items:
+          type: integer
+        type: array
+      updated_at:
+        type: string
+    type: object
+  github_com_heartgryphon_dsp_internal_campaign.Creative:
+    properties:
+      ad_markup:
+        type: string
+      ad_type:
+        type: string
+      campaign_id:
+        type: integer
+      created_at:
+        type: string
+      destination_url:
+        type: string
+      format:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      native_cta:
+        type: string
+      native_desc:
+        type: string
+      native_icon_url:
+        type: string
+      native_image_url:
+        type: string
+      native_title:
+        description: Native ad fields (used when ad_type = "native")
+        type: string
+      size:
+        type: string
+      status:
+        type: string
+    type: object
+  github_com_heartgryphon_dsp_internal_campaign.Status:
+    enum:
+    - draft
+    - active
+    - paused
+    - completed
+    - deleted
+    type: string
+    x-enum-varnames:
+    - StatusDraft
+    - StatusActive
+    - StatusPaused
+    - StatusCompleted
+    - StatusDeleted
 host: localhost:8181
 info:
   contact: {}
   description: Demand-Side Platform — programmatic advertising API
   title: DSP Platform API
   version: "1.0"
-paths: {}
+paths:
+  /ad-types:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+      summary: List available ad types
+      tags:
+      - reference
+  /advertisers:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Advertiser data
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            balance_cents:
+              type: integer
+            company_name:
+              type: string
+            contact_email:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            properties:
+              api_key:
+                type: string
+              id:
+                type: integer
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      summary: Create advertiser
+      tags:
+      - advertisers
+  /advertisers/{id}:
+    get:
+      parameters:
+      - description: Advertiser ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_heartgryphon_dsp_internal_campaign.Advertiser'
+      security:
+      - ApiKeyAuth: []
+      summary: Get advertiser by ID
+      tags:
+      - advertisers
+  /billing-models:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+      summary: List billing models
+      tags:
+      - reference
+  /campaigns:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_heartgryphon_dsp_internal_campaign.Campaign'
+            type: array
+      security:
+      - ApiKeyAuth: []
+      summary: List campaigns for advertiser
+      tags:
+      - campaigns
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Campaign data
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            advertiser_id:
+              type: integer
+            bid_cpm_cents:
+              type: integer
+            billing_model:
+              type: string
+            budget_daily_cents:
+              type: integer
+            budget_total_cents:
+              type: integer
+            name:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            properties:
+              id:
+                type: integer
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create campaign
+      tags:
+      - campaigns
+  /campaigns/{id}:
+    get:
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_heartgryphon_dsp_internal_campaign.Campaign'
+      security:
+      - ApiKeyAuth: []
+      summary: Get campaign by ID
+      tags:
+      - campaigns
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Update fields
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            bid_cpm_cents:
+              type: integer
+            budget_daily_cents:
+              type: integer
+            name:
+              type: string
+            targeting:
+              type: object
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              status:
+                type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update campaign
+      tags:
+      - campaigns
+  /campaigns/{id}/creatives:
+    get:
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_heartgryphon_dsp_internal_campaign.Creative'
+            type: array
+      security:
+      - ApiKeyAuth: []
+      summary: List creatives for campaign
+      tags:
+      - creatives
+  /campaigns/{id}/pause:
+    post:
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              status:
+                type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Pause campaign
+      tags:
+      - campaigns
+  /campaigns/{id}/start:
+    post:
+      parameters:
+      - description: Campaign ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              status:
+                type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Start campaign
+      tags:
+      - campaigns
+  /creatives:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Creative data
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            ad_markup:
+              type: string
+            ad_type:
+              type: string
+            campaign_id:
+              type: integer
+            destination_url:
+              type: string
+            format:
+              type: string
+            name:
+              type: string
+            size:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            properties:
+              id:
+                type: integer
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create creative
+      tags:
+      - creatives
+  /creatives/{id}:
+    delete:
+      parameters:
+      - description: Creative ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              status:
+                type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Delete creative
+      tags:
+      - creatives
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Creative ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              status:
+                type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update creative
+      tags:
+      - creatives
 securityDefinitions:
   AdminAuth:
     in: header
