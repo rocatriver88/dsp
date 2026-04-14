@@ -37,3 +37,7 @@ var/
 # Docker volumes
 pgdata/
 chdata/
+
+# Worktrees and per-worktree compose overrides
+.worktrees/
+docker-compose.override.yml
