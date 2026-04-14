@@ -1,9 +1,12 @@
+name: dsp-main
+
 services:
   postgres:
+    container_name: postgres-main
     image: postgres:16-alpine
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "6432:5432"
     environment:
       POSTGRES_DB: dsp
       POSTGRES_USER: dsp
@@ -17,10 +20,11 @@ services:
       retries: 5
 
   redis:
+    container_name: redis-main
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6380:6379"
+      - "7380:6379"
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-dsp_dev_password}", "--appendonly", "yes"]
     volumes:
       - redisdata:/data
@@ -31,11 +35,12 @@ services:
       retries: 5
 
   clickhouse:
+    container_name: clickhouse-main
     image: clickhouse/clickhouse-server:24-alpine
     restart: unless-stopped
     ports:
-      - "8124:8123"
-      - "9001:9000"
+      - "9124:8123"
+      - "10001:9000"
     environment:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-dsp_dev_password}
@@ -49,16 +54,17 @@ services:
       retries: 5
 
   kafka:
+    container_name: kafka-main
     image: apache/kafka:latest
     restart: unless-stopped
     ports:
-      - "9094:9094"
+      - "10094:9094"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9193
       KAFKA_LISTENERS: INTERNAL://0.0.0.0:19094,EXTERNAL://0.0.0.0:9094,CONTROLLER://0.0.0.0:9193
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19094,EXTERNAL://localhost:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19094,EXTERNAL://localhost:10094
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
@@ -70,6 +76,7 @@ services:
       - kafkadata:/var/kafka/data
 
   migrate:
+    container_name: migrate-main
     image: postgres:16-alpine
     restart: "no"
     depends_on:
@@ -129,13 +136,14 @@ services:
         done
 
   api:
+    container_name: api-main
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.api
     restart: unless-stopped
     ports:
-      - "8181:8181"
-      - "8182:8182"
+      - "9181:8181"
+      - "9182:8182"
     environment:
       ENV: development
       DB_HOST: postgres
@@ -150,7 +158,7 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-dsp_dev_password}
       API_PORT: 8181
       INTERNAL_PORT: 8182
-      CORS_ALLOWED_ORIGINS: http://localhost:4000
+      CORS_ALLOWED_ORIGINS: http://localhost:5000
       ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}
     depends_on:
       postgres:
@@ -170,12 +178,13 @@ services:
       retries: 5
 
   bidder:
+    container_name: bidder-main
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.bidder
     restart: unless-stopped
     ports:
-      - "8180:8180"
+      - "9180:8180"
     environment:
       ENV: development
       DB_HOST: postgres
@@ -190,7 +199,7 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-dsp_dev_password}
       BIDDER_PORT: 8180
-      BIDDER_PUBLIC_URL: http://localhost:8180
+      BIDDER_PUBLIC_URL: http://localhost:9180
       BIDDER_HMAC_SECRET: ${BIDDER_HMAC_SECRET:-dev-hmac-secret-change-in-production}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}
     depends_on:
@@ -211,6 +220,7 @@ services:
       retries: 5
 
   consumer:
+    container_name: consumer-main
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.consumer
@@ -230,27 +240,29 @@ services:
         condition: service_completed_successfully
 
   web:
+    container_name: web-main
     build:
       context: .
       dockerfile: deploy/docker/Dockerfile.web
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8181
-        NEXT_PUBLIC_ADMIN_API_URL: http://localhost:8182
+        NEXT_PUBLIC_API_URL: http://localhost:9181
+        NEXT_PUBLIC_ADMIN_API_URL: http://localhost:9182
     restart: unless-stopped
     ports:
-      - "4000:4000"
+      - "5000:4000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8181
-      NEXT_PUBLIC_ADMIN_API_URL: http://localhost:8182
+      NEXT_PUBLIC_API_URL: http://localhost:9181
+      NEXT_PUBLIC_ADMIN_API_URL: http://localhost:9182
     depends_on:
       api:
         condition: service_healthy
 
   prometheus:
+    container_name: prometheus-main
     image: prom/prometheus:latest
     restart: unless-stopped
     ports:
-      - "${PROMETHEUS_PORT:-10090}:9090"
+      - "${PROMETHEUS_PORT:-11090}:9090"
     volumes:
       - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
     depends_on:
@@ -260,10 +272,11 @@ services:
         condition: service_healthy
 
   grafana:
+    container_name: grafana-main
     image: grafana/grafana:latest
     restart: unless-stopped
     ports:
-      - "${GRAFANA_PORT:-4100}:3000"
+      - "${GRAFANA_PORT:-5100}:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_AUTH_ANONYMOUS_ENABLED: "true"
@@ -277,8 +290,14 @@ services:
 
 volumes:
   pgdata:
+    name: dsp_pgdata
   chdata:
+    name: dsp_chdata
   redisdata:
+    name: dsp_redisdata
   kafkadata:
+    name: dsp_kafkadata
   grafanadata:
+    name: dsp_grafanadata
   uploadsdata:
+    name: dsp_uploadsdata
