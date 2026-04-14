@@ -237,21 +237,24 @@ export const api = {
       data_days: number;
     }>(`/api/v1/reports/campaign/${campaignId}/simulate?bid_cpm_cents=${bidCPMCents}`),
 
-  // Billing
-  getBalance: (advertiserId: number) =>
+  // Billing — self-service routes always act on the authenticated advertiser.
+  // The backend resolves the advertiser from the API key (auth context); the
+  // client must not pass an advertiser id, and passing a foreign one on the
+  // write path now fails with 400 instead of silently redirecting.
+  getBalance: () =>
     request<{ advertiser_id: number; balance_cents: number; billing_type: string }>(
-      `/api/v1/billing/balance/${advertiserId}`
+      `/api/v1/billing/balance`
     ),
 
-  getTransactions: (advertiserId: number, limit = 50, offset = 0) =>
+  getTransactions: (limit = 50, offset = 0) =>
     request<Array<{
       id: number; type: string; amount_cents: number;
       balance_after: number; description: string; created_at: string;
-    }>>(`/api/v1/billing/transactions?advertiser_id=${advertiserId}&limit=${limit}&offset=${offset}`),
+    }>>(`/api/v1/billing/transactions?limit=${limit}&offset=${offset}`),
 
-  topUp: (advertiserId: number, amountCents: number, description?: string) =>
+  topUp: (amountCents: number, description?: string) =>
     request<{ id: number; balance_after: number }>("/api/v1/billing/topup", {
       method: "POST",
-      body: JSON.stringify({ advertiser_id: advertiserId, amount_cents: amountCents, description: description || "" }),
+      body: JSON.stringify({ amount_cents: amountCents, description: description || "" }),
     }),
 };

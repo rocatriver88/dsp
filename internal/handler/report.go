@@ -9,6 +9,18 @@ import (
 	"github.com/heartgryphon/dsp/internal/reporting"
 )
 
+// parseCampaignID is the shared path-id parse used by the report handlers.
+// On parse failure we return 404 (not 400) to stay consistent with the
+// tenant-hiding rule: a client poking at an invalid id learns nothing.
+func parseCampaignID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, "not found")
+		return 0, false
+	}
+	return id, true
+}
+
 // HandleCampaignStats godoc
 // @Summary Get campaign stats
 // @Tags reports
@@ -18,15 +30,19 @@ import (
 // @Param from query string false "Start date (YYYY-MM-DD)"
 // @Param to query string false "End date (YYYY-MM-DD)"
 // @Success 200 {object} reporting.CampaignStats
+// @Failure 401 {object} object{error=string}
+// @Failure 404 {object} object{error=string}
 // @Router /reports/campaign/{id}/stats [get]
 func (d *Deps) HandleCampaignStats(w http.ResponseWriter, r *http.Request) {
-	if d.ReportStore == nil {
-		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
+	id, ok := parseCampaignID(w, r)
+	if !ok {
 		return
 	}
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid id")
+	if !d.ensureCampaignOwner(w, r, id) {
+		return
+	}
+	if d.ReportStore == nil {
+		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
 		return
 	}
 	from, to := ParseDateRange(r)
@@ -46,15 +62,19 @@ func (d *Deps) HandleCampaignStats(w http.ResponseWriter, r *http.Request) {
 // @Param id path int true "Campaign ID"
 // @Param date query string false "Date (YYYY-MM-DD)"
 // @Success 200 {array} reporting.HourlyStats
+// @Failure 401 {object} object{error=string}
+// @Failure 404 {object} object{error=string}
 // @Router /reports/campaign/{id}/hourly [get]
 func (d *Deps) HandleHourlyStats(w http.ResponseWriter, r *http.Request) {
-	if d.ReportStore == nil {
-		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
+	id, ok := parseCampaignID(w, r)
+	if !ok {
 		return
 	}
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid id")
+	if !d.ensureCampaignOwner(w, r, id) {
+		return
+	}
+	if d.ReportStore == nil {
+		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
 		return
 	}
 	dateStr := r.URL.Query().Get("date")
@@ -82,15 +102,19 @@ func (d *Deps) HandleHourlyStats(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param id path int true "Campaign ID"
 // @Success 200 {array} reporting.GeoStats
+// @Failure 401 {object} object{error=string}
+// @Failure 404 {object} object{error=string}
 // @Router /reports/campaign/{id}/geo [get]
 func (d *Deps) HandleGeoBreakdown(w http.ResponseWriter, r *http.Request) {
-	if d.ReportStore == nil {
-		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
+	id, ok := parseCampaignID(w, r)
+	if !ok {
 		return
 	}
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid id")
+	if !d.ensureCampaignOwner(w, r, id) {
+		return
+	}
+	if d.ReportStore == nil {
+		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
 		return
 	}
 	from, to := ParseDateRange(r)
@@ -114,15 +138,19 @@ func (d *Deps) HandleGeoBreakdown(w http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Limit" default(100)
 // @Param offset query int false "Offset" default(0)
 // @Success 200 {array} reporting.BidDetail
+// @Failure 401 {object} object{error=string}
+// @Failure 404 {object} object{error=string}
 // @Router /reports/campaign/{id}/bids [get]
 func (d *Deps) HandleBidTransparency(w http.ResponseWriter, r *http.Request) {
-	if d.ReportStore == nil {
-		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
+	id, ok := parseCampaignID(w, r)
+	if !ok {
 		return
 	}
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid id")
+	if !d.ensureCampaignOwner(w, r, id) {
+		return
+	}
+	if d.ReportStore == nil {
+		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
 		return
 	}
 	from, to := ParseDateRange(r)
@@ -149,15 +177,19 @@ func (d *Deps) HandleBidTransparency(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param id path int true "Campaign ID"
 // @Success 200 {object} reporting.AttributionReport
+// @Failure 401 {object} object{error=string}
+// @Failure 404 {object} object{error=string}
 // @Router /reports/campaign/{id}/attribution [get]
 func (d *Deps) HandleAttribution(w http.ResponseWriter, r *http.Request) {
-	if d.ReportStore == nil {
-		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
+	id, ok := parseCampaignID(w, r)
+	if !ok {
 		return
 	}
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid id")
+	if !d.ensureCampaignOwner(w, r, id) {
+		return
+	}
+	if d.ReportStore == nil {
+		WriteError(w, http.StatusServiceUnavailable, "ClickHouse not connected")
 		return
 	}
 	from, to := ParseDateRange(r)
@@ -191,7 +223,7 @@ func (d *Deps) HandleBidSimulate(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid id")
+		WriteError(w, http.StatusNotFound, "not found")
 		return
 	}
 
@@ -206,7 +238,7 @@ func (d *Deps) HandleBidSimulate(w http.ResponseWriter, r *http.Request) {
 	advID := auth.AdvertiserIDFromContext(r.Context())
 	camp, err := d.Store.GetCampaignForAdvertiser(r.Context(), id, advID)
 	if err != nil {
-		WriteError(w, http.StatusNotFound, "campaign not found")
+		WriteError(w, http.StatusNotFound, "not found")
 		return
 	}
 

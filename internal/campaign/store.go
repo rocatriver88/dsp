@@ -423,6 +423,19 @@ func (s *Store) DeleteCreative(ctx context.Context, creativeID int64) error {
 	return err
 }
 
+// GetCreativeCampaignID returns the campaign id that owns a creative. Used by
+// handlers to translate a creative id into its tenant-ownership anchor before
+// allowing an update or delete. Returns an error if the creative does not
+// exist so callers can surface a 404 without leaking existence.
+func (s *Store) GetCreativeCampaignID(ctx context.Context, creativeID int64) (int64, error) {
+	var campaignID int64
+	err := s.db.QueryRow(ctx,
+		`SELECT campaign_id FROM creatives WHERE id = $1`,
+		creativeID,
+	).Scan(&campaignID)
+	return campaignID, err
+}
+
 // UpdateCreativeStatus changes a creative's review status (pending/approved/rejected).
 func (s *Store) UpdateCreativeStatus(ctx context.Context, creativeID int64, status string) error {
 	_, err := s.db.Exec(ctx,

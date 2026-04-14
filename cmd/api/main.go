@@ -150,7 +150,7 @@ func main() {
 	publicMux.HandleFunc("GET /api/v1/analytics/snapshot", h.HandleAnalyticsSnapshot)
 	publicMux.HandleFunc("POST /api/v1/billing/topup", h.HandleTopUp)
 	publicMux.HandleFunc("GET /api/v1/billing/transactions", h.HandleTransactions)
-	publicMux.HandleFunc("GET /api/v1/billing/balance/{id}", h.HandleBalance)
+	publicMux.HandleFunc("GET /api/v1/billing/balance", h.HandleBalance)
 	publicMux.HandleFunc("POST /api/v1/upload", h.HandleUpload)
 	publicMux.Handle("/uploads/", http.StripPrefix("/uploads/", handler.UploadFileServer()))
 	publicMux.HandleFunc("POST /api/v1/register", h.HandleRegister)

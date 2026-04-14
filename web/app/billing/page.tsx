@@ -30,8 +30,8 @@ export default function BillingPage() {
     setLoading(true);
     setError(null);
     Promise.all([
-      api.getBalance(1),
-      api.getTransactions(1),
+      api.getBalance(),
+      api.getTransactions(),
     ])
       .then(([b, t]) => {
         setBalance(b.balance_cents);
@@ -122,7 +122,7 @@ export default function BillingPage() {
                   setTopUpLoading(true);
                   setTopUpError(null);
                   try {
-                    await api.topUp(1, amt * 100, topUpDesc);
+                    await api.topUp(amt * 100, topUpDesc);
                     setTopUpSuccess(true);
                     setTopUpAmount("");
                     setTopUpDesc("");

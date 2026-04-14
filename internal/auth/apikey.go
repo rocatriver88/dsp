@@ -32,6 +32,13 @@ func AdvertiserIDFromContext(ctx context.Context) int64 {
 	return 0
 }
 
+// WithAdvertiserForTest injects a minimal Advertiser into the context for tests.
+// Production code must not use this helper — real requests get their advertiser
+// via APIKeyMiddleware after a successful key lookup.
+func WithAdvertiserForTest(ctx context.Context, id int64) context.Context {
+	return context.WithValue(ctx, advertiserKey, &Advertiser{ID: id})
+}
+
 // APIKeyLookup is the function signature for looking up an advertiser by API key.
 type APIKeyLookup func(ctx context.Context, key string) (id int64, companyName, email string, err error)
 

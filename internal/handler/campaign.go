@@ -51,33 +51,37 @@ func (d *Deps) HandleCreateAdvertiser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	WriteJSON(w, http.StatusCreated, map[string]any{
-		"id":      id,
-		"api_key": apiKey,
-		"message": "advertiser created",
+	WriteJSON(w, http.StatusCreated, AdvertiserCreatedResponse{
+		ID:      id,
+		APIKey:  apiKey,
+		Message: "advertiser created",
 	})
 }
 
 // HandleGetAdvertiser godoc
-// @Summary Get advertiser by ID
+// @Summary Get advertiser by ID (self only)
 // @Tags advertisers
 // @Security ApiKeyAuth
 // @Produce json
 // @Param id path int true "Advertiser ID"
-// @Success 200 {object} campaign.Advertiser
+// @Success 200 {object} handler.AdvertiserResponse
+// @Failure 404 {object} object{error=string}
 // @Router /advertisers/{id} [get]
 func (d *Deps) HandleGetAdvertiser(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid id")
+		WriteError(w, http.StatusNotFound, "not found")
+		return
+	}
+	if !ensureSelfAccess(w, r, id) {
 		return
 	}
 	adv, err := d.Store.GetAdvertiser(r.Context(), id)
 	if err != nil {
-		WriteError(w, http.StatusNotFound, "advertiser not found")
+		WriteError(w, http.StatusNotFound, "not found")
 		return
 	}
-	WriteJSON(w, http.StatusOK, adv)
+	WriteJSON(w, http.StatusOK, NewAdvertiserResponse(adv))
 }
 
 // HandleCreateCampaign godoc
@@ -353,15 +357,24 @@ func (d *Deps) HandlePauseCampaign(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleListCreatives godoc
-// @Summary List creatives for campaign
+// @Summary List creatives for a campaign (owner only)
 // @Tags creatives
 // @Security ApiKeyAuth
 // @Produce json
 // @Param id path int true "Campaign ID"
 // @Success 200 {array} campaign.Creative
+// @Failure 401 {object} object{error=string}
+// @Failure 404 {object} object{error=string}
 // @Router /campaigns/{id}/creatives [get]
 func (d *Deps) HandleListCreatives(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, "not found")
+		return
+	}
+	if !d.ensureCampaignOwner(w, r, id) {
+		return
+	}
 	creatives, err := d.Store.GetAllCreativesByCampaign(r.Context(), id)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -374,32 +387,51 @@ func (d *Deps) HandleListCreatives(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleDeleteCreative godoc
-// @Summary Delete creative
+// @Summary Delete creative (owner only)
 // @Tags creatives
 // @Security ApiKeyAuth
 // @Param id path int true "Creative ID"
 // @Success 200 {object} object{status=string}
+// @Failure 401 {object} object{error=string}
+// @Failure 404 {object} object{error=string}
 // @Router /creatives/{id} [delete]
 func (d *Deps) HandleDeleteCreative(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, "not found")
+		return
+	}
+	campaignID, ok := d.ensureCreativeOwner(w, r, id)
+	if !ok {
+		return
+	}
 	if err := d.Store.DeleteCreative(r.Context(), id); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if d.Redis != nil {
+		bidder.NotifyCampaignUpdate(r.Context(), d.Redis, campaignID, "updated")
 	}
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
 // HandleUpdateCreative godoc
-// @Summary Update creative
+// @Summary Update creative (owner only)
 // @Tags creatives
 // @Security ApiKeyAuth
 // @Accept json
 // @Produce json
 // @Param id path int true "Creative ID"
 // @Success 200 {object} object{status=string}
+// @Failure 401 {object} object{error=string}
+// @Failure 404 {object} object{error=string}
 // @Router /creatives/{id} [put]
 func (d *Deps) HandleUpdateCreative(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		WriteError(w, http.StatusNotFound, "not found")
+		return
+	}
 	var req struct {
 		Name           string `json:"name"`
 		AdType         string `json:"ad_type"`
@@ -410,6 +442,10 @@ func (d *Deps) HandleUpdateCreative(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	campaignID, ok := d.ensureCreativeOwner(w, r, id)
+	if !ok {
 		return
 	}
 	cr := &campaign.Creative{
@@ -424,6 +460,9 @@ func (d *Deps) HandleUpdateCreative(w http.ResponseWriter, r *http.Request) {
 	if err := d.Store.UpdateCreative(r.Context(), cr); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if d.Redis != nil {
+		bidder.NotifyCampaignUpdate(r.Context(), d.Redis, campaignID, "updated")
 	}
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
@@ -463,6 +502,9 @@ func (d *Deps) HandleCreateCreative(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "invalid ad_type: must be splash, interstitial, native, or banner")
 		return
 	}
+	if !d.ensureCampaignOwner(w, r, req.CampaignID) {
+		return
+	}
 	cr := &campaign.Creative{
 		CampaignID:     req.CampaignID,
 		Name:           req.Name,
@@ -488,6 +530,9 @@ func (d *Deps) HandleCreateCreative(w http.ResponseWriter, r *http.Request) {
 	if os.Getenv("ENV") != "production" {
 		_ = d.Store.UpdateCreativeStatus(r.Context(), id, "approved")
 		status = "approved"
+	}
+	if d.Redis != nil {
+		bidder.NotifyCampaignUpdate(r.Context(), d.Redis, req.CampaignID, "updated")
 	}
 	WriteJSON(w, http.StatusCreated, map[string]any{"id": id, "status": status})
 }

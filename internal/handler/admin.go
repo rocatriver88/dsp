@@ -110,10 +110,10 @@ func (d *Deps) HandleApproveRegistration(w http.ResponseWriter, r *http.Request)
 		WriteError(w, http.StatusConflict, err.Error())
 		return
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{
-		"advertiser_id": advID,
-		"api_key":       apiKey,
-		"message":       "Registration approved. Advertiser account created.",
+	WriteJSON(w, http.StatusOK, RegistrationApprovedResponse{
+		AdvertiserID: advID,
+		APIKey:       apiKey,
+		Message:      "Registration approved. Advertiser account created.",
 	})
 }
 
