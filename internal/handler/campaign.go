@@ -167,6 +167,10 @@ func (d *Deps) HandleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if d.Redis != nil {
+		bidder.NotifyCampaignUpdate(r.Context(), d.Redis, id, "updated")
+	}
+
 	WriteJSON(w, http.StatusCreated, map[string]any{"id": id, "status": "draft"})
 }
 
@@ -258,6 +262,9 @@ func (d *Deps) HandleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
 	if err := d.Store.UpdateCampaign(r.Context(), id, advID, req.Name, req.BidCPMCents, req.BudgetDailyCents, req.Targeting); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if d.Redis != nil {
+		bidder.NotifyCampaignUpdate(r.Context(), d.Redis, id, "updated")
 	}
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
