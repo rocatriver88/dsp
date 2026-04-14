@@ -463,11 +463,18 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 			GeoCountry:       r.URL.Query().Get("geo"),
 			DeviceOS:         r.URL.Query().Get("os"),
 		}
-		// Use background context — request context gets cancelled when handler returns,
-		// which would abort the Kafka write in the goroutine.
-		bgCtx := context.Background()
-		go producer.SendWin(bgCtx, evt)
-		go producer.SendImpression(bgCtx, evt)
+		// Use background context — request context gets cancelled when handler
+		// returns, which would abort the Kafka write in the goroutine.
+		//
+		// V5 §P1 Step B: we no longer emit a duplicate 'impression' event
+		// here. bid_log therefore stops accumulating one spurious row per
+		// won bid. Reporting aggregation is unaffected — Step A already
+		// switched the query to countDistinctIf(request_id, ...) which
+		// collapsed the duplicate before, so it collapses nothing now.
+		// If a real impression callback (pixel / SDK) is ever introduced,
+		// it should write its own request_id-distinct event into
+		// dsp.impressions; the aggregation will then correctly add it.
+		go producer.SendWin(context.Background(), evt)
 	}
 
 	fmt.Fprintf(w, `{"status":"ok","remaining_cents":%d}`, remaining)
@@ -483,6 +490,26 @@ func handleClick(w http.ResponseWriter, r *http.Request) {
 	hmacSecret := config.Load().BidderHMACSecret
 	if !auth.ValidateToken(hmacSecret, token, campaignIDStr, requestID) {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
+		return
+	}
+
+	// Click dedup: prevent double budget deduction and double event emission
+	// from duplicate click callbacks (ad network retries, multi-click
+	// fraud, accidental page reloads). Same 5-minute TTL as the win dedup
+	// so short-window retries collapse while long-spaced genuine clicks
+	// from the same request_id remain out of scope (there shouldn't be
+	// any; the request_id is tied to a single impression).
+	dedupKey := fmt.Sprintf("click:dedup:%s", requestID)
+	wasNew, dedupErr := rdb.SetNX(r.Context(), dedupKey, 1, 5*time.Minute).Result()
+	if dedupErr != nil {
+		log.Printf("[CLICK-DEDUP] Redis error (proceeding): %v", dedupErr)
+	} else if !wasNew {
+		log.Printf("[CLICK-DEDUP] duplicate click for request_id=%s", requestID)
+		if dest != "" {
+			http.Redirect(w, r, dest, http.StatusFound)
+			return
+		}
+		fmt.Fprintf(w, `{"status":"duplicate"}`)
 		return
 	}
 
@@ -514,7 +541,10 @@ func handleClick(w http.ResponseWriter, r *http.Request) {
 		if c != nil && c.BillingModel == "cpc" {
 			charge = float64(c.BidCPCCents) / 100.0 // CPC: charge per click in dollars
 		}
-		go producer.SendClick(r.Context(), events.Event{
+		// Background context — request context cancels when the handler
+		// returns (especially on the dest redirect path), which would
+		// abort the Kafka write in flight.
+		go producer.SendClick(context.Background(), events.Event{
 			CampaignID:       campaignID,
 			RequestID:        requestID,
 			AdvertiserCharge: charge,
@@ -547,7 +577,8 @@ func handleConvert(w http.ResponseWriter, r *http.Request) {
 	campaignID, _ := strconv.ParseInt(campaignIDStr, 10, 64)
 
 	if campaignID > 0 && producer != nil {
-		go producer.SendConversion(r.Context(), events.Event{
+		// Background context — see handleWin / handleClick for rationale.
+		go producer.SendConversion(context.Background(), events.Event{
 			CampaignID: campaignID,
 			RequestID:  requestID,
 			GeoCountry: r.URL.Query().Get("geo"),
