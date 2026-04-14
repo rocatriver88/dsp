@@ -6,7 +6,7 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     ports:
-      - "6432:5432"
+      - "15432:5432"
     environment:
       POSTGRES_DB: dsp
       POSTGRES_USER: dsp
@@ -24,7 +24,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "7380:6379"
+      - "16380:6379"
     command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-dsp_dev_password}", "--appendonly", "yes"]
     volumes:
       - redisdata:/data
@@ -39,8 +39,8 @@ services:
     image: clickhouse/clickhouse-server:24-alpine
     restart: unless-stopped
     ports:
-      - "9124:8123"
-      - "10001:9000"
+      - "18124:8123"
+      - "19001:9000"
     environment:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-dsp_dev_password}
@@ -58,13 +58,13 @@ services:
     image: apache/kafka:latest
     restart: unless-stopped
     ports:
-      - "10094:9094"
+      - "19094:9094"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9193
       KAFKA_LISTENERS: INTERNAL://0.0.0.0:19094,EXTERNAL://0.0.0.0:9094,CONTROLLER://0.0.0.0:9193
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19094,EXTERNAL://localhost:10094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19094,EXTERNAL://localhost:19094
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
@@ -142,8 +142,8 @@ services:
       dockerfile: deploy/docker/Dockerfile.api
     restart: unless-stopped
     ports:
-      - "9181:8181"
-      - "9182:8182"
+      - "18181:8181"
+      - "18182:8182"
     environment:
       ENV: development
       DB_HOST: postgres
@@ -158,7 +158,7 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-dsp_dev_password}
       API_PORT: 8181
       INTERNAL_PORT: 8182
-      CORS_ALLOWED_ORIGINS: http://localhost:5000
+      CORS_ALLOWED_ORIGINS: http://localhost:14000
       ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}
     depends_on:
       postgres:
@@ -184,7 +184,7 @@ services:
       dockerfile: deploy/docker/Dockerfile.bidder
     restart: unless-stopped
     ports:
-      - "9180:8180"
+      - "18180:8180"
     environment:
       ENV: development
       DB_HOST: postgres
@@ -199,7 +199,7 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-dsp_dev_password}
       BIDDER_PORT: 8180
-      BIDDER_PUBLIC_URL: http://localhost:9180
+      BIDDER_PUBLIC_URL: http://localhost:18180
       BIDDER_HMAC_SECRET: ${BIDDER_HMAC_SECRET:-dev-hmac-secret-change-in-production}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}
     depends_on:
@@ -245,14 +245,14 @@ services:
       context: .
       dockerfile: deploy/docker/Dockerfile.web
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:9181
-        NEXT_PUBLIC_ADMIN_API_URL: http://localhost:9182
+        NEXT_PUBLIC_API_URL: http://localhost:18181
+        NEXT_PUBLIC_ADMIN_API_URL: http://localhost:18182
     restart: unless-stopped
     ports:
-      - "5000:4000"
+      - "14000:4000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:9181
-      NEXT_PUBLIC_ADMIN_API_URL: http://localhost:9182
+      NEXT_PUBLIC_API_URL: http://localhost:18181
+      NEXT_PUBLIC_ADMIN_API_URL: http://localhost:18182
     depends_on:
       api:
         condition: service_healthy
@@ -262,7 +262,7 @@ services:
     image: prom/prometheus:latest
     restart: unless-stopped
     ports:
-      - "${PROMETHEUS_PORT:-11090}:9090"
+      - "${PROMETHEUS_PORT:-20090}:9090"
     volumes:
       - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
     depends_on:
@@ -276,7 +276,7 @@ services:
     image: grafana/grafana:latest
     restart: unless-stopped
     ports:
-      - "${GRAFANA_PORT:-5100}:3000"
+      - "${GRAFANA_PORT:-14100}:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_AUTH_ANONYMOUS_ENABLED: "true"
