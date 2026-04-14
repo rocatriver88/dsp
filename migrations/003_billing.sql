@@ -35,6 +35,6 @@ CREATE TABLE IF NOT EXISTS daily_reconciliation (
     UNIQUE(campaign_id, date)
 );
 
-CREATE INDEX idx_transactions_advertiser ON transactions(advertiser_id);
-CREATE INDEX idx_invoices_advertiser ON invoices(advertiser_id);
-CREATE INDEX idx_reconciliation_date ON daily_reconciliation(date);
+CREATE INDEX IF NOT EXISTS idx_transactions_advertiser ON transactions(advertiser_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_advertiser ON invoices(advertiser_id);
+CREATE INDEX IF NOT EXISTS idx_reconciliation_date ON daily_reconciliation(date);

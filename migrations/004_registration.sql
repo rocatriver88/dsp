@@ -20,4 +20,4 @@ CREATE TABLE IF NOT EXISTS registration_requests (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_registration_status ON registration_requests(status);
+CREATE INDEX IF NOT EXISTS idx_registration_status ON registration_requests(status);

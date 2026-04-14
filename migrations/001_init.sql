@@ -39,6 +39,6 @@ CREATE TABLE IF NOT EXISTS creatives (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_campaigns_advertiser ON campaigns(advertiser_id);
-CREATE INDEX idx_campaigns_status ON campaigns(status);
-CREATE INDEX idx_creatives_campaign ON creatives(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_advertiser ON campaigns(advertiser_id);
+CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
+CREATE INDEX IF NOT EXISTS idx_creatives_campaign ON creatives(campaign_id);
