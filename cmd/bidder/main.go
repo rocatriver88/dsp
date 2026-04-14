@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"os/signal"
 	"strconv"
 	"strings"
@@ -46,30 +45,49 @@ func main() {
 	if err := cfg.Validate(); err != nil {
 		log.Fatalf("config validation failed: %v", err)
 	}
-	ctx := context.Background()
+
+	// processCtx cancels on SIGINT/SIGTERM and is the single source of
+	// truth for "should the process be winding down". Startup operations
+	// use it too (they complete long before any signal), so a signal
+	// arriving mid-startup still unwinds cleanly.
+	processCtx, processStop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer processStop()
+
+	// workerCtx drives long-lived background loops (stats cache refresh,
+	// campaign loader periodic pull + pub/sub subscribe, daily budget
+	// reset). The shutdown sequence cancels it explicitly before HTTP
+	// drain so workers stop generating new writes while inflight bid /
+	// win / click handlers are still finishing. Keeping worker lifetime
+	// separate from request lifetime is the V5 §P1 lifecycle rule — one
+	// shared root ctx would cancel inflight HTTP handlers mid-flight.
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	defer workerCancel()
 
 	// Connect PostgreSQL
-	db, err := pgxpool.New(ctx, cfg.DSN())
+	db, err := pgxpool.New(processCtx, cfg.DSN())
 	if err != nil {
 		log.Fatalf("connect postgres: %v", err)
 	}
 	defer db.Close()
-	if err := db.Ping(ctx); err != nil {
+	if err := db.Ping(processCtx); err != nil {
 		log.Fatalf("ping postgres: %v", err)
 	}
 	log.Println("Connected to PostgreSQL")
 
 	// Connect Redis
 	rdb = redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
-	if err := rdb.Ping(ctx).Err(); err != nil {
+	defer rdb.Close()
+	if err := rdb.Ping(processCtx).Err(); err != nil {
 		log.Fatalf("connect redis: %v (bidder requires Redis for budget/freq control)", err)
 	}
 	log.Println("Connected to Redis")
 
-	// Initialize Kafka producer (optional)
+	// Initialize Kafka producer. Producer.Close is called explicitly in
+	// the shutdown sequence below (after HTTP drain, before storage
+	// close) so its ordering is load-bearing — relying on defer LIFO
+	// would work today but is opaque to readers.
 	brokers := strings.Split(cfg.KafkaBrokers, ",")
 	producer = events.NewProducer(brokers, "/tmp/dsp-kafka-buffer")
-	defer producer.Close()
 	log.Printf("Kafka producer initialized (brokers: %s)", cfg.KafkaBrokers)
 
 	// Initialize services
@@ -90,7 +108,7 @@ func main() {
 
 	// Stats cache: 24h rolling CTR/CVR from ClickHouse → Redis, refreshed every 5min
 	statsCache = bidder.NewStatsCache(rdb, reportStore, loader.GetActiveCampaigns)
-	go statsCache.Start(ctx)
+	go statsCache.Start(workerCtx)
 
 	guard = guardrail.New(rdb, guardrail.Config{
 		GlobalDailyBudgetCents: cfg.GlobalDailyBudgetCents,
@@ -107,18 +125,22 @@ func main() {
 	log.Println("BidStrategy + StatsCache initialized (dynamic bidding active)")
 
 	// Replay buffered Kafka events from prior outages
-	if err := producer.ReplayBuffer(ctx); err != nil {
+	if err := producer.ReplayBuffer(processCtx); err != nil {
 		log.Printf("Kafka replay: %v (continuing)", err)
 	}
 
-	// Load campaigns from DB
-	if err := loader.Start(ctx); err != nil {
+	// Load campaigns from DB. loader.Start does a one-shot fullLoad and
+	// then spawns its periodicRefresh + pub/sub subscriber goroutines
+	// bound to workerCtx, so cancelling workerCtx cleanly unwinds them.
+	// loader.Stop() is still called in the shutdown sequence as belt
+	// and suspenders (it closes an internal stopCh honored in the same
+	// for-select).
+	if err := loader.Start(workerCtx); err != nil {
 		log.Fatalf("campaign loader: %v", err)
 	}
-	defer loader.Stop()
-	defer statsCache.Stop()
 
-	// Daily budget auto-reset at midnight CST (must start after loader)
+	// Daily budget auto-reset at midnight CST (must start after loader).
+	// Bound to workerCtx so SIGTERM stops it cleanly.
 	go func() {
 		loc, _ := time.LoadLocation("Asia/Shanghai")
 		for {
@@ -129,12 +151,12 @@ func main() {
 			case <-timer.C:
 				campaigns := loader.GetActiveCampaigns()
 				for _, c := range campaigns {
-					if err := budgetSvc.InitDailyBudget(ctx, c.ID, c.BudgetDailyCents); err != nil {
+					if err := budgetSvc.InitDailyBudget(workerCtx, c.ID, c.BudgetDailyCents); err != nil {
 						log.Printf("[BUDGET-RESET] campaign=%d error=%v", c.ID, err)
 					}
 				}
 				log.Printf("[BUDGET-RESET] Reset %d campaigns at %s", len(campaigns), time.Now().In(loc).Format(time.RFC3339))
-			case <-ctx.Done():
+			case <-workerCtx.Done():
 				timer.Stop()
 				return
 			}
@@ -166,16 +188,41 @@ func main() {
 		}
 	}()
 
-	// Graceful shutdown: drain in-flight requests, flush Kafka, close connections
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
-	<-quit
+	// Graceful shutdown: five invariants from V5 §P1 lifecycle.
+	//
+	//   1. new requests stop entering
+	//   2. workers exit (stats cache, loader goroutines, daily budget reset)
+	//   3. inflight bid / win / click handlers can drain
+	//   4. Kafka producer flushes its buffer after the last business write
+	//   5. storage connections (redis, db) close last
+	//
+	// Ordering rationale (codex V4):
+	//   - Cancel workerCtx BEFORE HTTP drain so the periodic refresh and
+	//     pub/sub listener stop writing to the loader cache during drain.
+	//   - http.Server.Shutdown atomically handles (1) stop Accept and
+	//     (3) drain inflight; it blocks until drain completes or the
+	//     shutdown context times out.
+	//   - producer.Close happens AFTER Shutdown so any inflight click /
+	//     convert / win handler that enqueued an event finishes before
+	//     the Kafka writer flushes. Going in the opposite order would
+	//     drop the tail of the in-flight event stream.
+	//   - rdb.Close / db.Close happen via top-of-main defers after
+	//     main() returns, so every preceding step has already finished
+	//     before storage goes away.
+	<-processCtx.Done()
 	log.Println("Shutting down bidder...")
+
+	workerCancel()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	srv.Shutdown(shutdownCtx)
+	_ = srv.Shutdown(shutdownCtx)
+
+	// Belt and suspenders: these each close their own stopCh in addition
+	// to honoring workerCtx.Done. Idempotent with the workerCancel above.
 	loader.Stop()
+	statsCache.Stop()
+
 	producer.Close()
 	log.Println("Bidder stopped")
 }

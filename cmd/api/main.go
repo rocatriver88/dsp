@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -47,22 +46,40 @@ func main() {
 	if err := cfg.Validate(); err != nil {
 		log.Fatalf("config validation failed: %v", err)
 	}
-	ctx := context.Background()
+
+	// processCtx is cancelled when the process receives SIGINT or SIGTERM.
+	// It's used for one-shot startup operations (they complete long before
+	// any signal can arrive) and as the trigger that unblocks the shutdown
+	// sequence at the bottom of main. It is deliberately NOT passed to
+	// long-lived background loops — those use workerCtx below.
+	processCtx, processStop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer processStop()
+
+	// workerCtx drives every long-lived background loop (autopause,
+	// reconciliation, etc.). The shutdown sequence cancels it explicitly
+	// *before* draining HTTP so workers stop generating new Redis/DB
+	// writes while inflight requests are still finishing. Separating this
+	// from the request lifecycle is the V5 §P1 lifecycle requirement:
+	// cancelling one root context would kill inflight requests mid-flight
+	// and cause spurious client retries.
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	defer workerCancel()
 
 	// Connect PostgreSQL
-	db, err := pgxpool.New(ctx, cfg.DSN())
+	db, err := pgxpool.New(processCtx, cfg.DSN())
 	if err != nil {
 		log.Fatalf("connect to postgres: %v", err)
 	}
 	defer db.Close()
-	if err := db.Ping(ctx); err != nil {
+	if err := db.Ping(processCtx); err != nil {
 		log.Fatalf("ping postgres: %v", err)
 	}
 	log.Println("Connected to PostgreSQL")
 
 	// Connect Redis (optional)
 	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
-	if err := rdb.Ping(ctx).Err(); err != nil {
+	defer rdb.Close()
+	if err := rdb.Ping(processCtx).Err(); err != nil {
 		log.Printf("Warning: Redis not available (%v), pub/sub notifications disabled", err)
 		rdb = nil
 	} else {
@@ -102,12 +119,12 @@ func main() {
 
 	// Start auto-pause background service
 	autoPauseSvc := autopause.New(store, reportStore, rdb)
-	go autoPauseSvc.Start(ctx)
+	go autoPauseSvc.Start(workerCtx)
 
 	// Start hourly reconciliation
 	if reportStore != nil && rdb != nil {
 		reconSvc := reconciliation.New(rdb, store, reportStore, billingSvc, alert.Noop{})
-		reconSvc.StartHourlySchedule(ctx, 1.0) // 1% threshold
+		reconSvc.StartHourlySchedule(workerCtx, 1.0) // 1% threshold
 		log.Println("Hourly reconciliation started")
 	}
 
@@ -224,14 +241,32 @@ func main() {
 		}
 	}()
 
-	// Graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
-	<-quit
+	// Graceful shutdown: five invariants from V5 §P1 lifecycle.
+	//
+	//   1. new requests stop entering
+	//   2. workers exit
+	//   3. inflight requests can drain
+	//   4. producer flushes after last business write  (no producer in api)
+	//   5. storage connections close last              (via deferred closers)
+	//
+	// Ordering rationale (codex V4):
+	//   - Cancel workerCtx BEFORE HTTP drain so autopause / reconciliation
+	//     stop producing new DB/Redis writes during drain. If we drained
+	//     HTTP first, workers could still race inflight handlers.
+	//   - http.Server.Shutdown atomically handles (1) stop Accept and
+	//     (3) drain inflight; the call blocks until drain completes or
+	//     shutdownCtx times out.
+	//   - Storage close is via the top-of-main defers, which fire after
+	//     main() returns — i.e. after every worker and every HTTP handler
+	//     is done, satisfying invariant 5.
+	<-processCtx.Done()
 	log.Println("Shutting down API server...")
+
+	workerCancel()
+
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	publicSrv.Shutdown(shutdownCtx)
-	internalSrv.Shutdown(shutdownCtx)
+	_ = publicSrv.Shutdown(shutdownCtx)
+	_ = internalSrv.Shutdown(shutdownCtx)
 	log.Println("API server stopped")
 }
