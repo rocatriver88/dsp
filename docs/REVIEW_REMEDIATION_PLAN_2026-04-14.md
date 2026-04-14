@@ -1,314 +1,421 @@
-# 评审整改任务单（2026-04-14）
+# 评审整改任务单 — 2026-04-14 执行基线（V5）
 
-## 目的
-本任务单基于 2026-04-14 对当前仓库的设计与实现评审结果整理，目标是把高风险问题先收口，再推进数据语义和运行时一致性修正。本文档面向执行修改的工程代理，要求按优先级落地代码、补测试、给出验证结果。
+> 本文件是 2026-04-14 项目评审整改任务的**最终执行基线**。V5 在技术决定上完整采纳 codex V4 的结论，本版的作用仅是合并 V1 → V4 的演进轨迹并归档历史版本。后续若有新的评审发现，从本文件继续迭代。
+>
+> **历史版本**（供审计与溯源）：`docs/archive/REVIEW_REMEDIATION_PLAN_2026-04-14/`
+> - `V1.md` — 原独立第三方评审 + Claude Code 第一次注释（commit `97052d3`）
+> - `V2.md` — codex 对 V1 的响应，提出 Claude V2 的执行方案调整
+> - `V3.md` — Claude Code 对 V2 的响应（commit `989685c`），含 Claude Code 后来被 codex 纠正的 Step 1A 错误
+> - `V4.md` — codex 对 V3 的响应，修正 V3 六处问题
+> - （本文件，无版本后缀）— V5 执行基线，内容 = V4 原文 + 本审计表
 
-## 复核说明（2026-04-14 二次）
-原评审的 14 项事实断言经代码逐条核实，**13 项 TRUE，1 项 PARTIAL**（P0 报表接口一节：`HandleBidSimulate` 已做 ownership 检查，其余 5 条未做）；无任何一项 STALE——近期 commit 未触及其中任一问题。评审事实层面可信。
+## 演进与决策审计
 
-本次复核新增或修订的条款（已合入下文，以便后续执行无需在两份文档间切换）：
+这份任务单的最终形态经过**两轮评审者往返**（Claude Code ↔ codex）和**一次显著的技术错误修正**。本节完整记录每一个关键议题的演进轨迹、最终决定及其理由，供未来维护者溯源"为什么当初这么定"。
 
-- **P0 新增"创意 handler scope"子项**：`HandleCreateCreative` / `HandleUpdateCreative` / `HandleDeleteCreative` 三个 handler 完全无 ownership 校验。`HandleDeleteCreative` 接收 `creativeID` 直接删除，任意广告主可删他人创意；`HandleUpdateCreative` 可篡改他人 `ad_markup`（存储型 XSS 注入向量）；`HandleCreateCreative` 可把创意塞到他人的 campaign 下。严重性等同原 P0 各项，必须同批修复。
-- **P1 win/impression 改为两步迁移**：直接停写 `impression` 会使依赖 `event_type='impression'` 聚合的 `internal/reporting` / `internal/autopause` / `internal/reconciliation` 立刻失效（CTR 分母归零、autopause 阈值失效、对账误差跳变），必须先放宽聚合条件再停写。
-- **P1 lifecycle 补出 shutdown 四步排序**：仅 cancel 根 ctx 不够，需要明确 HTTP 排空、Kafka flush、存储关闭的先后，否则会丢事件或产生无主后台写入。
-- **测试同步化**：原 P2 的"handler 授权测试""回调测试"条款吸收回各 P0/P1 子项的必做改动，遵循 TDD 先写测试再修代码。P2 只保留"端到端租户隔离集成测试"这种加强型的交叉覆盖。
-- **`admin-secret` 默认值直接删除**：不用 ENV guard。保留 fallback 是新人把默认值复制到生产环境的单点隐患。
-- **`api_key` 采用 `json:"-"`**：不引入 DTO。只有在"管理员回显 / 广告主屏蔽"两种形态同时存在时 DTO 才值得，现在没有这种分叉。
-- **删除原执行原则第 2 条**（本轮不涉及生成产物），新增"观察项"段落列出次级但值得跟踪的债务。
+### 1. `win` / `impression` 迁移方案（本轮最严重的一次 bug 修正）
+
+**演进**
+- **V1 原评审**：建议直接停写 `impression`、同时校准下游聚合
+- **V2 Claude Code**：改成两步迁移，Step 1A 在 bidder 仍双写的情况下把聚合改为 `event_type IN ('win','impression')`
+- **V4 codex** 指出 **V2 Step 1A 有双计缺陷**——双写状态下每次赢标在 `bid_log` 已存两行（`win` + `impression`），OR 聚合会把每次赢标算作 2 次曝光、CTR 腰斩、autopause 阈值失效
+- **V5 采纳** codex 的 `effective_delivery = countDistinctIf(request_id, event_type IN ('win','impression'))` 方案
+
+**最终决定**
+两步迁移，独立 PR 提交：
+- Step A：在 reporting / autopause / reconciliation 中引入 `effective_delivery` 共享聚合概念，bidder 仍保持双写
+- Step B：删除 `handleWin` 中伪造的 `SendImpression`，bid_log 从此不再新增 `event_type='impression'` 行
+- Step C（可随 A 或 B）：click 去重 + click/convert 改用后台 context
+
+**理由**
+`countDistinctIf(request_id, ...)` 在双写、停写、未来真实曝光回调三种状态下指标都稳定。V2 的 OR 聚合方案如果直接合并，会在落地当天让线上 CTR 减半。这是本次评审链条中捕获到的最严重 bug。
+
+### 2. `api_key` 隐藏：DTO vs `json:"-"`
+
+**演进**
+- **V1 原评审**：建议新增响应 DTO
+- **V3 Claude Code**：反驳为"过度工程"，建议直接在 model 上打 `json:"-"`
+- **V4 codex**：反驳重回 DTO，指出 `campaign.Advertiser` struct **已同时扛 DB model / OpenAPI schema / handler response 三个角色**
+- **V5 采纳** codex 的 DTO 方案
+
+**最终决定**
+新增 `AdvertiserResponse` DTO，所有对外读接口返回 DTO；持久化模型 `campaign.Advertiser` 的 `APIKey` 字段保持 `json:"api_key"` 不变。创建路径（`POST /advertisers`、admin 审核通过）继续返回一次明文 key，使用独立响应结构。
+
+**理由**
+`json:"-"` 打在持久化模型上有两个具体问题：(a) 内部审计 / 调试路径对 `Advertiser` 的 `json.Marshal` 也会丢失字段，是正确性问题；(b) 未来 admin 路径需要受控展示 key 时被 tag 反向约束。另外，"创建返回 key、读接口不返回"的分叉已经存在（创建路径当前用 `map[string]any{"id":..., "api_key":...}`），DTO 不是假想需求，而是对现状的合理重构。
+
+### 3. `POST /billing/topup` body 携带他人 `advertiser_id` 的处理
+
+**演进**
+- **V1 原评审**：忽略 body `advertiser_id`，强制从 auth 取
+- **V3 Claude Code**：提出"静默忽略该字段、路由到本人、返回 200"的"降噪"方案，类比 GitHub
+- **V4 codex**：反驳，这是账务写入，静默纠偏会让客户端以为给 B 充值实际给 A 扣款，破坏 reconciliation
+- **V5 采纳** codex 的 400
+
+**最终决定**
+过渡期如果 body 含 `advertiser_id` 且不等于 auth id，返回 **400 Bad Request**，附错误信息 "advertiser_id mismatch"；等于或缺失则 200 正常处理。最终状态应移除该字段。
+
+**理由**
+billing 是账务写入的硬边界。参数自相矛盾时必须显式失败，不能让客户端产生"成功但数据偏移"的状态——那会直接破坏对方的对账系统。这既不是攻击面（不是"危险输入"），也不是资源探测（无需 hide existence），语义上就是请求参数自相矛盾 → 400。
+
+### 4. admin token 缺失或错误的响应码
+
+**演进**
+- **V1 原评审**：未明确
+- **V3 Claude Code**：在规则段写 403，但在测试段写 401，**自相矛盾**
+- **V4 codex**：统一为 401，并定义完整三码规则
+- **V5 采纳**
+
+**最终决定**
+三码规则，全文一致：
+- **401 Unauthorized**：认证凭证缺失或无效（API key 错、admin token 错、未登录）
+- **404 Not Found**：已认证但访问其他租户的资源（隐藏存在性）
+- **400 Bad Request**：请求参数自相矛盾或语义非法（如 topup body 中的 foreign `advertiser_id`）
+
+**理由**
+admin token 错误语义上是"未证明身份"，对应 401。403 适用于"身份已知但无权限"的场景（如 RBAC），不适用于未认证。同类越权不能在不同 handler 里返回不同码——测试必须断言精确码而非 4xx 桶。
+
+### 5. `Config.Validate()` 的形态
+
+**演进**
+- **V1 原评审**：启动时调用 `Validate()`
+- **V2 Claude Code**：写成 `if err := cfg.Validate(); err != nil { log.Fatalf(...) }` 的硬要求
+- **V3 Claude Code**：放宽为"任意形态只要启动失败"（`log.Fatal` / `panic` / `return error` 均可）
+- **V4 codex**：收紧为 `Validate() error`，`log.Fatal` 由 main 决定
+- **V5 采纳** codex
+
+**最终决定**
+- `func (*Config) Validate() error` ——纯函数式，只返回错误
+- `cmd/api` 与 `cmd/bidder` 在启动时 `if err := cfg.Validate(); err != nil { log.Fatal(err) }`
+- config 包的单元测试直接断言 `err != nil`
+
+**理由**
+副作用（进程退出）应当和纯函数（校验逻辑）分开。把 `log.Fatal` 写在 config 包里会让单元测试笨重——要么用子进程，要么替换 logger，都比 pure function 贵得多。这是软件工程的基本纪律。
+
+### 6. shutdown 约束形式
+
+**演进**
+- **V2 Claude Code**：写成硬性四步序列 + 具体代码形态（`signal.NotifyContext`、一个 rootCtx 管所有）
+- **V3 Claude Code**：略松但仍是序列
+- **V4 codex**：改为"不变量约束" + **`workerCtx` 与 request ctx 分离**
+- **V5 采纳**
+
+**最终决定**
+- `processCtx`：进程级，从信号派生
+- `workerCtx`：长期后台 loop 用
+- **request ctx**：由 `http.Server` 独立管理，**不绑定到 root ctx**
+- 关闭不变量（五条）：
+  1. 新请求停止进入
+  2. worker 能退出
+  3. inflight 请求能 drain
+  4. producer 在最后一次业务写入后 flush / close
+  5. 存储连接在上层不再使用后关闭
+- 实现者在满足上述五条的前提下自由选择代码结构
+
+**理由**
+把 request 和 worker 绑定到同一 root ctx 会让 root cancel 误杀正在处理的 HTTP 请求，客户端见到假失败、触发重试、级联故障。正确做法是区分"worker 生命周期"（进程启动到退出）和"request 生命周期"（请求到达到 handler 返回），两者由不同的 context 树管理。
+
+### 7. 创意 handler 的 scope 覆盖范围
+
+**演进**
+- **V1 原评审**：漏（只列 advertiser / billing / report）
+- **V2 Claude Code**：加入 `HandleCreate/Update/DeleteCreative`
+- **V4 codex**：补齐 `HandleListCreatives`（V3 Claude 漏）
+- **V5 四个 handler 全部纳入**
+
+**最终决定**
+四个 creative handler 全部做 owner check：
+- `GET /campaigns/{id}/creatives`（list）
+- `POST /creatives`（create）
+- `PUT /creatives/{id}`（update）
+- `DELETE /creatives/{id}`（delete）
+
+写路径（create / update / delete）修复 scope 时**同批**补 `campaign:updates` publish，和 `docs/contracts/biz-engine.md` §1 的契约一致。
+
+**理由**
+- `delete` 按 creative id 直接删，任何广告主能删他人创意
+- `update` 能篡改他人 `ad_markup` —— **存储型 XSS 注入向量**（创意会被投放到真实流量里）
+- `list` 泄露他人 campaign 下的创意列表
+- `create` 能把创意塞到他人 campaign 下
+
+四者严重性相当，必须同批修。
+
+### 8. 测试要求的表述
+
+**演进**
+- **V1 原评审**：测试放在最后的 P2 批次
+- **V2 Claude Code**：改为每一项 P0/P1 子项先写 failing test 再修，TDD 红绿硬门槛
+- **V4 codex**：改为"PR 必须携带回归测试"，不把 red-first 流程写进验收
+- **V5 采纳**
+
+**最终决定**
+每个安全 / 计费 / 租户边界修复 PR 必须包含覆盖该修复的测试；测试应当"修复前失败、修复后通过"，由 reviewer 结合 diff 判断。**不**把 red-first 流程作为文档层面的验收条款。
+
+**理由**
+整改任务单是 **spec** 不是 **workflow**。reviewer 从 PR 能看到"测试存在 + 覆盖范围"，看不到"测试是先写的还是后写的"——红绿先后无法从产物强制，写进 spec 反而冗余。项目级 CLAUDE.md 仍规定 TDD 是工作流偏好，本任务单不重复该条款。
+
+---
+
+以下内容 = V4 技术部分逐字采纳。
 
 ## 执行原则
-- 先处理安全边界，再处理数据语义，再处理运行稳定性。
-- 每一项整改遵循 TDD：先写一个能复现问题的测试（越权应被拒、重复应被去重、ctx 取消后仍写入等），验证当前 red，再落地修复，验证 green。
-- 优先做最小可验证修复，不把本轮整改扩展成大规模重构。当"最小修复"和"破坏现有语义"冲突时（如 P1 win/impression），必须拆成可独立验证的多步迁移，每步都能独立上线。
 
-## P0：租户越权与密钥泄露
+- 先封安全边界，再修事件与计费语义，最后补运行时治理与回归防线。
+- 能用局部改动闭环的问题，不顺带大改架构。
+- 影响 API 形状时，同步更新契约与生成物。
+- 每个整改 PR 必须包含对应测试，不接受"后补测试"。
 
-### 问题
-- 广告主侧部分接口没有按当前认证广告主做 scope。
-- `Advertiser` 模型直接序列化 `api_key`，存在敏感信息泄露（`internal/campaign/model.go:187-198` 的 `APIKey string \`json:”api_key”\``）。
-- 账务接口信任调用方传入的 `advertiser_id`（`internal/handler/billing.go:20-91`）。
-- 报表接口大多直接按 `campaign_id` 查 ClickHouse，没有先校验 campaign 归属（`internal/handler/report.go` 5/6 handler；只有 `HandleBidSimulate` 做了 owner check）。
-- **创意 handler 完全无 ownership 校验**：`HandleCreateCreative` / `HandleUpdateCreative` / `HandleDeleteCreative` 按 creativeID 直接操作；特别是 delete 可被任意广告主删他人创意，update 可篡改他人 `ad_markup`（存储型 XSS 注入向量）。
-- 前端有硬编码 advertiser ID 的调用（`web/app/billing/page.tsx:33,34,125` 对 advertiser `1` 的三处调用），当前租户边界依赖前端自觉。
+## P0：租户隔离与敏感信息
 
-### 必做改动
-1. 收紧 advertiser 查询
-- 将 `GET /api/v1/advertisers/{id}` 改为只允许访问当前认证广告主本人：对比 path id 与 `auth.AdvertiserIDFromContext(r.Context())`，不一致返回 403。
-- 在 `Advertiser` struct 的 `APIKey` 字段上改为 `json:”-”`，任何读接口都不再回传。不引入新 DTO（避免无收益的代码扩散）。
-- **先写测试**：两广告主 A/B，A 的 key 调 `GET /advertisers/B.id` 必须 403；任何返回 advertiser 对象的接口响应体都不得包含 `api_key` 字段（可用 JSON 反序列化断言）。
+### 问题范围
 
-2. 收紧 billing 接口
-- `POST /api/v1/billing/topup`：忽略 body 中的 `advertiser_id`，强制使用认证上下文中的 advertiser。如果 body 仍要保留字段，服务端直接覆盖。
-- `GET /api/v1/billing/transactions`：不再接受 query 参数 `advertiser_id`，从认证上下文取。
-- `GET /api/v1/billing/balance/{id}`：将路由改为 `GET /api/v1/billing/balance`，从认证上下文取 ID；或保留现有路由但强制 path id 必须等于 auth id。推荐前者，更符合 REST 语义。
-- **先写测试**：A 的 key 充值 body 里写 B.id，期望最终入账到 A；A 的 key 查 B 的 transactions / balance，期望 403。
+- `HandleGetAdvertiser` 按 path id 直读 advertiser。
+- billing 三个接口按 path/query/body 中的 advertiser id 取数。
+- report 中 `stats/hourly/geo/bids/attribution` 五条路径缺 owner check。
+- creative 的 list/create/update/delete 缺 owner check。
+- advertiser 读模型会把 `api_key` 序列化出去。
+- 前端 billing 页面硬编码 advertiser `1`。
 
-3. 收紧 reports 接口
-- 以下 5 个接口都要在查询报表前先调用 `d.Store.GetCampaignForAdvertiser(r.Context(), campaignID, advID)`，参照 `HandleBidSimulate` 的既有写法（`report.go:207`）：
-  - `/api/v1/reports/campaign/{id}/stats`
-  - `/api/v1/reports/campaign/{id}/hourly`
-  - `/api/v1/reports/campaign/{id}/geo`
-  - `/api/v1/reports/campaign/{id}/bids`
-  - `/api/v1/reports/campaign/{id}/attribution`
-- 保持 `simulate`、`export` 现有的 ownership 校验风格一致。
-- **先写测试**：A 的 key 查 B 的 campaign 报表，期望 403（所有 5 个路径）。
+### 返回码规则
 
-4. 收紧 creative handler
-- `HandleCreateCreative`：接收到 `campaign_id` 后先 `GetCampaignForAdvertiser(ctx, campaignID, advID)` 校验所有权；校验失败返回 403。
-- `HandleUpdateCreative`：先 `GetCreative(ctx, creativeID)` 取 `CampaignID`，再 `GetCampaignForAdvertiser` 校验；校验失败返回 403。`HandleDeleteCreative` 同理。
-- 这一轮修完后，契约 `docs/contracts/biz-engine.md` §1 里列出的 creative CRUD pub/sub 发布也必须同时落地（都在这三个 handler 里完成）。
-- **先写测试**：A 的 key 尝试创建/修改/删除 B 的 campaign 下的 creative，期望 403；合法的 A 操作自己的 creative，期望 200 并触发 `campaign:updates` 通知。
-
-5. 修正前端错误假设
-- 去掉 `web/app/billing/page.tsx` 对 advertiser `1` 的硬编码（3 处）。
-- 前端对 advertiser 和 campaign 数据的读取逻辑要建立在”后端强制 scope”上，调用 `/billing/balance` 和 `/billing/transactions` 不再传 id，由后端从 auth context 取。
-- 相应更新 `web/lib/api.ts` 的函数签名（删掉 `advertiserId` 参数）。
-- **先写测试**：`web/` 目前无 test 脚本（`web/package.json` 无 test 命令），本轮不强求前端单测；但前端改完必须启动 web 在浏览器里跑一遍登录 → 查看余额 → 充值 → 查 transactions 全链路（算入 P2 的端到端 QA 范围）。
-
-### 重点文件
-- `internal/handler/campaign.go`（advertiser + creative handler）
-- `internal/handler/billing.go`
-- `internal/handler/report.go`
-- `internal/campaign/model.go`
-- `internal/campaign/store.go`
-- `web/lib/api.ts`
-- `web/app/billing/page.tsx`
-- `web/app/campaigns/[id]/page.tsx`
-- `web/app/reports/[id]/page.tsx`
-
-### 验收标准
-- 任意广告主 API Key 只能访问自己的 advertiser、campaign、billing、report、creative 数据。
-- 任意广告主 API Key 无法读取其他 advertiser 的余额、流水、报表；无法创建/修改/删除他人的 creative。
-- 任意广告主 API Key 无法从任何读接口拿到 `api_key` 字段。
-- 前端不再依赖硬编码 advertiser ID。
-- 所有上述”先写测试”条款对应的 handler 单测已落盘并通过。
-
-## P0：管理面和生产配置安全
-
-### 问题
-- `Config.Validate()` 已实现（`internal/config/config.go:68-76`），但 `cmd/api/main.go:46` 和 `cmd/bidder/main.go:45` 都只调 `config.Load()`，从未调 `Validate()`。
-- admin 鉴权（`internal/handler/admin_auth.go:15-18`）在 `ADMIN_TOKEN` 未设置时**无条件回退到 `"admin-secret"`**，且该回退不依赖 `ENV` 判断。
-- admin 鉴权（`internal/handler/admin_auth.go:26-29`）接受 query 参数 `admin_token`，容易泄露到 access log、反向代理日志、浏览器 referrer。
+- 缺失/错误 API key 或 admin token：`401`
+- 租户资源越权：`404`
+- 请求参数自相矛盾或非法：`400`
 
 ### 必做改动
-1. 启动时强制配置校验
-- 在 `cmd/api/main.go` 和 `cmd/bidder/main.go` 的 `cfg := config.Load()` 后立刻调用 `if err := cfg.Validate(); err != nil { log.Fatalf(...) }`。
-- **先写测试**：`internal/config/config_test.go` 覆盖"生产环境缺失 `BIDDER_HMAC_SECRET` / `ADMIN_TOKEN` 时 `Validate()` 返回错误"。
 
-2. 收紧 admin 鉴权
-- 删除 `admin_token` query 参数支持，只接受 `X-Admin-Token` header。
-- **删掉整个 `"admin-secret"` 默认值 fallback**：`ADMIN_TOKEN` 未设置时直接 panic 或由 `config.Validate()` 拦截。**不使用 ENV guard 保留开发默认值**——保留 fallback 是一处新人把默认值复制到生产环境的单点隐患，且依赖 ENV 被正确设置本身就是一个脆弱假设。开发者在本地 `.env` 里加一行 `ADMIN_TOKEN=dev-<some-string>` 的成本是零。
-- **先写测试**：`internal/handler/admin_auth_test.go` 覆盖：(a) header 带正确 token → 200；(b) query 带正确 token → 401（即使 header 未设）；(c) 无 token → 401；(d) `ADMIN_TOKEN` 未设置时启动阶段被 `Validate()` 拦截（和 #1 同测试）。
+1. advertiser
+   - `GET /api/v1/advertisers/{id}` 必须校验 path id == auth advertiser id，否则 `404`。
+   - 新建 `AdvertiserResponse`，对外不返回 `api_key`。
+   - 创建 advertiser / 审核通过后首次发 key，使用专门响应结构返回。
 
-3. 复核默认值策略
-- 检查 `BIDDER_HMAC_SECRET`、`ADMIN_TOKEN`、`CORS_ALLOWED_ORIGINS` 的开发/生产行为，用 `Validate()` 统一把关。
-- 明确哪些默认值只能用于本地开发，并在 `config.go` 对应字段上加注释。
+2. billing
+   - `GET /billing/transactions` 不再按 query `advertiser_id` 取数，统一从 auth context 取。
+   - `GET /billing/balance/{id}` 做 owner check，不匹配返回 `404`。
+   - `POST /billing/topup` 最终移除 `advertiser_id` 语义；过渡期若 body 提供且与 auth id 不一致，返回 `400`，不要静默改给自己。
 
-### 重点文件
-- `internal/config/config.go`
-- `internal/handler/admin_auth.go`
-- `cmd/api/main.go`
-- `cmd/bidder/main.go`
-- `internal/config/config_test.go`（新建或补充）
-- `internal/handler/admin_auth_test.go`（新建或补充）
+3. reports
+   - `stats/hourly/geo/bids/attribution` 五条路径，先做 `GetCampaignForAdvertiser`。
+   - `simulate/export` 已有检查，保持一致。
 
-### 验收标准
-- 生产环境缺少关键 secret 时服务启动失败（log.Fatalf 或 panic）。
-- admin token 不再能通过 URL 传递。
-- 默认 token 在任何环境都不生效，包括开发环境。
-- 上述测试全部落盘并通过。
+4. creatives
+   - list：先验 campaign owner。
+   - create：按 `campaign_id` 验 owner。
+   - update/delete：先取 creative 所属 campaign，再验 owner。
+   - create/update/delete 修复 scope 的同时补 `campaign:updates` publish。
 
-## P1：事件语义与计费一致性
+5. web
+   - billing 页面移除 advertiser `1` 硬编码。
+   - `web/lib/api.ts` 的 self-service billing API 去掉 advertiserId 参数。
 
-### 问题
-- `handleWin` (`cmd/bidder/main.go:419-420`) 当前同时发送 `win` 和 `impression` 事件，把赢标等同于真实曝光。
-- `internal/reporting`、`internal/autopause`、`internal/reconciliation` 当前都以 `event_type='impression'` 聚合 CTR、spend、autopause 阈值——这意味着"停写 impression"会立刻让这些指标归零。
-- CPC 点击链路没有去重（`cmd/bidder/main.go:426-483` 的 `handleClick` 内零 `SetNX` 逻辑），可能重复扣费。`handleWin` 在 L320-329 已有去重模式可直接复用。
-- `click`/`convert` 的 Kafka 发送使用 `r.Context()`（`cmd/bidder/main.go:467`、`:500`），handler 返回后 context 取消，可能导致事件丢失。注意：`handleWin` 的 L418-420 已用 `bgCtx := context.Background()` 并注释说明原因——修复方案就是把这个模式复制到 click/convert。
+### 测试要求
 
-### 必做改动
-1. 修正 win/impression 语义（**两步迁移，不能单 commit 完成**）
+- A 的 key 访问 B 的 advertiser / billing / report / creative 全路径均为 `404`。
+- topup 在 body 中带错 advertiser id 返回 `400`。
+- advertiser 读接口返回体中不含 `api_key`。
+- creative 合法写操作会发 `campaign:updates`。
 
-   **Step 1A：放宽下游聚合口径**（先合，单独 commit）
-   - 在 `internal/reporting/store.go` 中所有按 `event_type='impression'` 聚合的 SQL 改为 `event_type IN ('win','impression')`。
-   - `internal/autopause/service.go` 的 impression 阈值计算同上。
-   - `internal/reconciliation/reconciliation.go` 的 spend / 花费对账同上。
-   - 同时保留 bidder 的双写（`SendWin` + `SendImpression`），这一步对线上数据语义零侵入，仅是"两种事件都算曝光"。
-   - **先写测试**：注入 10 条 `win` + 0 条 `impression`，reporting 查询返回曝光=10。
-   - 在 bid_log 有一个完整小时的新数据之后，进入 Step 1B。
+## P0：管理面与启动配置安全
 
-   **Step 1B：停止伪造曝光**（下一个 commit，不和 1A 合成一批）
-   - 删除 `handleWin` 里的 `SendImpression` 调用；`win` 只表示赢标成交。
-   - 如果仍需要区分"真实曝光"，需要引入独立的曝光回调路径（像素或 SDK 事件），**本轮不做**。
-   - 把 Step 1A 放宽的聚合条件收回 `event_type='impression'`——**或者**（更干净）保留 `IN ('win','impression')` 的 OR 条件，语义变成"赢标即记曝光"。推荐后者，少一次 SQL 迁移。
-   - **先写测试**：win 事件后，bid_log 里 `event_type='win'` 一条，`event_type='impression'` 零条；reporting 查询结果与 Step 1A 语义一致。
+### 问题范围
 
-   > **不要把 Step 1A 和 Step 1B 合成一批**。如果先停写 impression 再改聚合，线上 CTR / spend / autopause 会在两个 commit 之间的窗口里全部失真。
-
-2. 补齐点击去重
-- 参照 `handleWin` 的 `dedupKey = fmt.Sprintf("win:dedup:%s", requestID)` + `SetNX` TTL 5 分钟的模式，为 `handleClick` 加 `click:dedup:{request_id}` 去重键。CPC 计费依赖 click 次数，重复回调会重复扣费。
-- 明确去重维度：同一 `request_id` 的 click 回调，5 分钟内只计一次。
-- **先写测试**：对同一 `request_id` 连续发 3 次 click 回调，预算只扣一次，bid_log 只写一条 `event_type='click'`。
-
-3. 修正异步发送上下文
-- `cmd/bidder/main.go:467` 的 `producer.SendClick(r.Context(), ...)` 改为 `producer.SendClick(context.Background(), ...)`，原因见 handleWin L418-420 的注释。
-- `cmd/bidder/main.go:500` 的 `producer.SendConversion` 同样修正。
-- 如果需要超时保护，用 `ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)` 包一层。
-- **先写测试**：handler 返回后立刻 cancel r.Context()，验证 Kafka producer 仍能写入缓冲（可用 mock producer 计数）。
-
-4. 校准下游聚合
-- 和 Step 1A 一起做。除了 reporting / autopause / reconciliation，还要检查 `internal/billing` 对 click 计费、attribution 查询的事件依赖。
-- 在 `docs/contracts/biz-engine.md` §2 的"ClickHouse `bid_log` 表"小节下加一行说明聚合惯例："曝光统计口径 = win OR impression"（或最终敲定的方案）。
-
-### 重点文件
-- `cmd/bidder/main.go`
-- `internal/events/producer.go`
-- `internal/reporting/store.go`
-- `internal/autopause/service.go`
-- `internal/reconciliation/reconciliation.go`
-- `docs/contracts/biz-engine.md`（聚合口径文档）
-
-### 验收标准
-- Step 1A 合入后，reporting 指标未出现跳变。
-- Step 1B 合入后，`win` 不再产生 `impression` 事件行；`event_type='impression'` 在 bid_log 新增行数归零。
-- 重复 click 回调不会重复扣费。
-- handler 返回后 click/convert 事件仍能稳定写入 Kafka 或本地缓冲。
-- 报表中的曝光、点击、赢标、花费口径一致且可解释。
-
-## P1：运行时生命周期与关闭行为
-
-### 问题
-- 长生命周期 goroutine 由 `context.Background()` 驱动（`cmd/api/main.go:47`、`cmd/bidder/main.go:46`），关闭服务时不会统一 cancel。
-- `autopause.Start` (`cmd/api/main.go:102`)、`statsCache.Start` (`cmd/bidder/main.go:90`)、`loader.Start` (`cmd/bidder/main.go:112`)、`reconciliation.StartHourlySchedule` (`cmd/api/main.go:107`) 都接收这个永不取消的 ctx。
-- 当前 shutdown 使用独立 channel `signal.Notify(quit, ...)`（`main.go:219` 和 `:167`），但只关 HTTP server，不 cancel 根 ctx——后台 goroutine 在 HTTP 停服期间仍继续读写 Redis / Kafka / ClickHouse。
+- `cmd/api`、`cmd/bidder` 未调用配置校验。
+- admin middleware 有默认 `admin-secret`。
+- admin middleware 接受 query `admin_token`。
 
 ### 必做改动
-1. 统一根 context
-- `cmd/api/main.go` 和 `cmd/bidder/main.go` 的入口改为：
-  ```go
-  rootCtx, rootCancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-  defer rootCancel()
-  ```
-- 所有后台服务的 `Start(ctx)` 调用位点从 `context.Background()` 改为 `rootCtx`。
-- 检查每个被启动的后台 loop 确实在 for-select 里处理了 `<-ctx.Done()` 并正确退出——**这一步需要逐个 verify**，不能假设：
-  - `internal/autopause/service.go`
-  - `internal/bidder/statscache.go`
-  - `internal/bidder/loader.go`（包括 pub/sub subscribe 的 goroutine）
-  - `internal/reconciliation/reconciliation.go`
-- **先写测试**：用 `context.WithCancel` 启动一个 loop，cancel 后 100ms 内 goroutine 应退出（可用 `runtime.NumGoroutine()` 对比或 channel 信号）。
 
-2. 统一关闭流程（**严格按以下顺序**）
+1. 配置校验
+   - `Config.Validate() error`
+   - `cmd/api`、`cmd/bidder` 启动时强制校验并在失败时退出
+   - 生产环境至少校验：
+     - `BIDDER_HMAC_SECRET`
+     - `ADMIN_TOKEN`
+     - `CORS_ALLOWED_ORIGINS` 不能保留本地默认值
 
-   ```
-   signal 到达 → rootCtx 自动 cancel
-     └─ Step A: 后台 goroutine 收到 Done，开始退出（并行，不 block）
-     └─ Step B: srv.Shutdown(shutdownCtx)  排空 HTTP inflight 请求
-     └─ Step C: producer.Close()           flush Kafka 本地缓冲到 broker 或 disk buffer
-     └─ Step D: redis.Close() / clickhouse.Close() / db.Close()
-   ```
+2. admin auth
+   - 删除 `admin-secret` fallback
+   - 删除 query `admin_token`
+   - 只接受 `X-Admin-Token`
+   - 无 token / token 错误统一 `401`
 
-   关键约束：
-   - Step A 必须先于 Step B 开始，否则 HTTP drain 期间后台 worker 还可能写数据。
-   - Step B 必须先于 Step C——HTTP handler 可能在排空时仍产生 Kafka 事件，producer 关闭早了会丢。
-   - Step C 必须先于 Step D——Kafka producer 关闭期间若依赖 disk buffer，buffer 路径涉及本地文件系统（见 `events/producer.go:23-27`），不依赖 Redis/CH/DB，安全。
-   - 每个 Step 给一个独立的 `context.WithTimeout(...)` 作为超时上限。
+3. 文档
+   - 在 `config.go` 注释和运行时文档中明确生产必须设置的 secret 清单。
 
-3. 明确 fail-open/fail-closed
-- 对 Redis、Kafka、ClickHouse 的失败策略形成一致规则，并补 `docs/contracts/biz-engine.md` 或单独的 `docs/runtime.md`。
-- 至少覆盖：出价热路径 Redis 不可用时（fail-open 还是 fail-closed？），Kafka 全量不可用时（走 disk buffer，但 buffer 满时行为？），ClickHouse 不可用时（reporting 降级到什么？）。
+### 测试要求
 
-### 重点文件
-- `cmd/api/main.go`
-- `cmd/bidder/main.go`
-- `internal/autopause/service.go`
-- `internal/bidder/statscache.go`
-- `internal/bidder/loader.go`
-- `internal/reconciliation/reconciliation.go`
+- `Validate()` 在生产缺少关键 secret 时返回 error。
+- 正确 admin header 通过。
+- query token 无效。
+- 未设置 admin token 时服务启动失败。
 
-### 验收标准
-- 服务收到退出信号后，所有后台 worker 在 5 秒内停止。
-- 不再依赖 `context.Background()` 驱动关键长期任务。
-- 关闭期间不会继续产生不受控写操作（可用集成测试观察 Redis / bid_log 在 shutdown 后无新写入）。
-- 上述测试全部落盘并通过。
+## P1：事件语义、计费与报表口径
 
-## P2：端到端测试加强（交叉覆盖型）
+### 问题范围
 
-### 方针
-P0 / P1 的所有单元测试已吸收到各自的"必做改动"里按 TDD 同步写，本节只保留"跨 handler / 跨进程"的交叉覆盖测试——用来防范未来新增 handler 再漏 scope 校验的回归。
+- `handleWin` 同时发送 `win` 和伪造的 `impression`。
+- 下游多个模块把 `event_type='impression'` 当真实曝光。
+- click 无去重。
+- click/convert 异步发送仍用 request context。
+
+### 处理原则
+
+这里要同时解决两件事：
+
+- 短期内不能让指标跳变
+- 长期内不能继续把"赢标"与"真实曝光"混成一个概念
+
+因此本版不把"`impression` 字段继续代表 `win OR impression`"写成最终语义，而是拆成两个层次：
+
+- 存储层保留真实事件类型
+- 聚合层在过渡期引入一个共享概念：`effective_delivery`
+
+`effective_delivery` 的临时定义：
+
+```sql
+countDistinctIf(request_id, event_type IN ('win', 'impression'))
+```
+
+它只用于当前需要"已投出一次、避免双计"的聚合场景，目的是平滑迁移，不是把真实 impression 定义永久改写掉。
+
+### 建议迁移顺序
+
+1. Step A：先引入共享聚合 helper
+   - 在 reporting/autopause/reconciliation 中统一通过 helper 或统一 SQL 片段计算 `effective_delivery`
+   - 当前 UI 上对外仍可先复用现有 `impressions` 字段，但文档要标明这是过渡口径，不等同于未来真实展示曝光
+
+2. Step B：删除 `handleWin` 中伪造的 `SendImpression`
+   - 之后 `bid_log` 不再新增伪造 impression
+   - 因 Step A 已落地，指标不跳变
+
+3. Step C：修 click/convert 一致性
+   - `click:dedup:{request_id}`
+   - click/convert 的 producer 改用后台 context 或带 timeout 的派生 context
+
+4. Step D：后续单独议题，不纳入本轮
+   - 若产品真的需要"真实曝光"指标，应补独立曝光上报链路，并把 API/UI 里的字段命名与文案重新收敛
+
+### 结果要求
+
+- 迁移前后投放指标不出现人为跳变。
+- click 重试不重复扣费。
+- handler 返回后 click/convert 事件不因 request context cancel 丢失。
+- 文档明确区分过渡口径与真实 impression 语义。
+
+### 测试要求
+
+- 双写状态下，相同 `request_id` 的 `win + impression` 只计一次 `effective_delivery`。
+- 删除伪造 impression 后，同样数据集的聚合结果保持不变。
+- 同一 `request_id` 多次 click 只扣一次预算。
+- request context 取消后，mock producer 仍能收到 click/convert 发送。
+
+## P1：生命周期与优雅关闭
+
+### 问题范围
+
+- 长期 goroutine 使用永不取消的 `context.Background()`
+- shutdown 只关 HTTP server，不显式收敛后台 worker
 
 ### 必做改动
-1. **端到端租户隔离集成测试**（新建 `internal/handler/tenant_isolation_test.go` 或独立的 `test/integration/tenant_test.go`）
-   - 在 `httptest.NewServer` 里启动完整 api handler tree
-   - 创建两个 advertiser A / B，分别获取 API key
-   - 穷尽地用 A 的 key 访问 B 名下的所有资源：
-     - `GET /advertisers/{B.id}` 期望 403
-     - `GET /billing/balance/{B.id}` / `/billing/balance`（auth=A）期望只看到 A 的余额
-     - `GET /billing/transactions?advertiser_id=B.id` 期望 403 或只看到 A
-     - `POST /billing/topup` body 里写 `advertiser_id: B.id`，期望钱进 A
-     - `GET /campaigns/{B.campaignID}` 期望 404 或 403
-     - `PUT /campaigns/{B.campaignID}` 期望 403
-     - `POST /campaigns/{B.campaignID}/start` / `/pause` 期望 403
-     - `GET /reports/campaign/{B.campaignID}/stats` 和其他 4 个 report 路径期望 403
-     - `POST /creatives` 里写 `campaign_id: B.campaignID` 期望 403
-     - `PUT /creatives/{B.creativeID}` / `DELETE` 期望 403
-   - 循环所有路由、所有越权组合；这是防回归的核心测试
 
-2. **响应体 `api_key` 不泄露扫描**
-   - 对每个返回 advertiser 对象的路径，断言 response body JSON 反序列化后不包含 `api_key` key
-   - 可用反射或字符串 grep 的简单实现
+1. 上下文分层
+   - 主进程有 `processCtx`
+   - 长期 worker 用 `workerCtx`
+   - 请求仍由 HTTP server/request context 管理，不和 workerCtx 强绑定
 
-3. **shutdown 行为集成测试**
-   - 启动完整 bidder/api，触发 SIGTERM，验证 5 秒内进程退出
-   - shutdown 期间观察 bid_log / Redis 无新写入
+2. 关闭不变量
+   - 新请求停止进入
+   - worker 能退出
+   - inflight 请求被 drain
+   - producer 在最后一次业务写入后 flush/close
+   - 存储连接最后关闭
 
-### 重点文件
-- `internal/handler/tenant_isolation_test.go`（新建）
-- `cmd/bidder/main_test.go`（扩充 shutdown 测试）
-- `cmd/api/main_test.go`（扩充 shutdown 测试）
+3. 文档化失败策略
+   - Redis、Kafka、ClickHouse 各自 fail-open / fail-closed 行为写入运行时文档
+
+### 测试要求
+
+- cancel workerCtx 后各后台 loop 能退出。
+- 进程收到 SIGTERM 后在限定时间内退出。
+- shutdown window 内不会出现新的非预期后台写入。
+
+## P2：回归保护
+
+### 目标
+
+建立最少但有效的护栏，阻止相同类型问题再次出现。
+
+### 必做改动
+
+1. handler 集成测试
+   - 两广告主 A/B
+   - 穷举越权读写路径
+   - 精确断言 `401/404/400`
+
+2. 敏感字段扫描
+   - advertiser 响应不含 `api_key`
+
+3. bidder 行为测试
+   - win/click 去重
+   - click/convert 背景发送
+
+4. lifecycle 测试
+   - worker 退出
+   - 进程 shutdown
+
+5. 前端回归
+   - billing 页面不再依赖 advertiser `1`
+   - campaign/report/creative 页面在修复后正常工作
 
 ### 验收标准
-- 新增集成测试能稳定复现并阻断本次评审发现的所有 P0 问题，且一旦新 handler 漏 scope 检查会立刻 red。
-- `go test ./... -count=1` 继续通过（注意去掉 `-short` 让集成测试跑起来，或单独起 integration tag）。
+
+- 本轮已识别问题都有测试保护。
+- `make test` 继续通过。
+- 新增集成测试可单独运行，不强迫把所有全仓长测都塞进默认短测路径。
 
 ## 建议执行顺序
-1. **P0 批次 1**：tenant scope（advertiser / billing / report / creative handler + `api_key` 隐藏 + 前端硬编码清理）。每项 TDD：先写越权测试 → 看红 → 修 → 看绿。
-2. **P0 批次 2**：配置校验 + admin 鉴权收紧（删默认值、删 query 参数、启动期 Validate）。每项 TDD。
-3. **P1 批次 3**：生命周期治理（signal.NotifyContext + shutdown 四步排序 + 各后台 loop 的 ctx.Done 处理）。先写 shutdown 集成测试复现问题，再逐项修复。
-4. **P1 批次 4**：事件语义 Step 1A（放宽聚合口径 + click 去重 + click/convert ctx 修正）。此时 bidder 仍双写 win+impression，但聚合已能正确处理新语义。
-5. **P1 批次 5**：事件语义 Step 1B（停写 impression 伪造）。在 4 合入并观察至少一个完整报表周期无异常后才启动。
-6. **P2 批次 6**：补端到端租户隔离集成测试 + shutdown 集成测试 + api_key 扫描测试。
 
-每个批次独立提交 PR、独立过 review / verification / QA 循环，不要跨批次累积未验证改动。
+1. P0 租户隔离与 DTO 化响应
+2. P0 admin/config 安全
+3. P1 事件语义 Step A + Step C
+4. P1 删除伪造 impression
+5. P1 lifecycle
+6. P2 集成与回归保护
 
 ## 建议验证命令
+
 ```powershell
-go test ./... -short -count=1
-go test ./... -count=1     # 去掉 -short 以跑集成测试
+make test
+go test ./internal/handler/... -count=1
+go test ./cmd/bidder ./internal/reporting ./internal/reconciliation -count=1
 cd web && npm run lint
 ```
 
-如果 API 形状有变化（P0 批次 1 会让 billing 路由形变），执行：
+如接口或 schema 变化：
 
 ```powershell
 make api-gen
 ```
 
-如果前端行为或回调语义发生变化，补跑：
+如需完整链路验证：
 
 ```powershell
 ./scripts/test-env.sh verify
 ```
 
-## 观察项（本轮不修，但需跟踪）
-- **API key 级 rate limiting**：`internal/ratelimit` 的配额目前是全局还是 per-key？若全局，单个泄露的 key 没有额外防护，scope 检查是唯一防线。需单独评估一轮。
-- **bid_log 6 个月 TTL**：`migrations/002_clickhouse.sql:21`。reporting 和 reconciliation 脚本必须处理超过 TTL 的数据被清理的情况，当前是否健壮需 verify。
-- **广告主侧敏感操作审计**：topup / pause / delete creative 当前无 audit trail（admin 侧有）。事故溯源时会缺关键证据。
-- **`dsp.billing` topic 未被消费**：`internal/events/producer.go:57` 定义但无 consumer（详见 `docs/contracts/biz-engine.md` §3.1）。本轮不处理，但 P1 事件语义修正时要一并考虑是否删除该 produce 调用。
+## 观察项
+
+- analytics SSE 当前仍通过 query `api_key` 透传，这是安全异味，但因 `EventSource` 限制，建议单独立项评估，不与本轮 P0 混做。
+- `dsp.billing` topic 仍 produced but unconsumed，可在事件语义整改时一并判断是否保留。
+- `SendLoss` 未接入，先不纳入本轮。
+- 广告主侧敏感操作的 audit trail 仍偏弱，建议在边界修复完成后单独立项。
 
 ## 交付要求
-- 每个批次分批提交 PR，避免把所有问题揉成一个超大补丁。
-- 每批 PR 描述必须说明：
+
+- 每个批次独立 PR。
+- 每个 PR 必须说明：
   - 修了哪些风险
-  - 改了哪些接口或行为
-  - 增加了哪些测试（P2 之前的批次也要含各自的 TDD 测试）
-  - 还剩哪些未处理项和为什么延后
+  - 改了哪些接口语义
+  - 新增了哪些测试
+  - 有哪些延后项
+- 事件语义迁移必须分步提交，避免 reviewer 把"聚合修复"和"停写 impression"揉成一个无法观察的数据变更。
