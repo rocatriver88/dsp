@@ -405,10 +405,42 @@ make api-gen
 
 ## 观察项
 
+### 原始观察项（从 V4 继承）
+
 - analytics SSE 当前仍通过 query `api_key` 透传，这是安全异味，但因 `EventSource` 限制，建议单独立项评估，不与本轮 P0 混做。
 - `dsp.billing` topic 仍 produced but unconsumed，可在事件语义整改时一并判断是否保留。
 - `SendLoss` 未接入，先不纳入本轮。
 - 广告主侧敏感操作的 audit trail 仍偏弱，建议在边界修复完成后单独立项。
+
+### Round 1 最终评审的延后项与经验教训
+
+Round 1 的 final code review(Batch 6 之后,超出原本 6 批次范围)抓到了 1 Critical + 7 Important + 7 Nitpick。**Critical 和 6 个 Important 已在 Round 1 回补批次里修复**,剩下两项显式延后：
+
+**I3 — 经验教训(不改代码,写进这里)**:**nil-store 桩对 tenant-isolation 覆盖不充分**。Batch 1 的 handler 单测给 `Deps{}` 传空 Store,依赖 handler 早期 return 不触及 Store 来跑通负向路径,这种模式能测到 `requireAuth` / `ensureSelfAccess` 的 pre-Store 分支,**但完全看不到依赖 Store WHERE clause 做 scope 检查的 handler 的行为**(`HandleUpdateCampaign` 的 500、`HandlePauseCampaign` 的 409 就是这么漏的)。未来任何 scope-helper rollout **必须先有一个 table-driven test,列出所有 non-read、带路径 id 或 body id 的 handler,断言每一个都调用了 `ensureXxxOwner` 或等价的真实 Store 校验**。不能单测走 nil-store 桩草草了事。
+
+**I5 — bidder HTTP handler 提取到 internal 包(V5 债务)**:Batch 6 commit 把"bidder click/win dedup HTTP 级测试"和"shutdown 子进程集成测试"都延后了,理由是"`cmd/bidder/main.go` 在 `package main`,不可导入"。Round 1 评审者正确地指出这是**软借口不是硬约束**:标准 Go 姿态是把 `handleBid`/`handleWin`/`handleClick`/`handleConvert` 以及 `handleStats`/`handleHealth` 提取到 `internal/bidder/httphandlers.go`(或 `internal/bidder/server.go`),传入一个 `ServerDeps` struct 承载 `Producer`/`BudgetSvc`/`Loader`/`StrategySvc`/`Guardrail`/`HMACSecret`/`rdb` 等依赖,`cmd/bidder/main.go` 缩减到 ~100 行 wiring。工作量约 2-3 小时。这个重构**不在本轮做**,但作为**显式 V5 债务**登记在此:
+
+> **V5 债务 2026-04-14-D1**:提取 `cmd/bidder/main.go` 的 HTTP handler 到 `internal/bidder/httphandlers.go`,暴露 `NewServerDeps` + handler 方法,使 `cmd/bidder/main.go` 只剩 main wiring。完成后立即兑现以下 V5 §P2 §3.3 延后测试:
+>
+> - `TestHandleClick_DedupCollapsesDuplicates`(同 request_id 两次 click,只扣一次预算、bid_log 一条 click 行)
+> - `TestHandleWin_DedupCollapsesDuplicates`(win 去重同上)
+> - `TestHandleClick_BackgroundContextSurvivesHandlerReturn`(用 mock producer 断言 handler 返回 + r.Context() 取消后,producer 仍收到事件)
+> - `TestHandleConvert_BackgroundContextSurvivesHandlerReturn`(同上)
+> - `TestBidder_GracefulShutdown`(子进程级:启动 bidder → SIGTERM → 5 秒内退出 + producer.WaitInflight 成功完成)
+>
+> 估时 2h 重构 + 1h 测试 = 0.5 天。优先级 P2(完善,不阻塞生产)。
+
+### Round 1 nitpicks(N1-N7,待有空时清)
+
+Round 1 final review 列出的 7 个 Nitpick,按"宽松"策略不在本轮清零,记在这里做后续债务:
+
+- **N1** `AdminAuthMiddleware` OPTIONS 绕过在 `token==""` guard 之前。对 CORS preflight 行为无影响,但为对称性应前置 empty-token 检查。`internal/handler/admin_auth.go`
+- **N2** `export.go` 的 scope check 错误字符串是 `"campaign not found"`,其他 handler 统一用 `"not found"`。drift,轻度泄露"这是 campaign 路径"的信息。`internal/handler/export.go:37,102`
+- **N3** `HandleBidSimulate` 手写 `GetCampaignForAdvertiser` 调用,其他 report handler 统一用 `d.ensureCampaignOwner` helper。一致性问题。`internal/handler/report.go:237-243`
+- **N4** `parseCampaignID` 解析失败返 404(tenant-hide 原则),`export.go` 同样场景返 400。drift。`internal/handler/report.go:15-22` vs `internal/handler/export.go:30-32`
+- **N5** `HandleListAdvertisers`(Round 1 已修)和其他 list handler 的 nil slice normalization 策略统一检查,避免 `null` vs `[]` 的 API 体感差异。
+- **N6** `cmd/bidder/main.go` 的 daily budget reset loop 在工作循环内没提前 break on workerCtx 取消——每个 campaign 会各走一次 ctx-cancelled budgetSvc 调用才退出外层,产生冗余日志。`cmd/bidder/main.go:144-164`
+- **N7** Batch 1 commit `bc4cd43` 的消息声称 `/billing/balance/{id}` 路径被移除,`4faa8c9` 和 `649ceaa` 又恢复了。commit 历史需要跨 3 个 message 一起读。纯历史性,不修代码。
 
 ## 交付要求
 

@@ -30,6 +30,16 @@ type Producer struct {
 	bufferDir string
 	mu        sync.Mutex
 	kafkaOK   bool
+
+	// inflight tracks fire-and-forget goroutines spawned via Go so the
+	// shutdown sequence can drain them before closing the Kafka writers.
+	// Introduced by the Round 1 review I4 fix: V5 §P1 lifecycle
+	// invariant 4 ("producer flushes after last business write") is not
+	// strictly satisfied when handlers spawn detached goroutines with
+	// context.Background() — srv.Shutdown blocks on handler returns,
+	// not on the goroutines they started. Tracking them here lets the
+	// main binary call WaitInflight before Close.
+	inflight sync.WaitGroup
 }
 
 type Event struct {
@@ -256,7 +266,46 @@ func splitLines(data []byte) [][]byte {
 	return lines
 }
 
-// Close closes all Kafka writers.
+// Go spawns fn in a tracked goroutine whose lifetime the Producer
+// observes. Use this for fire-and-forget sends from HTTP handlers
+// (click / convert / win notices) so the shutdown sequence can
+// reliably drain them before closing the Kafka writers.
+//
+// Prefer this over `go producer.SendXxx(...)` at handler call sites:
+// the naked go-statement form detaches the goroutine from any
+// observable lifecycle and defeats the V5 §P1 flush guarantee.
+func (p *Producer) Go(fn func()) {
+	p.inflight.Add(1)
+	go func() {
+		defer p.inflight.Done()
+		fn()
+	}()
+}
+
+// WaitInflight blocks until every goroutine spawned via Go has
+// returned, or until ctx is cancelled. Returns nil on a clean
+// drain, ctx.Err() on timeout. Call this before Close in the
+// shutdown sequence.
+func (p *Producer) WaitInflight(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() {
+		p.inflight.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Close closes all Kafka writers. It does NOT wait for goroutines
+// spawned via Go — call WaitInflight first if you need that
+// guarantee. In a clean shutdown flow the sequence is:
+//
+//	producer.WaitInflight(ctxWithTimeout)   // flush tracked sends
+//	producer.Close()                        // close kafka writers
 func (p *Producer) Close() {
 	for _, w := range p.writers {
 		w.Close()

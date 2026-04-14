@@ -140,10 +140,12 @@ func setupDeps() {
 func buildAuthedMux(d *handler.Deps, store *campaign.Store) http.Handler {
 	mux := http.NewServeMux()
 
-	// Advertisers
+	// Advertisers (self-service + create)
+	mux.HandleFunc("POST /api/v1/advertisers", d.HandleCreateAdvertiser)
 	mux.HandleFunc("GET /api/v1/advertisers/{id}", d.HandleGetAdvertiser)
 
 	// Campaigns (self-scoped)
+	mux.HandleFunc("POST /api/v1/campaigns", d.HandleCreateCampaign)
 	mux.HandleFunc("GET /api/v1/campaigns/{id}", d.HandleGetCampaign)
 	mux.HandleFunc("PUT /api/v1/campaigns/{id}", d.HandleUpdateCampaign)
 	mux.HandleFunc("POST /api/v1/campaigns/{id}/start", d.HandleStartCampaign)
@@ -161,12 +163,25 @@ func buildAuthedMux(d *handler.Deps, store *campaign.Store) http.Handler {
 	mux.HandleFunc("GET /api/v1/billing/balance", d.HandleBalance)
 	mux.HandleFunc("GET /api/v1/billing/balance/{id}", d.HandleBalance) // legacy alias
 
-	// Reports
+	// Reports (all five in V5 §P0 plus simulate which also enforces owner check)
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/stats", d.HandleCampaignStats)
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/hourly", d.HandleHourlyStats)
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/geo", d.HandleGeoBreakdown)
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/bids", d.HandleBidTransparency)
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/attribution", d.HandleAttribution)
+	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/simulate", d.HandleBidSimulate)
+
+	// Export (already had owner check but Round 1 I1 made sure they're
+	// under regression coverage too).
+	mux.HandleFunc("GET /api/v1/export/campaign/{id}/stats", d.HandleExportCampaignCSV)
+	mux.HandleFunc("GET /api/v1/export/campaign/{id}/bids", d.HandleExportBidsCSV)
+
+	// Admin routes (HandleListAdvertisers, etc.) are intentionally NOT
+	// registered here: in production they live behind AdminAuthMiddleware
+	// on a separate mux, not APIKeyMiddleware. Tests that need to verify
+	// admin handler behavior invoke the handler method directly via
+	// httptest.NewRecorder, bypassing middleware — see
+	// TestListAdvertisers_OmitsAPIKey in apikey_leak_test.go.
 
 	// APIKeyMiddleware routes auth-free requests to 401, which is what the
 	// 401-path regression tests actually want. It also turns a valid key

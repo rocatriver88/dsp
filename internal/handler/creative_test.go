@@ -84,20 +84,17 @@ func TestCreativeHandlers_UnauthReturns401(t *testing.T) {
 	}
 }
 
-// TestHandleCreateCreative_InvalidAdTypeReturns400 verifies the pre-existing
-// input validation still fires before the scope check, so malformed input
-// gets a clean 400 response without leaking any owner information.
-func TestHandleCreateCreative_InvalidAdTypeReturns400(t *testing.T) {
-	d := &Deps{}
-
-	body := `{"campaign_id": 99, "name": "x", "ad_type": "totally_made_up"}`
-	req := httptest.NewRequest(http.MethodPost, "/creatives", strings.NewReader(body))
-	req = req.WithContext(ctxWithAdvertiser(req.Context(), 42))
-	w := httptest.NewRecorder()
-
-	d.HandleCreateCreative(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for invalid ad_type, got %d (body: %s)", w.Code, w.Body.String())
-	}
-}
+// NOTE on ad_type validation coverage:
+//
+// Round 1 review I6 reordered HandleCreateCreative so the ownership
+// check fires BEFORE any input validation. This prevents a cross-
+// tenant attacker from learning the ad_type whitelist via a 400
+// response on a foreign campaign_id. A consequence is that the
+// previous TestHandleCreateCreative_InvalidAdTypeReturns400 — which
+// exercised the ad_type branch with a nil Deps, relying on the old
+// "ad_type check first" order — is no longer testable at the unit
+// level: reaching the ad_type branch now requires a real Store so
+// the ownership check can pass. That coverage is moved to the
+// integration suite in test/integration/. Do not re-add a nil-store
+// variant of this test; it would only verify the order that the
+// reviewer explicitly flagged as insecure.

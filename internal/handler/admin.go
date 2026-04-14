@@ -248,12 +248,19 @@ func (d *Deps) HandleRejectRegistration(w http.ResponseWriter, r *http.Request) 
 }
 
 // HandleListAdvertisers godoc
-// @Summary List all advertisers
+// @Summary List all advertisers (admin, api_key redacted)
 // @Tags admin
 // @Security AdminAuth
 // @Produce json
-// @Success 200 {array} campaign.Advertiser
+// @Success 200 {array} handler.AdvertiserResponse
 // @Router /admin/advertisers [get]
+//
+// Round 1 review Critical fix: this handler previously returned the
+// persistence model *campaign.Advertiser directly, leaking every
+// advertiser's plaintext api_key in one admin call. Now it routes
+// through NewAdvertiserResponseList so the admin list is api_key-free.
+// The one-time key disclosure paths (create advertiser, approve
+// registration) continue to use their dedicated *WithKey response shapes.
 func (d *Deps) HandleListAdvertisers(w http.ResponseWriter, r *http.Request) {
 	limit, offset := parsePagination(r)
 	advs, err := d.Store.ListAllAdvertisers(r.Context(), limit, offset)
@@ -261,7 +268,7 @@ func (d *Deps) HandleListAdvertisers(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusInternalServerError, "failed to list advertisers")
 		return
 	}
-	WriteJSON(w, http.StatusOK, advs)
+	WriteJSON(w, http.StatusOK, NewAdvertiserResponseList(advs))
 }
 
 // HandleAdminTopUp godoc

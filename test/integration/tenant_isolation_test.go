@@ -75,6 +75,12 @@ func TestTenantIsolation_CrossTenantReadsAre404(t *testing.T) {
 		{"foreign geo", "/api/v1/reports/campaign/" + itoa(bCamp) + "/geo"},
 		{"foreign bids", "/api/v1/reports/campaign/" + itoa(bCamp) + "/bids"},
 		{"foreign attribution", "/api/v1/reports/campaign/" + itoa(bCamp) + "/attribution"},
+		// Round 1 review I1: simulate + export paths were previously
+		// uncovered by the regression suite even though V5 §P0 §3 lists
+		// them as "已有检查 保持一致". Now they're explicitly guarded.
+		{"foreign simulate", "/api/v1/reports/campaign/" + itoa(bCamp) + "/simulate?bid_cpm_cents=100"},
+		{"foreign export stats", "/api/v1/export/campaign/" + itoa(bCamp) + "/stats"},
+		{"foreign export bids", "/api/v1/export/campaign/" + itoa(bCamp) + "/bids"},
 	}
 
 	for _, tc := range cases {

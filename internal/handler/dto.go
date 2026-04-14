@@ -37,6 +37,25 @@ func NewAdvertiserResponse(adv *campaign.Advertiser) AdvertiserResponse {
 	}
 }
 
+// NewAdvertiserResponseList converts a slice of persistence-layer
+// Advertisers into sanitized response shapes. Always returns a non-nil
+// slice so callers see `[]` instead of `null` when the source is empty
+// — this keeps the admin list endpoint's JSON contract stable.
+//
+// This helper exists because Round 1's final code review caught a
+// Critical: HandleListAdvertisers was returning []*campaign.Advertiser
+// directly, which still carries json:"api_key". One admin GET on a
+// leaked ADMIN_TOKEN would have exfiltrated every tenant's plaintext
+// API key. Use this helper for every admin path that returns advertiser
+// collections.
+func NewAdvertiserResponseList(advs []*campaign.Advertiser) []AdvertiserResponse {
+	out := make([]AdvertiserResponse, 0, len(advs))
+	for _, adv := range advs {
+		out = append(out, NewAdvertiserResponse(adv))
+	}
+	return out
+}
+
 // AdvertiserCreatedResponse is the one-time response for POST /advertisers.
 // It carries the fresh api_key so the caller can persist it; no read path
 // ever returns this shape.

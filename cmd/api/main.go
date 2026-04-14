@@ -171,11 +171,12 @@ func main() {
 	publicMux.HandleFunc("POST /api/v1/billing/topup", h.HandleTopUp)
 	publicMux.HandleFunc("GET /api/v1/billing/transactions", h.HandleTransactions)
 	publicMux.HandleFunc("GET /api/v1/billing/balance", h.HandleBalance)
-	// Legacy path kept for backward compatibility. The handler resolves the
-	// advertiser from auth context regardless of the path id, so a client
-	// that still sends GET /billing/balance/{id} silently gets its own
-	// balance — the path id is ignored. Safe for reads per the V5 three-
-	// code rule (silent routing is only rejected on writes like topup).
+	// Legacy alias kept for backward compatibility with clients that
+	// still send GET /billing/balance/{id}. The handler enforces
+	// pathID == authID and returns 404 on mismatch per the V5 §P0
+	// three-code rule (Round 1 review reverted commit 4faa8c9's
+	// permissive "silently ignore path id" shortcut). See
+	// internal/handler/billing.go HandleBalance for the rationale.
 	publicMux.HandleFunc("GET /api/v1/billing/balance/{id}", h.HandleBalance)
 	publicMux.HandleFunc("POST /api/v1/upload", h.HandleUpload)
 	publicMux.Handle("/uploads/", http.StripPrefix("/uploads/", handler.UploadFileServer()))

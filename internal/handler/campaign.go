@@ -501,14 +501,17 @@ func (d *Deps) HandleCreateCreative(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	// Ownership check before input validation so a cross-tenant attacker
+	// with a valid API key does not learn the ad_type whitelist from a
+	// 400 response. Round 1 review I6.
+	if !d.ensureCampaignOwner(w, r, req.CampaignID) {
+		return
+	}
 	if req.AdType == "" {
 		req.AdType = "banner"
 	}
 	if _, ok := campaign.AdTypeConfig[req.AdType]; !ok {
 		WriteError(w, http.StatusBadRequest, "invalid ad_type: must be splash, interstitial, native, or banner")
-		return
-	}
-	if !d.ensureCampaignOwner(w, r, req.CampaignID) {
 		return
 	}
 	cr := &campaign.Creative{

@@ -223,6 +223,18 @@ func main() {
 	loader.Stop()
 	statsCache.Stop()
 
+	// Invariant 4 (strict): wait for every producer.Go goroutine the
+	// handlers spawned — click / convert / win notices — to finish
+	// writing to Kafka (or to the disk buffer fallback) BEFORE we
+	// close the Kafka writers. 5-second cap: any goroutine still
+	// writing after that loses its message to the at-least-once
+	// disk-buffer guarantee documented in docs/runtime.md.
+	flushCtx, flushCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := producer.WaitInflight(flushCtx); err != nil {
+		log.Printf("[SHUTDOWN] producer inflight flush timed out: %v (residual events fall back to disk buffer)", err)
+	}
+	flushCancel()
+
 	producer.Close()
 	log.Println("Bidder stopped")
 }
@@ -471,10 +483,11 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 		// won bid. Reporting aggregation is unaffected — Step A already
 		// switched the query to countDistinctIf(request_id, ...) which
 		// collapsed the duplicate before, so it collapses nothing now.
-		// If a real impression callback (pixel / SDK) is ever introduced,
-		// it should write its own request_id-distinct event into
-		// dsp.impressions; the aggregation will then correctly add it.
-		go producer.SendWin(context.Background(), evt)
+		//
+		// producer.Go (instead of a raw `go`) registers this send with
+		// the producer's inflight WaitGroup so shutdown can drain it
+		// before closing the Kafka writers. Round 1 review I4 Option A.
+		producer.Go(func() { producer.SendWin(context.Background(), evt) })
 	}
 
 	fmt.Fprintf(w, `{"status":"ok","remaining_cents":%d}`, remaining)
@@ -543,14 +556,16 @@ func handleClick(w http.ResponseWriter, r *http.Request) {
 		}
 		// Background context — request context cancels when the handler
 		// returns (especially on the dest redirect path), which would
-		// abort the Kafka write in flight.
-		go producer.SendClick(context.Background(), events.Event{
+		// abort the Kafka write in flight. Tracked via producer.Go so
+		// shutdown drain can wait for it (Round 1 review I4).
+		evt := events.Event{
 			CampaignID:       campaignID,
 			RequestID:        requestID,
 			AdvertiserCharge: charge,
 			GeoCountry:       r.URL.Query().Get("geo"),
 			DeviceOS:         r.URL.Query().Get("os"),
-		})
+		}
+		producer.Go(func() { producer.SendClick(context.Background(), evt) })
 	}
 
 	log.Printf("[CLICK] campaign_id=%d request_id=%s", campaignID, requestID)
@@ -578,12 +593,14 @@ func handleConvert(w http.ResponseWriter, r *http.Request) {
 
 	if campaignID > 0 && producer != nil {
 		// Background context — see handleWin / handleClick for rationale.
-		go producer.SendConversion(context.Background(), events.Event{
+		// Tracked via producer.Go so shutdown drain can wait.
+		evt := events.Event{
 			CampaignID: campaignID,
 			RequestID:  requestID,
 			GeoCountry: r.URL.Query().Get("geo"),
 			DeviceOS:   r.URL.Query().Get("os"),
-		})
+		}
+		producer.Go(func() { producer.SendConversion(context.Background(), evt) })
 	}
 
 	log.Printf("[CONVERT] campaign_id=%d request_id=%s", campaignID, requestID)
