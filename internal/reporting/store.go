@@ -81,17 +81,40 @@ type CampaignStats struct {
 }
 
 // GetCampaignStats returns aggregated stats for a campaign within a date range.
+//
+// V5 §P1 Step A: the impressions field is now the "effective delivery"
+// count — countDistinctIf(request_id, event_type IN ('win','impression')).
+// It is stable across the three event-semantic regimes:
+//
+//   - current state: bidder writes both a 'win' row and an 'impression' row
+//     for every won bid, so naïve countIf('impression') is equal to the
+//     number of wins, and naïve sum(charge_cents) double-counts. Grouping
+//     by request_id collapses the pair into one delivery.
+//   - Step B (pending): bidder stops writing the duplicate 'impression'
+//     row; effective_delivery is unchanged because 'win' still carries
+//     the same request_id.
+//   - future real-impression callback: a genuine impression event with a
+//     distinct request_id, if we ever add one, adds one more delivery
+//     and effective_delivery still reflects it correctly.
+//
+// Spend: sum(charge_cents) was previously double-counted in the same way
+// (each won CPM bid contributes charge to both the win and the impression
+// row). Switching to sumIf(charge_cents, event_type IN ('win','click'))
+// picks exactly one row per billing event — win for CPM/oCPM, click for
+// CPC — regardless of whether the duplicate impression row is still
+// being written. See docs/contracts/biz-engine.md §2 for the rationale
+// and the migration plan.
 func (s *Store) GetCampaignStats(ctx context.Context, campaignID uint64, from, to time.Time) (*CampaignStats, error) {
 	stats := &CampaignStats{CampaignID: campaignID}
 
 	row := s.conn.QueryRow(ctx, `
 		SELECT
-			countIf(event_type = 'impression') AS impressions,
+			countDistinctIf(request_id, event_type IN ('win', 'impression')) AS impressions,
 			countIf(event_type = 'click') AS clicks,
 			countIf(event_type = 'conversion') AS conversions,
 			countIf(event_type = 'win') AS wins,
 			countIf(event_type = 'bid') AS bids,
-			sum(charge_cents) AS spend_cents,
+			sumIf(charge_cents, event_type IN ('win', 'click')) AS spend_cents,
 			sumIf(clear_price_cents, event_type = 'win') AS adx_cost_cents
 		FROM bid_log
 		WHERE campaign_id = ? AND event_date >= ? AND event_date <= ?
@@ -127,11 +150,17 @@ type HourlyStats struct {
 }
 
 // GetHourlyStats returns hourly breakdown for a campaign on a given date.
+//
+// V5 §P1 Step A: impressions uses the effective-delivery count so the
+// hourly curve matches GetCampaignStats in magnitude. spend_cents in
+// this struct still reports ADX settlement (clear_price_cents on wins)
+// rather than advertiser charge — the HourlyStats.SpendCents field
+// mislabeling is pre-existing and renaming is deferred.
 func (s *Store) GetHourlyStats(ctx context.Context, campaignID uint64, date time.Time) ([]HourlyStats, error) {
 	rows, err := s.conn.Query(ctx, `
 		SELECT
 			toHour(event_time) AS hour,
-			countIf(event_type = 'impression') AS impressions,
+			countDistinctIf(request_id, event_type IN ('win', 'impression')) AS impressions,
 			countIf(event_type = 'click') AS clicks,
 			sumIf(clear_price_cents, event_type = 'win') AS spend_cents
 		FROM bid_log
@@ -205,10 +234,14 @@ type GeoStats struct {
 }
 
 // GetGeoBreakdown returns stats broken down by country.
+//
+// V5 §P1 Step A: impressions uses the effective-delivery count. spend_cents
+// still reports ADX settlement (clear_price_cents on wins); the same
+// pre-existing mislabeling as GetHourlyStats.
 func (s *Store) GetGeoBreakdown(ctx context.Context, campaignID uint64, from, to time.Time) ([]GeoStats, error) {
 	rows, err := s.conn.Query(ctx, `
 		SELECT geo_country,
-			countIf(event_type = 'impression') AS impressions,
+			countDistinctIf(request_id, event_type IN ('win', 'impression')) AS impressions,
 			countIf(event_type = 'click') AS clicks,
 			sumIf(clear_price_cents, event_type = 'win') AS spend_cents
 		FROM bid_log

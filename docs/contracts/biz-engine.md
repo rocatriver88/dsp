@@ -146,6 +146,38 @@ type Event struct {
 
 **TTL**:6 个月。biz 的报表 / 归因查询必须假定 6 个月以前的数据会被清理。
 
+### 聚合口径:`effective_delivery`(过渡期)
+
+背景:bidder `handleWin` 在成交时同时写 `dsp.bids` 和 `dsp.impressions` 两条事件,consumer 把它们都落到 `bid_log` 里——每次赢标因此产生两行(一行 `event_type='win'`、一行 `event_type='impression'`),两行共享同一个 `request_id`,`charge_cents` 在双方都被设置成同一个值。
+
+天真的 `countIf(event_type = 'impression')` 和 `sum(charge_cents)` 会因此把每次赢标双计。V5 P1 Step A 的解法是改成按 `request_id` 去重的聚合,命名为 **effective_delivery**:
+
+```sql
+-- 曝光数(稳定跨三种双写状态)
+countDistinctIf(request_id, event_type IN ('win', 'impression'))
+
+-- 广告主花费(CPM/oCPM 走 win 行,CPC 走 click 行,两者互斥)
+sumIf(charge_cents, event_type IN ('win', 'click'))
+```
+
+**不变量**:在以下三种状态下,effective_delivery 对同一批次数据返回同一个数字——
+
+| 状态 | bid_log 中同一次赢标的行 | countDistinctIf 结果 |
+|---|---|---|
+| 当前(Step A 之前) | `win`(req=R)+ `impression`(req=R),共 2 行 | 1(按 R 去重) |
+| Step B 之后 | 只有 `win`(req=R),1 行 | 1 |
+| 未来真实曝光回调落地 | `win`(req=R)+ 真实 `impression`(req=R'),2 行不同 req | 2 |
+
+最后一种是未来场景:如果引入独立的曝光埋点(像素/SDK),它写入一个**新的** `request_id`,effective_delivery 就会区分"赢标次数"和"真实曝光次数"。本轮(Step A + Step B)不做这件事。
+
+**Step A 落地范围**:`internal/reporting/store.go` 的 `GetCampaignStats` / `GetHourlyStats` / `GetGeoBreakdown` 三个查询。`internal/autopause` 和 `internal/reconciliation` 都通过 `GetCampaignStats` 读取,**无需单独改动**,自动拿到修复。
+
+**Step A 的一次性数值跳变**:从"impressions 双计 + spend 双计"一次性切到"正确计数",落地当天 CTR、impressions、spend 的绝对值会相对历史数据发生变化(变成原来的一半左右,对 CPM 活动)。这不是 bug 是 correction——历史数据本身就是错的,Step A 让它从今天起开始对。V5 "迁移前后指标无跳变" 约束指的是 Step A → Step B 的稳定性,不是历史 → Step A 的可见性。
+
+**Step B 的范围**:删除 `handleWin` 中的 `SendImpression` 调用,bid_log 从此不再新增伪造 impression 行。`effective_delivery` 保持不变。
+
+**何时可以把 `effective_delivery` 简化回 `countIf('impression')`**:永远不。这个聚合口径即使 Step B 后也要保留——一旦未来引入真实曝光回调,`countDistinctIf(request_id, event_type IN ('win','impression'))` 仍然是正确的"至少发货一次"计数。"阶段性过渡"是个误导标签;这是最终聚合口径。
+
 ### biz 侧读方
 
 - `internal/reporting/store.go` - 基础报表查询(投放量、花费、CTR)
