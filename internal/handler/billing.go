@@ -95,16 +95,32 @@ func (d *Deps) HandleTransactions(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} object{advertiser_id=integer,balance_cents=integer,billing_type=string}
 // @Failure 401 {object} object{error=string}
+// @Failure 404 {object} object{error=string}
 // @Router /billing/balance [get]
 //
-// The advertiser is resolved from the auth context, not from a path
-// parameter. This removes the tenant-isolation surface entirely — there is
-// no path id to compare against, so cross-tenant access is structurally
-// impossible.
+// This handler is registered on two routes:
+//
+//   - GET /api/v1/billing/balance       — canonical; no path id, pure auth context
+//   - GET /api/v1/billing/balance/{id}  — legacy; path id must match auth id
+//
+// On the legacy route we enforce a scope check: if the path id is present
+// and differs from the authenticated advertiser, the response is 404 per
+// the V5 §P0 three-code rule. The earlier commit 4faa8c9 let the legacy
+// path silently ignore the id for reads, which the Batch 6 integration
+// suite caught as a tenant-isolation leak: the caller would still learn
+// "any id under /balance/{id} returns 200" — subtle, but V5's rule is
+// absolute, so the check is reinstated here.
 func (d *Deps) HandleBalance(w http.ResponseWriter, r *http.Request) {
 	authID, ok := requireAuth(w, r)
 	if !ok {
 		return
+	}
+	if idStr := r.PathValue("id"); idStr != "" {
+		pathID, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil || pathID != authID {
+			WriteError(w, http.StatusNotFound, "not found")
+			return
+		}
 	}
 	balance, billingType, err := d.BillingSvc.GetBalance(r.Context(), authID)
 	if err != nil {

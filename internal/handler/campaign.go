@@ -249,7 +249,10 @@ func (d *Deps) HandleGetCampaign(w http.ResponseWriter, r *http.Request) {
 func (d *Deps) HandleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid id")
+		WriteError(w, http.StatusNotFound, "not found")
+		return
+	}
+	if !d.ensureCampaignOwner(w, r, id) {
 		return
 	}
 	advID := auth.AdvertiserIDFromContext(r.Context())
@@ -342,7 +345,10 @@ func (d *Deps) HandleStartCampaign(w http.ResponseWriter, r *http.Request) {
 func (d *Deps) HandlePauseCampaign(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid id")
+		WriteError(w, http.StatusNotFound, "not found")
+		return
+	}
+	if !d.ensureCampaignOwner(w, r, id) {
 		return
 	}
 	advID := auth.AdvertiserIDFromContext(r.Context())
