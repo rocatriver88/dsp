@@ -44,6 +44,9 @@ import (
 func main() {
 	observability.InitLogger()
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("config validation failed: %v", err)
+	}
 	ctx := context.Background()
 
 	// Connect PostgreSQL

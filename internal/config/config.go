@@ -1,10 +1,18 @@
 package config
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
+)
+
+// defaultBidderHMACSecret and defaultCORSOrigins are the dev-only defaults
+// baked into Load(). Validate() rejects them in production so that a
+// misconfigured deployment fails fast at startup.
+const (
+	defaultBidderHMACSecret = "dev-hmac-secret-change-in-production"
+	defaultCORSOrigins      = "http://localhost:4000"
 )
 
 type Config struct {
@@ -51,9 +59,9 @@ func Load() *Config {
 		APIPort:            getEnv("API_PORT", "8181"),
 		BidderPort:         getEnv("BIDDER_PORT", "8180"),
 		InternalPort:       getEnv("INTERNAL_PORT", "8182"),
-		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:4000"),
+		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", defaultCORSOrigins),
 		BidderPublicURL:    getEnv("BIDDER_PUBLIC_URL", "http://localhost:8180"),
-		BidderHMACSecret:   getEnv("BIDDER_HMAC_SECRET", "dev-hmac-secret-change-in-production"),
+		BidderHMACSecret:   getEnv("BIDDER_HMAC_SECRET", defaultBidderHMACSecret),
 
 		GlobalDailyBudgetCents: parseInt64("GLOBAL_DAILY_BUDGET_CENTS", 0),
 		MaxBidCPMCents:         parseInt("MAX_BID_CPM_CENTS", 0),
@@ -64,15 +72,33 @@ func Load() *Config {
 	}
 }
 
-// Validate checks production safety. Call after Load().
-func (c *Config) Validate() {
+// Validate returns a non-nil error if the configuration would be unsafe for
+// production use. Call it from main() immediately after Load() and fail the
+// process (log.Fatal) on any error. Keeping Validate as a pure function
+// makes it trivially testable; the side-effect of aborting the process
+// belongs in the caller, not in the config package.
+//
+// The production-only checks are:
+//   - BIDDER_HMAC_SECRET must be overridden (not the baked-in dev default)
+//   - ADMIN_TOKEN must be set (no fallback is accepted, and admin_auth now
+//     refuses empty tokens at request time as defense in depth)
+//   - CORS_ALLOWED_ORIGINS must be overridden (the dev default trusts
+//     http://localhost:4000 only, which has no meaning in production)
+func (c *Config) Validate() error {
 	env := getEnv("ENV", "development")
-	if env == "production" && c.BidderHMACSecret == "dev-hmac-secret-change-in-production" {
-		log.Fatal("FATAL: BIDDER_HMAC_SECRET must be set in production. Using the default dev secret is a security vulnerability.")
+	if env != "production" {
+		return nil
 	}
-	if env == "production" && getEnv("ADMIN_TOKEN", "") == "" {
-		log.Fatal("FATAL: ADMIN_TOKEN must be set in production. The default 'admin-secret' is not safe.")
+	if c.BidderHMACSecret == defaultBidderHMACSecret {
+		return fmt.Errorf("BIDDER_HMAC_SECRET must be set in production; refusing to start with the baked-in dev secret")
 	}
+	if getEnv("ADMIN_TOKEN", "") == "" {
+		return fmt.Errorf("ADMIN_TOKEN must be set in production; there is no default fallback")
+	}
+	if c.CORSAllowedOrigins == defaultCORSOrigins {
+		return fmt.Errorf("CORS_ALLOWED_ORIGINS must be set in production; refusing to start with the dev default %q", defaultCORSOrigins)
+	}
+	return nil
 }
 
 // CSTLocation returns the Asia/Shanghai timezone, cached at package init.
