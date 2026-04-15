@@ -79,6 +79,32 @@ Standard flow for any feature/phase implementation:
 - /browse screenshots at the end confirm visual compliance with DESIGN.md
 - Do NOT skip any step
 
+### 上面的循环是 NON-NEGOTIABLE
+
+两次事故证明了这一点,每次都付出了真金白银的代价:
+
+- **V5 remediation 2026-04-14**:6 批次安全修复按 batch 跑了单元测试,但没跑 per-phase code review / 集成 / /qa。最后的 retroactive final review 捞出 **5 个真 bug**,其中一个是 Critical "单次 admin 调用泄露所有广告主 api_key"(`HandleListAdvertisers`)—— "一次泄露等于全系统 takeover"级别。净代价:2 轮补救性 review + 修复。见 `~/.claude/projects/C--Users-Roc-github-dsp/memory/feedback_per_phase_review.md` 详细取证
+- **biz QA 2026-04-14**:4 个 Critical 安全热修(P2.7b / P2.8b / P4.2b + P2.9 补丁)inline 执行零 review。最后需要回溯加厚的 final review + 对 Critical commits 的独立二次审查才能安全合入。见本 repo `docs/qa/2026-04-14-biz-qa-report.md` 的 P5.1 章节
+
+**必须当场拒绝的内心独白**(这些正是两起事故当时说服自己的理由):
+
+- "这个 fix 很小 / 很明显,重新 review 是 overkill"
+- "我内联修完 reviewer 提的问题了,重新 dispatch reviewer 是浪费"
+- "Scripted work(bash / shell / 文档)不需要正规 review"
+- "我自己跑过测试了,那就算 review 过了"
+- "时间紧 / token 预算紧"
+- "Subagent 速率限制用完了,自审等价"
+
+**捕捉到任何一个这样的念头 → 立即停下来,该跑的 review 照跑。** 如果 subagent 无法 dispatch(速率限制 / 其他 blocker)→ **立即停下来,上报用户**。不要把自审当作独立 review 的等价物 —— 自审对"写代码时无意识 rationalize 掉的东西"有系统性盲区,独立 review 没有。
+
+**三条铁律(无一例外)**:
+
+1. 每个 task → implementer → spec reviewer → code quality reviewer,**按顺序跑完**才能 mark task done
+2. 每次 reviewer 找到问题触发的 inline fix → 必须 **re-dispatch** reviewer 验证 fix 真正解决了问题,才能进下一步
+3. 每个 Phase 边界 → `superpowers:requesting-code-review` + `superpowers:verification-before-completion` + `/qa`,**完整循环**到**零问题一轮**才能 mark Phase done
+
+对于 tenant-isolation 覆盖,nil-store test stub **不够** —— 它漏掉的正是"WHERE 子句返 0 行 → handler 把 DB 错误映射为 500/409 而非 404"这一类 bug。tenant-isolation 回归测试**必须**打真 Store。对于 cross-cutting 关注点("是否每个 `producer.Send(...)` 都被 inflight helper 包裹"这种),**用 grep-based 审计**,不要相信 implementer 的心智模型。
+
 ## /browse Verification Standard
 
 /browse 不是"截图+目视"，是四维度系统验证。每个页面必须完成以下四项：
