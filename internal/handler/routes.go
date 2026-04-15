@@ -41,8 +41,14 @@ func BuildPublicMux(d *Deps) *http.ServeMux {
 	mux.HandleFunc("GET /api/v1/export/campaign/{id}/stats", d.HandleExportCampaignCSV)
 	mux.HandleFunc("GET /api/v1/export/campaign/{id}/bids", d.HandleExportBidsCSV)
 	mux.HandleFunc("GET /api/v1/audit-log", d.HandleMyAuditLog)
-	mux.HandleFunc("GET /api/v1/analytics/stream", d.HandleAnalyticsStream)
-	mux.HandleFunc("GET /api/v1/analytics/snapshot", d.HandleAnalyticsSnapshot)
+	// Analytics SSE streaming routes (/analytics/stream, /analytics/snapshot)
+	// are NOT registered here. They live in BuildAnalyticsSSEMux, behind
+	// SSETokenMiddleware, because EventSource cannot send custom headers and
+	// putting the long-lived X-API-Key in URL query leaks tenant credentials
+	// into proxy logs / browser history / referrer headers (V5.1 P1-1).
+	// The token-issue endpoint below stays in publicMux so it gets the
+	// normal APIKeyMiddleware treatment.
+	mux.HandleFunc("POST /api/v1/analytics/token", d.HandleAnalyticsStreamToken)
 	mux.HandleFunc("POST /api/v1/billing/topup", d.HandleTopUp)
 	mux.HandleFunc("GET /api/v1/billing/transactions", d.HandleTransactions)
 	mux.HandleFunc("GET /api/v1/billing/balance", d.HandleBalance)
@@ -88,10 +94,32 @@ func BuildAdminMux(d *Deps) *http.ServeMux {
 	return mux
 }
 
+// BuildAnalyticsSSEMux returns a dedicated mux for analytics SSE endpoints.
+// These routes authenticate via short-lived HMAC tokens (?token=) rather
+// than X-API-Key, because EventSource cannot set custom headers and
+// putting the long-lived tenant key in URL query leaks credentials into
+// proxy logs, browser history, and referrer headers (V5.1 P1-1).
+//
+// Clients mint a token via POST /api/v1/analytics/token (authenticated
+// via X-API-Key header, routed through BuildPublicMux + APIKeyMiddleware)
+// and then use the returned token in ?token= query of the stream /
+// snapshot endpoints below.
+func BuildAnalyticsSSEMux(d *Deps) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/analytics/stream", d.HandleAnalyticsStream)
+	mux.HandleFunc("GET /api/v1/analytics/snapshot", d.HandleAnalyticsSnapshot)
+	return mux
+}
+
 // BuildPublicHandler returns the full production public handler chain:
-// CORS -> RequestID -> Logging -> AuthExemption(RateLimit(APIKey(publicMux))).
-// This preserves the exact middleware order from cmd/api/main.go prior to
-// the biz routes.go refactor.
+// CORS -> RequestID -> Logging -> dispatcher { analytics SSE -> SSETokenMiddleware,
+//   everything else -> AuthExemption(RateLimit(APIKey(publicMux))) }.
+//
+// Analytics SSE endpoints (/analytics/stream, /analytics/snapshot) use HMAC
+// token auth instead of X-API-Key (V5.1 P1-1). Token minting lives at
+// POST /api/v1/analytics/token inside publicMux, so it still flows through
+// APIKeyMiddleware. The dispatcher uses exact-path matching so /token is NOT
+// accidentally routed through SSETokenMiddleware.
 func BuildPublicHandler(cfg *config.Config, d *Deps) http.Handler {
 	publicMux := BuildPublicMux(d)
 	apiKeyLookup := func(ctx context.Context, key string) (int64, string, string, error) {
@@ -105,7 +133,26 @@ func BuildPublicHandler(cfg *config.Config, d *Deps) http.Handler {
 	authed := auth.APIKeyMiddleware(apiKeyLookup)(publicMux)
 	rateLimited := ratelimit.Middleware(limiter, ratelimit.APIKeyFunc, 100, time.Minute)(authed)
 	withExemption := WithAuthExemption(rateLimited, publicMux)
-	return WithCORS(cfg, observability.RequestIDMiddleware(observability.LoggingMiddleware(withExemption)))
+
+	// Analytics SSE sub-chain: SSETokenMiddleware reads ?token= and injects
+	// the advertiser into context using the same advertiserKey as
+	// APIKeyMiddleware, so HandleAnalyticsStream / HandleAnalyticsSnapshot
+	// work unchanged. Rate-limited via APIKeyFunc which falls back to
+	// per-IP bucketing when X-API-Key is absent (see ratelimit.APIKeyFunc).
+	analyticsSSEMux := BuildAnalyticsSSEMux(d)
+	analyticsSSEAuth := auth.SSETokenMiddleware(d.SSETokenSecret)(analyticsSSEMux)
+	analyticsSSE := ratelimit.Middleware(limiter, ratelimit.APIKeyFunc, 100, time.Minute)(analyticsSSEAuth)
+
+	dispatcher := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		if p == "/api/v1/analytics/stream" || p == "/api/v1/analytics/snapshot" {
+			analyticsSSE.ServeHTTP(w, r)
+			return
+		}
+		withExemption.ServeHTTP(w, r)
+	})
+
+	return WithCORS(cfg, observability.RequestIDMiddleware(observability.LoggingMiddleware(dispatcher)))
 }
 
 // BuildInternalHandler returns the full internal (admin) handler chain:

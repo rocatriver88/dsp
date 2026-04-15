@@ -141,3 +141,35 @@ func (d *Deps) sendAnalyticsEvent(ctx context.Context, w http.ResponseWriter, fl
 	fmt.Fprintf(w, "data: %s\n\n", data)
 	flusher.Flush()
 }
+
+// HandleAnalyticsStreamToken godoc
+// @Summary Issue a short-lived SSE auth token for /analytics/stream
+// @Description Returns a 5-minute HMAC-signed token bound to the authenticated advertiser.
+// @Description Clients use this token in the ?token= query of /analytics/stream and /analytics/snapshot
+// @Description to authenticate EventSource connections without exposing the long-lived X-API-Key
+// @Description in URL query logs (V5.1 P1-1).
+// @Tags analytics
+// @Security ApiKeyAuth
+// @Produce json
+// @Success 200 {object} object{token=string,expires_at=integer}
+// @Failure 401 {object} object{error=string}
+// @Failure 500 {object} object{error=string}
+// @Router /analytics/token [post]
+func (d *Deps) HandleAnalyticsStreamToken(w http.ResponseWriter, r *http.Request) {
+	advID := auth.AdvertiserIDFromContext(r.Context())
+	if advID == 0 {
+		WriteError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+	if len(d.SSETokenSecret) == 0 {
+		WriteError(w, http.StatusInternalServerError, "SSE token signing not configured")
+		return
+	}
+	const ttl = 5 * time.Minute
+	now := time.Now()
+	token := auth.IssueSSEToken(d.SSETokenSecret, advID, ttl, now)
+	WriteJSON(w, http.StatusOK, map[string]any{
+		"token":      token,
+		"expires_at": now.Add(ttl).Unix(),
+	})
+}

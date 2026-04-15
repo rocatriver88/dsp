@@ -8,14 +8,14 @@ import (
 )
 
 // WithAuthExemption routes unauthenticated paths directly to the mux, bypassing auth middleware.
+//
+// V5.1 P1-1: the legacy analytics `?api_key=` query promotion was deleted
+// here. SSE authentication now goes through SSETokenMiddleware, wired in
+// BuildPublicHandler's dispatcher. Tenant X-API-Key must never appear in
+// URL query — putting credentials in URLs leaks them into proxy logs,
+// browser history, and referrer headers.
 func WithAuthExemption(authed http.Handler, publicMux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// SSE endpoints can't set custom headers from EventSource, so accept api_key in query params
-		if strings.HasPrefix(r.URL.Path, "/api/v1/analytics/") {
-			if apiKey := r.URL.Query().Get("api_key"); apiKey != "" {
-				r.Header.Set("X-API-Key", apiKey)
-			}
-		}
 		if r.URL.Path == "/health" || r.URL.Path == "/api/v1/docs" || strings.HasPrefix(r.URL.Path, "/uploads/") || (r.Method == "POST" && r.URL.Path == "/api/v1/register") {
 			publicMux.ServeHTTP(w, r)
 			return
