@@ -7,7 +7,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -21,14 +23,21 @@ import (
 func TestAdvertiser_CreateAndGet(t *testing.T) {
 	d := mustDeps(t)
 
+	// V5.1 P1-2: POST /api/v1/advertisers is no longer registered on
+	// the tenant mux — it moved to /api/v1/admin/advertisers behind
+	// admin auth. This test now exercises HandleCreateAdvertiser
+	// directly (bypassing the mux) because it's testing the handler's
+	// business logic, not the route-to-handler wiring. The same
+	// pattern is used by test/integration/create_paths_test.go.
 	body := map[string]any{
 		"company_name":  "acme-" + safeName(t.Name()),
 		"contact_email": fmt.Sprintf("create-%d@test.local", nowNano()),
 	}
-	req := authedReq(t, http.MethodPost, "/api/v1/advertisers", body, "")
-	w := execPublic(t, d, req)
+	req := authedReq(t, http.MethodPost, "/api/v1/admin/advertisers", body, "")
+	w := httptest.NewRecorder()
+	d.HandleCreateAdvertiser(w, req)
 	if w.Code != http.StatusCreated {
-		t.Fatalf("POST /advertisers: expected 201, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("POST /admin/advertisers: expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 
 	var created struct {
@@ -65,13 +74,16 @@ func TestAdvertiser_CreateAndGet(t *testing.T) {
 }
 
 // TestAdvertiser_Create_MissingFields_400 verifies the handler rejects a
-// body with no company_name / contact_email.
+// body with no company_name / contact_email. Exercises the handler
+// directly since POST /api/v1/advertisers is no longer public
+// (V5.1 P1-2: moved to /api/v1/admin/advertisers).
 func TestAdvertiser_Create_MissingFields_400(t *testing.T) {
 	d := mustDeps(t)
-	req := authedReq(t, http.MethodPost, "/api/v1/advertisers", map[string]any{}, "")
-	w := execPublic(t, d, req)
+	req := authedReq(t, http.MethodPost, "/api/v1/admin/advertisers", map[string]any{}, "")
+	w := httptest.NewRecorder()
+	d.HandleCreateAdvertiser(w, req)
 	if w.Code != http.StatusBadRequest {
-		t.Fatalf("POST /advertisers (empty): expected 400, got %d: %s", w.Code, w.Body.String())
+		t.Fatalf("POST /admin/advertisers (empty): expected 400, got %d: %s", w.Code, w.Body.String())
 	}
 }
 
@@ -242,20 +254,48 @@ func TestBilling_Balance_CrossTenant_404(t *testing.T) {
 	}
 }
 
-// TestBilling_TopUp_IgnoresBodyAdvertiserID documents that after P4.2b
-// the topup handler ignores any client-supplied advertiser_id and
-// always credits the caller. The legacy field is still accepted in the
-// body (for backward compat with callers that still send it) but does
-// not influence which tenant is credited.
-func TestBilling_TopUp_IgnoresBodyAdvertiserID(t *testing.T) {
+// TestBilling_TopUp_RejectsMismatchedBodyAdvertiserID documents the
+// current (stricter) topup handler policy: if a caller supplies a
+// body.advertiser_id that does NOT match the authenticated caller,
+// the handler rejects with 400 "advertiser_id mismatch". The older
+// P4.2b semantics (silently ignore mismatches and always credit the
+// caller) were hardened to explicit rejection because a visible 400
+// makes cross-tenant attack attempts show up in logs instead of
+// getting silently masked.
+func TestBilling_TopUp_RejectsMismatchedBodyAdvertiserID(t *testing.T) {
 	d := mustDeps(t)
 	advA, _ := newAdvertiser(t, d)
-	advB, keyB := newAdvertiser(t, d)
+	_, keyB := newAdvertiser(t, d)
 
 	// advB attempts to top up with advertiser_id=advA in body.
+	// Handler must reject 400, not silently credit advA (the exploit)
+	// and not silently credit advB (the older lenient semantics).
 	topupReq := authedReq(t, http.MethodPost, "/api/v1/billing/topup", map[string]any{
-		"advertiser_id": advA, // should be ignored
+		"advertiser_id": advA,
 		"amount_cents":  1234,
+	}, keyB)
+	topupW := execAuthed(t, d, topupReq)
+	if topupW.Code != http.StatusBadRequest {
+		t.Fatalf("POST /billing/topup (mismatched advertiser_id): expected 400, got %d: %s",
+			topupW.Code, topupW.Body.String())
+	}
+	if !strings.Contains(topupW.Body.String(), "mismatch") {
+		t.Errorf("POST /billing/topup: expected 'mismatch' in error body, got %s",
+			topupW.Body.String())
+	}
+}
+
+// TestBilling_TopUp_NoBodyAdvertiserID_CreditsCaller covers the
+// backward-compat path: a body without advertiser_id credits the
+// authenticated caller. Legacy clients that predate the cross-tenant
+// hardening still work because body.advertiser_id==0 bypasses the
+// mismatch check entirely.
+func TestBilling_TopUp_NoBodyAdvertiserID_CreditsCaller(t *testing.T) {
+	d := mustDeps(t)
+	advB, keyB := newAdvertiser(t, d)
+
+	topupReq := authedReq(t, http.MethodPost, "/api/v1/billing/topup", map[string]any{
+		"amount_cents": 1234,
 	}, keyB)
 	topupW := execAuthed(t, d, topupReq)
 	if topupW.Code != http.StatusOK {
@@ -263,8 +303,7 @@ func TestBilling_TopUp_IgnoresBodyAdvertiserID(t *testing.T) {
 			topupW.Code, topupW.Body.String())
 	}
 
-	// Verify advB's balance increased, not advA's. Both GETs use the
-	// owner's key so pathID == context advID holds.
+	// Verify advB's balance increased.
 	var bBal struct {
 		BalanceCents int64 `json:"balance_cents"`
 	}
