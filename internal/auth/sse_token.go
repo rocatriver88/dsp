@@ -52,16 +52,15 @@ func ValidateSSEToken(secret []byte, token string, now time.Time) (int64, error)
 	if subtle.ConstantTimeCompare([]byte(expected), []byte(parts[1])) != 1 {
 		return 0, errors.New("invalid token")
 	}
-	payload := string(payloadBytes)
-	sep := strings.IndexByte(payload, ':')
-	if sep < 1 || sep == len(payload)-1 {
+	idStr, expStr, ok := strings.Cut(string(payloadBytes), ":")
+	if !ok || idStr == "" || expStr == "" {
 		return 0, errors.New("invalid token")
 	}
-	advID, err := strconv.ParseInt(payload[:sep], 10, 64)
+	advID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || advID <= 0 {
 		return 0, errors.New("invalid token")
 	}
-	expUnix, err := strconv.ParseInt(payload[sep+1:], 10, 64)
+	expUnix, err := strconv.ParseInt(expStr, 10, 64)
 	if err != nil {
 		return 0, errors.New("invalid token")
 	}

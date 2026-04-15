@@ -134,7 +134,7 @@ func main() {
 		Redis:       rdb,
 		Guardrail:   guard,
 		AuditLog:    auditLogger,
-		HMACSecret:  []byte(cfg.APIHMACSecret),
+		SSETokenSecret: []byte(cfg.APIHMACSecret),
 	}
 
 	publicSrv := &http.Server{

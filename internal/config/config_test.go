@@ -131,6 +131,22 @@ func TestValidate_ProductionDefaultAPIHMAC_Errors(t *testing.T) {
 	}
 }
 
+func TestValidate_APIHMACSecretTooShort_Errors(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("BIDDER_HMAC_SECRET", "real-production-bidder-secret-32chars-min")
+	t.Setenv("API_HMAC_SECRET", "tooshort") // 8 bytes — fails length check
+	t.Setenv("ADMIN_TOKEN", "real-production-admin-token-32chars-min")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://example.com")
+	cfg := Load()
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error when API_HMAC_SECRET is shorter than 32 bytes")
+	}
+	if !strings.Contains(err.Error(), "at least 32 bytes") {
+		t.Errorf("expected length error, got: %v", err)
+	}
+}
+
 func TestCSTLocation_NotNil(t *testing.T) {
 	if CSTLocation == nil {
 		t.Fatal("CSTLocation should be initialized at package init")
