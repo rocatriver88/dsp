@@ -21,12 +21,24 @@ import (
 //   2. Listen Redis pub/sub channel "campaign:updates" for incremental changes
 //   3. Every 30s: full reconciliation from DB (safety net for missed pub/sub)
 type CampaignLoader struct {
-	db       *pgxpool.Pool
-	rdb      *redis.Client
-	store    *campaign.Store
-	mu       sync.RWMutex
-	campaigns map[int64]*LoadedCampaign
-	stopCh   chan struct{}
+	db              *pgxpool.Pool
+	rdb             *redis.Client
+	store           *campaign.Store
+	mu              sync.RWMutex
+	campaigns       map[int64]*LoadedCampaign
+	stopCh          chan struct{}
+	stopOnce        sync.Once
+	refreshInterval time.Duration
+	sub             *redis.PubSub
+}
+
+// LoaderOption configures a CampaignLoader at construction time.
+type LoaderOption func(*CampaignLoader)
+
+// WithRefreshInterval overrides the full-reload period. Defaults to 30s.
+// Used by tests to drive the fallback path faster.
+func WithRefreshInterval(d time.Duration) LoaderOption {
+	return func(cl *CampaignLoader) { cl.refreshInterval = d }
 }
 
 // LoadedCampaign is a campaign ready for bidding with parsed targeting.
@@ -66,17 +78,28 @@ func (lc *LoadedCampaign) EffectiveBidCPMCents(predictedCTR, predictedCVR float6
 	}
 }
 
-func NewCampaignLoader(db *pgxpool.Pool, rdb *redis.Client) *CampaignLoader {
-	return &CampaignLoader{
-		db:        db,
-		rdb:       rdb,
-		store:     campaign.NewStore(db),
-		campaigns: make(map[int64]*LoadedCampaign),
-		stopCh:    make(chan struct{}),
+func NewCampaignLoader(db *pgxpool.Pool, rdb *redis.Client, opts ...LoaderOption) *CampaignLoader {
+	cl := &CampaignLoader{
+		db:              db,
+		rdb:             rdb,
+		store:           campaign.NewStore(db),
+		campaigns:       make(map[int64]*LoadedCampaign),
+		stopCh:          make(chan struct{}),
+		refreshInterval: 30 * time.Second,
 	}
+	for _, opt := range opts {
+		opt(cl)
+	}
+	return cl
 }
 
 // Start loads campaigns and begins background sync.
+//
+// Start establishes the Redis pub/sub subscription SYNCHRONOUSLY (waiting for
+// the server's SUBSCRIBE acknowledgment via sub.Receive) before returning.
+// This guarantees that any PUBLISH sent by a caller after Start returns is
+// routed to this subscriber — without the synchronous wait, go-redis's lazy
+// Subscribe creates a startup race window where early messages are dropped.
 func (cl *CampaignLoader) Start(ctx context.Context) error {
 	// Initial full load
 	if err := cl.fullLoad(ctx); err != nil {
@@ -84,18 +107,40 @@ func (cl *CampaignLoader) Start(ctx context.Context) error {
 	}
 	log.Printf("[LOADER] Initial load: %d active campaigns", len(cl.campaigns))
 
+	// Subscribe synchronously so the subscription is live before Start returns.
+	sub := cl.rdb.Subscribe(ctx, "campaign:updates")
+	// Receive blocks until we get the first message, which for a fresh
+	// subscription is always the *redis.Subscription confirmation from the
+	// server. Once this returns, subsequent PUBLISHes are guaranteed to be
+	// delivered to this subscriber.
+	msg, err := sub.Receive(ctx)
+	if err != nil {
+		_ = sub.Close()
+		return fmt.Errorf("campaign:updates subscribe: %w", err)
+	}
+	if _, ok := msg.(*redis.Subscription); !ok {
+		_ = sub.Close()
+		return fmt.Errorf("campaign:updates: expected subscription ack, got %T", msg)
+	}
+	cl.sub = sub
+
 	// Background: periodic full pull every 30s
 	go cl.periodicRefresh(ctx)
 
 	// Background: listen Redis pub/sub for incremental updates
-	go cl.listenPubSub(ctx)
+	go cl.listenPubSub(ctx, sub)
 
 	return nil
 }
 
-// Stop stops background goroutines.
+// Stop stops background goroutines. Safe to call multiple times.
 func (cl *CampaignLoader) Stop() {
-	close(cl.stopCh)
+	cl.stopOnce.Do(func() {
+		close(cl.stopCh)
+		if cl.sub != nil {
+			_ = cl.sub.Close()
+		}
+	})
 }
 
 // GetActiveCampaigns returns a snapshot of all active campaigns.
@@ -193,7 +238,7 @@ func (cl *CampaignLoader) toCampaignWithCreatives(ctx context.Context, c *campai
 }
 
 func (cl *CampaignLoader) periodicRefresh(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(cl.refreshInterval)
 	defer ticker.Stop()
 
 	for {
@@ -210,10 +255,8 @@ func (cl *CampaignLoader) periodicRefresh(ctx context.Context) {
 	}
 }
 
-func (cl *CampaignLoader) listenPubSub(ctx context.Context) {
-	sub := cl.rdb.Subscribe(ctx, "campaign:updates")
-	defer sub.Close()
-
+func (cl *CampaignLoader) listenPubSub(ctx context.Context, sub *redis.PubSub) {
+	// sub is already subscribed and confirmed by Start; Stop closes it.
 	ch := sub.Channel()
 	for {
 		select {

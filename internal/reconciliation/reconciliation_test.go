@@ -1,5 +1,11 @@
 package reconciliation
 
+// NOTE: reconciliation_integration_test.go pins time.Local = time.UTC in its
+// init() to work around a known TZ bug in RunHourly (NB9). That init() runs
+// for every test binary built from this package, including this one. Unit
+// tests in this file MUST NOT depend on the host's local timezone — if you
+// need local-time assertions, use an explicit time.LoadLocation call.
+
 import (
 	"testing"
 	"time"
