@@ -3,6 +3,10 @@
 ## 核心文档
 - [功能清单](./project-feature-inventory.md)：已实现的产品与系统能力
 - [模块架构说明](./module-architecture.md):服务划分、模块职责与数据流
+- [评审整改任务单(2026-04-14 执行基线)](./REVIEW_REMEDIATION_PLAN_2026-04-14.md):V5 最终执行版本,包含演进审计日志、6 批次必做改动、Round 1/2 Final Review 的补救记录和全部延后债务。历史版本 V1-V4 归档于 [archive/REVIEW_REMEDIATION_PLAN_2026-04-14/](./archive/REVIEW_REMEDIATION_PLAN_2026-04-14/)
+- [biz↔engine 跨系统契约](./contracts/biz-engine.md):业务系统和投放引擎之间的数据流、effective_delivery 聚合规则、三码返回码规范
+- [运行时失败策略 & shutdown 不变量](./runtime.md):每个依赖的 fail-open / fail-closed 判断、Producer.Go / WaitInflight 使用规范、五步 shutdown 顺序
+- [手工 QA checklist](./qa-checklist.md):前端回归验证清单(web/ 无自动化测试框架时的兜底)
 - [历史完成度快照](./archive/):版本发布时的交付状态记录(最新 2026-04-13)
 - [项目概览](./PROJECT_OVERVIEW.md):顶层定位、形态与能力总览
 - [评审工作流](./REVIEW_WORKFLOW.md):Codex 与 Claude Code 的评审闭环
