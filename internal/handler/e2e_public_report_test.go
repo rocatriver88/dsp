@@ -150,7 +150,7 @@ func execAnalyticsSSE(t *testing.T, d *handler.Deps, req *http.Request) *httptes
 }
 
 // sseTokenFor mints a 5-minute SSE token for the given advertiser ID using
-// the test deps' SSETokenSecret. Matches what HandleAnalyticsStreamToken
+// the test deps' SSETokenSecret. Matches what HandleAnalyticsToken
 // would return in production.
 func sseTokenFor(t *testing.T, d *handler.Deps, advID int64) string {
 	t.Helper()

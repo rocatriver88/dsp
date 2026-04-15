@@ -69,7 +69,74 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /**
+         * Create advertiser (admin only)
+         * @description Admin-only shortcut for bootstrapping an advertiser. Regular
+         *     tenants must use POST /api/v1/register → admin approval
+         *     instead. This endpoint was moved behind admin auth in V5.1
+         *     to close a privilege-escalation path where any authenticated
+         *     tenant could POST /api/v1/advertisers with a client-chosen
+         *     balance_cents and receive a new api_key for an arbitrarily
+         *     pre-funded advertiser account, which could then be used to
+         *     spend ADX dollars without going through the top-up audit
+         *     trail. The legitimate public bootstrap path is POST
+         *     /api/v1/register (see HandleRegister).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Advertiser data */
+            requestBody: {
+                content: {
+                    "application/json": {
+                        balance_cents?: number;
+                        company_name?: string;
+                        contact_email?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            api_key?: string;
+                            id?: number;
+                            message?: string;
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -630,65 +697,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/advertisers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create advertiser */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            /** @description Advertiser data */
-            requestBody: {
-                content: {
-                    "application/json": {
-                        balance_cents?: number;
-                        company_name?: string;
-                        contact_email?: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            api_key?: string;
-                            id?: number;
-                        };
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            error?: string;
-                        };
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/advertisers/{id}": {
         parameters: {
             query?: never;
@@ -746,7 +754,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get analytics snapshot */
+        /**
+         * Get analytics snapshot
+         * @description Authenticates via the same `?token=` query parameter as
+         *     /analytics/stream. See that endpoint for the full
+         *     rationale. V5.1 P1-1.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -763,6 +776,17 @@ export interface paths {
                     };
                     content: {
                         "application/json": Record<string, never>;
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
                     };
                 };
             };
@@ -782,7 +806,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Real-time analytics SSE stream */
+        /**
+         * Real-time analytics SSE stream
+         * @description Authenticates via a short-lived HMAC token passed in the
+         *     `?token=` query parameter (NOT via X-API-Key header, and
+         *     NOT via an `?api_key=` query fallback — that was the
+         *     V5.1 P1-1 vulnerability). Clients mint the token via
+         *     POST /api/v1/analytics/token.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -801,10 +832,85 @@ export interface paths {
                         "text/event-stream": string;
                     };
                 };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": {
+                            error?: string;
+                        };
+                    };
+                };
             };
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/analytics/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue a short-lived SSE auth token for analytics endpoints
+         * @description Returns a 5-minute HMAC-signed token bound to the authenticated advertiser.
+         *     Clients use this token in the ?token= query of /analytics/stream and /analytics/snapshot
+         *     to authenticate EventSource connections without exposing the long-lived X-API-Key
+         *     in URL query logs (V5.1 P1-1).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["internal_handler.AnalyticsTokenResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -2346,6 +2452,10 @@ export interface components {
             id?: number;
             total_spent_cents?: number;
             updated_at?: string;
+        };
+        "internal_handler.AnalyticsTokenResponse": {
+            expires_at?: string;
+            token?: string;
         };
     };
     responses: never;

@@ -59,6 +59,87 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "post": {
+                "security": [
+                    {
+                        "AdminAuth": []
+                    }
+                ],
+                "description": "Admin-only shortcut for bootstrapping an advertiser. Regular\ntenants must use POST /api/v1/register → admin approval\ninstead. This endpoint was moved behind admin auth in V5.1\nto close a privilege-escalation path where any authenticated\ntenant could POST /api/v1/advertisers with a client-chosen\nbalance_cents and receive a new api_key for an arbitrarily\npre-funded advertiser account, which could then be used to\nspend ADX dollars without going through the top-up audit\ntrail. The legitimate public bootstrap path is POST\n/api/v1/register (see HandleRegister).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Create advertiser (admin only)",
+                "parameters": [
+                    {
+                        "description": "Advertiser data",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "balance_cents": {
+                                    "type": "integer"
+                                },
+                                "company_name": {
+                                    "type": "string"
+                                },
+                                "contact_email": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "api_key": {
+                                    "type": "string"
+                                },
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "message": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         "/admin/audit-log": {
@@ -616,69 +697,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/advertisers": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "advertisers"
-                ],
-                "summary": "Create advertiser",
-                "parameters": [
-                    {
-                        "description": "Advertiser data",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "balance_cents": {
-                                    "type": "integer"
-                                },
-                                "company_name": {
-                                    "type": "string"
-                                },
-                                "contact_email": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "api_key": {
-                                    "type": "string"
-                                },
-                                "id": {
-                                    "type": "integer"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "error": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/advertisers/{id}": {
             "get": {
                 "security": [
@@ -727,9 +745,10 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "SSETokenAuth": []
                     }
                 ],
+                "description": "Authenticates via the same ` + "`" + `?token=` + "`" + ` query parameter as\n/analytics/stream. See that endpoint for the full\nrationale. V5.1 P1-1.",
                 "produces": [
                     "application/json"
                 ],
@@ -743,6 +762,17 @@ const docTemplate = `{
                         "schema": {
                             "type": "object"
                         }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -751,9 +781,10 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "SSETokenAuth": []
                     }
                 ],
+                "description": "Authenticates via a short-lived HMAC token passed in the\n` + "`" + `?token=` + "`" + ` query parameter (NOT via X-API-Key header, and\nNOT via an ` + "`" + `?api_key=` + "`" + ` query fallback — that was the\nV5.1 P1-1 vulnerability). Clients mint the token via\nPOST /api/v1/analytics/token.",
                 "produces": [
                     "text/event-stream"
                 ],
@@ -766,6 +797,64 @@ const docTemplate = `{
                         "description": "SSE stream",
                         "schema": {
                             "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/analytics/token": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns a 5-minute HMAC-signed token bound to the authenticated advertiser.\nClients use this token in the ?token= query of /analytics/stream and /analytics/snapshot\nto authenticate EventSource connections without exposing the long-lived X-API-Key\nin URL query logs (V5.1 P1-1).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Issue a short-lived SSE auth token for analytics endpoints",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.AnalyticsTokenResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 }
@@ -2688,6 +2777,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "internal_handler.AnalyticsTokenResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {
@@ -2700,6 +2800,12 @@ const docTemplate = `{
             "type": "apiKey",
             "name": "X-API-Key",
             "in": "header"
+        },
+        "SSETokenAuth": {
+            "description": "V5.1 P1-1: analytics SSE endpoints authenticate via a\nshort-lived HMAC token passed in the ` + "`" + `?token=` + "`" + ` query\nparameter, NOT via the long-lived X-API-Key header.\nClients mint a token by POSTing to /analytics/token with\nthe X-API-Key header (ApiKeyAuth) and receive a\n5-minute bearer good for /analytics/stream and\n/analytics/snapshot. This scheme exists specifically so\nEventSource clients (which cannot set custom headers) do\nnot have to put their long-lived tenant credential in\nURL query, which would leak it into proxy logs, browser\nhistory, and referrer headers.",
+            "type": "apiKey",
+            "name": "token",
+            "in": "query"
         }
     }
 }`

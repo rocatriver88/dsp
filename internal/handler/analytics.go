@@ -12,10 +12,16 @@ import (
 
 // HandleAnalyticsStream godoc
 // @Summary Real-time analytics SSE stream
+// @Description Authenticates via a short-lived HMAC token passed in the
+// @Description `?token=` query parameter (NOT via X-API-Key header, and
+// @Description NOT via an `?api_key=` query fallback — that was the
+// @Description V5.1 P1-1 vulnerability). Clients mint the token via
+// @Description POST /api/v1/analytics/token.
 // @Tags analytics
-// @Security ApiKeyAuth
+// @Security SSETokenAuth
 // @Produce text/event-stream
 // @Success 200 {string} string "SSE stream"
+// @Failure 401 {object} object{error=string}
 // @Router /analytics/stream [get]
 func (d *Deps) HandleAnalyticsStream(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
@@ -60,10 +66,14 @@ func (d *Deps) HandleAnalyticsStream(w http.ResponseWriter, r *http.Request) {
 
 // HandleAnalyticsSnapshot godoc
 // @Summary Get analytics snapshot
+// @Description Authenticates via the same `?token=` query parameter as
+// @Description /analytics/stream. See that endpoint for the full
+// @Description rationale. V5.1 P1-1.
 // @Tags analytics
-// @Security ApiKeyAuth
+// @Security SSETokenAuth
 // @Produce json
 // @Success 200 {object} object
+// @Failure 401 {object} object{error=string}
 // @Router /analytics/snapshot [get]
 func (d *Deps) HandleAnalyticsSnapshot(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
