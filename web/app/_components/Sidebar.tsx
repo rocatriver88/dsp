@@ -3,12 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// Icon chars are picked to NOT duplicate the first character of the label:
+// 概览 → 总 (overview/summary), 账户 → 户 (account holder).
+// For English labels (Campaigns) or multi-char labels where the char
+// already differs from the first char (报表→表, 实时分析→析), we keep
+// the original.
 const navItems = [
-  { href: "/", label: "概览", icon: "概" },
+  { href: "/", label: "概览", icon: "总" },
   { href: "/campaigns", label: "Campaigns", icon: "投" },
   { href: "/reports", label: "报表", icon: "表" },
   { href: "/analytics", label: "实时分析", icon: "析" },
-  { href: "/billing", label: "账户", icon: "账" },
+  { href: "/billing", label: "账户", icon: "户" },
 ];
 
 export default function Sidebar() {
@@ -60,7 +65,8 @@ export default function Sidebar() {
             onClick={() => { localStorage.removeItem("dsp_api_key"); window.location.reload(); }}
             className="flex items-center gap-2 text-sm hover:text-white transition-colors w-full"
             style={{ color: "var(--sidebar-text)" }}>
-            <span className="text-xs">退</span>
+            {/* Icon 出 avoids duplicating the first char of 退出登录 */}
+            <span className="text-xs">出</span>
             退出登录
           </button>
         </div>
