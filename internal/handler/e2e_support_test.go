@@ -40,11 +40,15 @@ func envOr(k, d string) string {
 	return d
 }
 
+// Defaults target main's docker-compose stack (ports 15432 / 16380 / 19001).
+// Override via DSP_E2E_PG_DSN / DSP_E2E_REDIS_ADDR / DSP_E2E_CH_ADDR when
+// pointing at a different stack. Pre-merge these pointed at the biz
+// worktree stack (16432 / 17380 / 20001) which no longer exists on main.
 func pgDSN() string {
-	return envOr("DSP_E2E_PG_DSN", "postgres://dsp:dsp_dev_password@localhost:16432/dsp?sslmode=disable")
+	return envOr("DSP_E2E_PG_DSN", "postgres://dsp:dsp_dev_password@localhost:15432/dsp?sslmode=disable")
 }
 
-func redisAddr() string { return envOr("DSP_E2E_REDIS_ADDR", "localhost:17380") }
+func redisAddr() string { return envOr("DSP_E2E_REDIS_ADDR", "localhost:16380") }
 
 func redisPassword() string {
 	if v, ok := os.LookupEnv("DSP_E2E_REDIS_PASSWORD"); ok {
@@ -54,8 +58,8 @@ func redisPassword() string {
 }
 
 // chAddr is the ClickHouse native protocol address used by both
-// reporting.NewStore and mustCHConn. The biz stack exposes native on 20001.
-func chAddr() string { return envOr("DSP_E2E_CH_ADDR", "localhost:20001") }
+// reporting.NewStore and mustCHConn. Main's stack exposes native on 19001.
+func chAddr() string { return envOr("DSP_E2E_CH_ADDR", "localhost:19001") }
 
 func chPassword() string {
 	if v, ok := os.LookupEnv("DSP_E2E_CH_PASSWORD"); ok {

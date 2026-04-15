@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	_ "github.com/heartgryphon/dsp/internal/billing"
 	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/registration"
+	"github.com/jackc/pgx/v5"
 )
 
 func parsePagination(r *http.Request) (limit, offset int) {
@@ -198,8 +200,16 @@ func (d *Deps) HandleApproveCreative(w http.ResponseWriter, r *http.Request) {
 	}
 	// Existence check so unknown ids return 404 rather than silently
 	// succeeding against zero rows. Cherry-picked from biz c366288.
+	// Distinguish ErrNoRows from transient DB failures: the latter must
+	// surface as 500 so ops can see real infra problems instead of
+	// quietly telling admins "not found" during a Postgres restart.
+	// Round 1 review M5 I-1.
 	if _, err := d.Store.GetCreativeByID(r.Context(), id); err != nil {
-		WriteError(w, http.StatusNotFound, "creative not found")
+		if errors.Is(err, pgx.ErrNoRows) {
+			WriteError(w, http.StatusNotFound, "creative not found")
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if err := d.Store.UpdateCreativeStatus(r.Context(), id, "approved"); err != nil {
@@ -224,9 +234,13 @@ func (d *Deps) HandleRejectCreative(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	// Existence check — see HandleApproveCreative (biz c366288).
+	// Existence check — see HandleApproveCreative (biz c366288 + Round 1 M5 I-1).
 	if _, err := d.Store.GetCreativeByID(r.Context(), id); err != nil {
-		WriteError(w, http.StatusNotFound, "creative not found")
+		if errors.Is(err, pgx.ErrNoRows) {
+			WriteError(w, http.StatusNotFound, "creative not found")
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if err := d.Store.UpdateCreativeStatus(r.Context(), id, "rejected"); err != nil {
