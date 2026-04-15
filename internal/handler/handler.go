@@ -27,6 +27,7 @@ type Deps struct {
 	Redis       *redis.Client        // nil if Redis unavailable
 	Guardrail   *guardrail.Guardrail // nil if guardrails disabled
 	AuditLog    *audit.Logger        // nil if audit disabled
+	HMACSecret  []byte               // signs analytics SSE tokens (V5.1 P1-1)
 }
 
 func WriteJSON(w http.ResponseWriter, status int, data any) {
