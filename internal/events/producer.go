@@ -82,7 +82,12 @@ func NewProducer(brokers []string, bufferDir string) *Producer {
 // Send sends an event to the appropriate Kafka topic.
 // Falls back to local buffer if Kafka is unavailable.
 func (p *Producer) Send(ctx context.Context, topic string, evt Event) {
-	evt.Timestamp = time.Now().UTC()
+	// Preserve caller-provided timestamps (used by integration tests and
+	// any upstream producer that wants to override auction time). Only
+	// stamp when the caller left it zero. Carried from engine branch.
+	if evt.Timestamp.IsZero() {
+		evt.Timestamp = time.Now().UTC()
+	}
 	data, err := json.Marshal(evt)
 	if err != nil {
 		log.Printf("[EVENTS] marshal error: %v", err)

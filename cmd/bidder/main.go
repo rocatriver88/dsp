@@ -22,22 +22,9 @@ import (
 	"github.com/heartgryphon/dsp/internal/exchange"
 	"github.com/heartgryphon/dsp/internal/guardrail"
 	"github.com/heartgryphon/dsp/internal/reporting"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prebid/openrtb/v20/openrtb2"
 	"github.com/redis/go-redis/v9"
-)
-
-var (
-	engine           *bidder.Engine
-	budgetSvc        *budget.Service
-	strategySvc      *bidder.BidStrategy
-	statsCache       *bidder.StatsCache
-	loader           *bidder.CampaignLoader
-	producer         *events.Producer
-	rdb              *redis.Client
-	exchangeRegistry *exchange.Registry
-	guard            *guardrail.Guardrail
 )
 
 func main() {
@@ -75,7 +62,7 @@ func main() {
 	log.Println("Connected to PostgreSQL")
 
 	// Connect Redis
-	rdb = redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
+	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
 	defer rdb.Close()
 	if err := rdb.Ping(processCtx).Err(); err != nil {
 		log.Fatalf("connect redis: %v (bidder requires Redis for budget/freq control)", err)
@@ -87,14 +74,14 @@ func main() {
 	// close) so its ordering is load-bearing — relying on defer LIFO
 	// would work today but is opaque to readers.
 	brokers := strings.Split(cfg.KafkaBrokers, ",")
-	producer = events.NewProducer(brokers, "/tmp/dsp-kafka-buffer")
+	producer := events.NewProducer(brokers, "/tmp/dsp-kafka-buffer")
 	log.Printf("Kafka producer initialized (brokers: %s)", cfg.KafkaBrokers)
 
 	// Initialize services
-	budgetSvc = budget.New(rdb)
-	strategySvc = bidder.NewBidStrategy(rdb)
+	budgetSvc := budget.New(rdb)
+	strategySvc := bidder.NewBidStrategy(rdb)
 	fraudFilter := antifraud.NewFilter(rdb)
-	loader = bidder.NewCampaignLoader(db, rdb)
+	loader := bidder.NewCampaignLoader(db, rdb)
 
 	// Connect ClickHouse for stats cache (optional — falls back to defaults)
 	var reportStore *reporting.Store
@@ -107,10 +94,10 @@ func main() {
 	}
 
 	// Stats cache: 24h rolling CTR/CVR from ClickHouse → Redis, refreshed every 5min
-	statsCache = bidder.NewStatsCache(rdb, reportStore, loader.GetActiveCampaigns)
+	statsCache := bidder.NewStatsCache(rdb, reportStore, loader.GetActiveCampaigns)
 	go statsCache.Start(workerCtx)
 
-	guard = guardrail.New(rdb, guardrail.Config{
+	guard := guardrail.New(rdb, guardrail.Config{
 		GlobalDailyBudgetCents: cfg.GlobalDailyBudgetCents,
 		MaxBidCPMCents:         cfg.MaxBidCPMCents,
 		LowBalanceAlertCents:   cfg.LowBalanceAlertCents,
@@ -120,7 +107,7 @@ func main() {
 	})
 	log.Println("Guardrail initialized")
 
-	engine = bidder.NewEngine(loader, budgetSvc, strategySvc, statsCache, producer, fraudFilter, guard)
+	engine := bidder.NewEngine(loader, budgetSvc, strategySvc, statsCache, producer, fraudFilter, guard)
 	log.Printf("Anti-fraud filter initialized (%v)", fraudFilter.Stats())
 	log.Println("BidStrategy + StatsCache initialized (dynamic bidding active)")
 
@@ -164,19 +151,24 @@ func main() {
 	}()
 
 	// Exchange registry: register self-owned + any configured external exchanges
-	exchangeRegistry = exchange.DefaultRegistry(cfg.BidderPublicURL)
+	exchangeRegistry := exchange.DefaultRegistry(cfg.BidderPublicURL)
 	log.Printf("[EXCHANGE] %d exchanges registered", len(exchangeRegistry.ListEnabled()))
 
+	deps := &Deps{
+		Engine:           engine,
+		BudgetSvc:        budgetSvc,
+		StrategySvc:      strategySvc,
+		Loader:           loader,
+		Producer:         producer,
+		RDB:              rdb,
+		ExchangeRegistry: exchangeRegistry,
+		Guard:            guard,
+		HMACSecret:       cfg.BidderHMACSecret,
+		PublicURL:        cfg.BidderPublicURL,
+	}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /bid", handleBid)                         // standard OpenRTB
-	mux.HandleFunc("POST /bid/{exchange_id}", handleExchangeBid)   // per-exchange protocol normalization
-	mux.HandleFunc("POST /win", handleWin)
-	mux.HandleFunc("GET /win", handleWin)                          // exchanges may use GET for nurl
-	mux.HandleFunc("GET /click", handleClick)
-	mux.HandleFunc("GET /convert", handleConvert)
-	mux.HandleFunc("GET /stats", handleStats)
-	mux.HandleFunc("GET /health", handleHealth)
-	mux.Handle("GET /metrics", promhttp.Handler())
+	RegisterRoutes(mux, deps)
 
 	addr := ":" + cfg.BidderPort
 	srv := &http.Server{Addr: addr, Handler: withLogging(mux)}
@@ -239,7 +231,7 @@ func main() {
 	log.Println("Bidder stopped")
 }
 
-func handleBid(w http.ResponseWriter, r *http.Request) {
+func (d *Deps) handleBid(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
 	var req openrtb2.BidRequest
@@ -248,7 +240,7 @@ func handleBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := engine.Bid(r.Context(), &req)
+	resp, err := d.Engine.Bid(r.Context(), &req)
 	latency := time.Since(start)
 
 	if err != nil {
@@ -265,8 +257,8 @@ func handleBid(w http.ResponseWriter, r *http.Request) {
 
 	if len(resp.SeatBid) > 0 && len(resp.SeatBid[0].Bid) > 0 {
 		bid := resp.SeatBid[0].Bid[0]
-		baseURL := config.Load().BidderPublicURL
-		hmacSecret := config.Load().BidderHMACSecret
+		baseURL := d.PublicURL
+		hmacSecret := d.HMACSecret
 		// Extract geo/os for tracking URLs
 		var geo, os string
 		if req.Device != nil {
@@ -296,9 +288,9 @@ func handleBid(w http.ResponseWriter, r *http.Request) {
 
 // handleExchangeBid handles bid requests from specific exchanges with protocol normalization.
 // Each exchange may have slight deviations from standard OpenRTB that the adapter normalizes.
-func handleExchangeBid(w http.ResponseWriter, r *http.Request) {
+func (d *Deps) handleExchangeBid(w http.ResponseWriter, r *http.Request) {
 	exchangeID := r.PathValue("exchange_id")
-	adapter, ok := exchangeRegistry.Get(exchangeID)
+	adapter, ok := d.ExchangeRegistry.Get(exchangeID)
 	if !ok {
 		http.Error(w, fmt.Sprintf(`{"error":"unknown exchange: %s"}`, exchangeID), http.StatusBadRequest)
 		return
@@ -319,7 +311,7 @@ func handleExchangeBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := engine.Bid(r.Context(), req)
+	resp, err := d.Engine.Bid(r.Context(), req)
 	latency := time.Since(start)
 
 	if err != nil {
@@ -336,8 +328,8 @@ func handleExchangeBid(w http.ResponseWriter, r *http.Request) {
 	// Add win notice URL (same as standard handler)
 	if len(resp.SeatBid) > 0 && len(resp.SeatBid[0].Bid) > 0 {
 		bid := resp.SeatBid[0].Bid[0]
-		baseURL := config.Load().BidderPublicURL
-		hmacSecret := config.Load().BidderHMACSecret
+		baseURL := d.PublicURL
+		hmacSecret := d.HMACSecret
 		var geo, os string
 		if req.Device != nil {
 			os = req.Device.OS
@@ -366,22 +358,21 @@ func handleExchangeBid(w http.ResponseWriter, r *http.Request) {
 	w.Write(out)
 }
 
-func handleWin(w http.ResponseWriter, r *http.Request) {
+func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 	campaignIDStr := r.URL.Query().Get("campaign_id")
 	priceStr := r.URL.Query().Get("price")
 	requestID := r.URL.Query().Get("request_id")
 	token := r.URL.Query().Get("token")
 
 	// Validate HMAC token
-	hmacSecret := config.Load().BidderHMACSecret
-	if !auth.ValidateToken(hmacSecret, token, campaignIDStr, requestID) {
+	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID) {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
 		return
 	}
 
 	// Win dedup: prevent double budget deduction from exchange retries
 	dedupKey := fmt.Sprintf("win:dedup:%s", requestID)
-	wasNew, dedupErr := rdb.SetNX(r.Context(), dedupKey, 1, 5*time.Minute).Result()
+	wasNew, dedupErr := d.RDB.SetNX(r.Context(), dedupKey, 1, 5*time.Minute).Result()
 	if dedupErr != nil {
 		log.Printf("[WIN-DEDUP] Redis error (proceeding): %v", dedupErr)
 	} else if !wasNew {
@@ -403,7 +394,7 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check billing model: CPC campaigns are charged on click, not impression
-	c := loader.GetCampaign(campaignID)
+	c := d.Loader.GetCampaign(campaignID)
 	isCPC := c != nil && c.BillingModel == "cpc"
 
 	var remaining int64
@@ -411,7 +402,7 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 		// CPM/oCPM: deduct advertiser charge from budget (not ADX cost)
 		priceCents := int64(price / 0.90 * 100) // ADX clear price ÷ 0.9 → advertiser charge in cents
 		var budgetErr error
-		remaining, budgetErr = budgetSvc.CheckAndDeductBudget(r.Context(), campaignID, priceCents)
+		remaining, budgetErr = d.BudgetSvc.CheckAndDeductBudget(r.Context(), campaignID, priceCents)
 		if budgetErr != nil {
 			log.Printf("[WIN-ERROR] campaign_id=%d: %v", campaignID, budgetErr)
 			http.Error(w, `{"error":"budget check failed"}`, http.StatusInternalServerError)
@@ -424,8 +415,8 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Track global spend for guardrail
-		if guard != nil {
-			guard.RecordGlobalSpend(r.Context(), priceCents)
+		if d.Guard != nil {
+			d.Guard.RecordGlobalSpend(r.Context(), priceCents)
 		}
 	}
 
@@ -437,16 +428,16 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 	}())
 
 	// Record win + spend for bid strategy (pacing + win-rate tracking)
-	if strategySvc != nil {
-		go strategySvc.RecordWin(r.Context(), campaignID)
+	if d.StrategySvc != nil {
+		go d.StrategySvc.RecordWin(r.Context(), campaignID)
 		if !isCPC {
 			spendCents := int64(price / 0.90 * 100) // advertiser charge in cents
-			go strategySvc.RecordSpend(r.Context(), campaignID, spendCents)
+			go d.StrategySvc.RecordSpend(r.Context(), campaignID, spendCents)
 		}
 	}
 
-	// Emit win + impression events to Kafka
-	if producer != nil {
+	// Emit win event to Kafka
+	if d.Producer != nil {
 		var bidPrice float64
 		var advertiserCharge float64
 		if c != nil {
@@ -475,45 +466,41 @@ func handleWin(w http.ResponseWriter, r *http.Request) {
 			GeoCountry:       r.URL.Query().Get("geo"),
 			DeviceOS:         r.URL.Query().Get("os"),
 		}
-		// Use background context — request context gets cancelled when handler
+		// Background context — request context gets cancelled when handler
 		// returns, which would abort the Kafka write in the goroutine.
 		//
 		// V5 §P1 Step B: we no longer emit a duplicate 'impression' event
 		// here. bid_log therefore stops accumulating one spurious row per
 		// won bid. Reporting aggregation is unaffected — Step A already
-		// switched the query to countDistinctIf(request_id, ...) which
-		// collapsed the duplicate before, so it collapses nothing now.
+		// switched the query to countDistinctIf(request_id, ...).
 		//
 		// producer.Go (instead of a raw `go`) registers this send with
 		// the producer's inflight WaitGroup so shutdown can drain it
 		// before closing the Kafka writers. Round 1 review I4 Option A.
-		producer.Go(func() { producer.SendWin(context.Background(), evt) })
+		prod := d.Producer
+		prod.Go(func() { prod.SendWin(context.Background(), evt) })
 	}
 
 	fmt.Fprintf(w, `{"status":"ok","remaining_cents":%d}`, remaining)
 }
 
-func handleClick(w http.ResponseWriter, r *http.Request) {
+func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 	campaignIDStr := r.URL.Query().Get("campaign_id")
 	requestID := r.URL.Query().Get("request_id")
 	token := r.URL.Query().Get("token")
 	dest := r.URL.Query().Get("dest")
 
 	// Validate HMAC token
-	hmacSecret := config.Load().BidderHMACSecret
-	if !auth.ValidateToken(hmacSecret, token, campaignIDStr, requestID) {
+	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID) {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
 		return
 	}
 
 	// Click dedup: prevent double budget deduction and double event emission
 	// from duplicate click callbacks (ad network retries, multi-click
-	// fraud, accidental page reloads). Same 5-minute TTL as the win dedup
-	// so short-window retries collapse while long-spaced genuine clicks
-	// from the same request_id remain out of scope (there shouldn't be
-	// any; the request_id is tied to a single impression).
+	// fraud, accidental page reloads). Same 5-minute TTL as the win dedup.
 	dedupKey := fmt.Sprintf("click:dedup:%s", requestID)
-	wasNew, dedupErr := rdb.SetNX(r.Context(), dedupKey, 1, 5*time.Minute).Result()
+	wasNew, dedupErr := d.RDB.SetNX(r.Context(), dedupKey, 1, 5*time.Minute).Result()
 	if dedupErr != nil {
 		log.Printf("[CLICK-DEDUP] Redis error (proceeding): %v", dedupErr)
 	} else if !wasNew {
@@ -530,10 +517,10 @@ func handleClick(w http.ResponseWriter, r *http.Request) {
 
 	// CPC campaigns: charge budget on click
 	if campaignID > 0 {
-		c := loader.GetCampaign(campaignID)
+		c := d.Loader.GetCampaign(campaignID)
 		if c != nil && c.BillingModel == "cpc" {
 			clickCents := int64(c.BidCPCCents) // charge per click
-			remaining, err := budgetSvc.CheckAndDeductBudget(r.Context(), campaignID, clickCents)
+			remaining, err := d.BudgetSvc.CheckAndDeductBudget(r.Context(), campaignID, clickCents)
 			if err != nil {
 				log.Printf("[CLICK-ERROR] campaign_id=%d: %v", campaignID, err)
 				http.Error(w, `{"error":"budget check failed"}`, http.StatusInternalServerError)
@@ -548,9 +535,9 @@ func handleClick(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if campaignID > 0 && producer != nil {
+	if campaignID > 0 && d.Producer != nil {
 		var charge float64
-		c := loader.GetCampaign(campaignID)
+		c := d.Loader.GetCampaign(campaignID)
 		if c != nil && c.BillingModel == "cpc" {
 			charge = float64(c.BidCPCCents) / 100.0 // CPC: charge per click in dollars
 		}
@@ -565,7 +552,8 @@ func handleClick(w http.ResponseWriter, r *http.Request) {
 			GeoCountry:       r.URL.Query().Get("geo"),
 			DeviceOS:         r.URL.Query().Get("os"),
 		}
-		producer.Go(func() { producer.SendClick(context.Background(), evt) })
+		prod := d.Producer
+		prod.Go(func() { prod.SendClick(context.Background(), evt) })
 	}
 
 	log.Printf("[CLICK] campaign_id=%d request_id=%s", campaignID, requestID)
@@ -577,21 +565,20 @@ func handleClick(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `{"status":"clicked"}`)
 }
 
-func handleConvert(w http.ResponseWriter, r *http.Request) {
+func (d *Deps) handleConvert(w http.ResponseWriter, r *http.Request) {
 	campaignIDStr := r.URL.Query().Get("campaign_id")
 	requestID := r.URL.Query().Get("request_id")
 	token := r.URL.Query().Get("token")
 
 	// Validate HMAC token (same as click)
-	hmacSecret := config.Load().BidderHMACSecret
-	if !auth.ValidateToken(hmacSecret, token, campaignIDStr, requestID) {
+	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID) {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
 		return
 	}
 
 	campaignID, _ := strconv.ParseInt(campaignIDStr, 10, 64)
 
-	if campaignID > 0 && producer != nil {
+	if campaignID > 0 && d.Producer != nil {
 		// Background context — see handleWin / handleClick for rationale.
 		// Tracked via producer.Go so shutdown drain can wait.
 		evt := events.Event{
@@ -600,18 +587,19 @@ func handleConvert(w http.ResponseWriter, r *http.Request) {
 			GeoCountry: r.URL.Query().Get("geo"),
 			DeviceOS:   r.URL.Query().Get("os"),
 		}
-		producer.Go(func() { producer.SendConversion(context.Background(), evt) })
+		prod := d.Producer
+		prod.Go(func() { prod.SendConversion(context.Background(), evt) })
 	}
 
 	log.Printf("[CONVERT] campaign_id=%d request_id=%s", campaignID, requestID)
 	fmt.Fprintf(w, `{"status":"converted"}`)
 }
 
-func handleStats(w http.ResponseWriter, r *http.Request) {
-	campaigns := loader.GetActiveCampaigns()
+func (d *Deps) handleStats(w http.ResponseWriter, r *http.Request) {
+	campaigns := d.Loader.GetActiveCampaigns()
 	stats := make([]map[string]any, 0, len(campaigns))
 	for _, c := range campaigns {
-		remaining, _ := budgetSvc.GetDailyBudgetRemaining(r.Context(), c.ID)
+		remaining, _ := d.BudgetSvc.GetDailyBudgetRemaining(r.Context(), c.ID)
 		stats = append(stats, map[string]any{
 			"id":               c.ID,
 			"name":             c.Name,
@@ -625,8 +613,8 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(stats)
 }
 
-func handleHealth(w http.ResponseWriter, r *http.Request) {
-	campaigns := loader.GetActiveCampaigns()
+func (d *Deps) handleHealth(w http.ResponseWriter, r *http.Request) {
+	campaigns := d.Loader.GetActiveCampaigns()
 	fmt.Fprintf(w, `{"status":"ok","active_campaigns":%d,"time":"%s"}`,
 		len(campaigns), time.Now().UTC().Format(time.RFC3339))
 }
