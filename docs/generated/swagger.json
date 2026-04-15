@@ -41,14 +41,14 @@
                 "tags": [
                     "admin"
                 ],
-                "summary": "List all advertisers",
+                "summary": "List all advertisers (admin, api_key redacted)",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_campaign.Advertiser"
+                                "$ref": "#/definitions/internal_handler.AdvertiserResponse"
                             }
                         }
                     }
@@ -686,7 +686,7 @@
                 "tags": [
                     "advertisers"
                 ],
-                "summary": "Get advertiser by ID",
+                "summary": "Get advertiser by ID (self only)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -700,7 +700,18 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_campaign.Advertiser"
+                            "$ref": "#/definitions/internal_handler.AdvertiserResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 }
@@ -816,7 +827,7 @@
                 }
             }
         },
-        "/billing/balance/{id}": {
+        "/billing/balance": {
             "get": {
                 "security": [
                     {
@@ -829,16 +840,7 @@
                 "tags": [
                     "billing"
                 ],
-                "summary": "Get advertiser balance",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Advertiser ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
+                "summary": "Get the authenticated advertiser's balance",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -852,6 +854,28 @@
                                     "type": "integer"
                                 },
                                 "billing_type": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
                                     "type": "string"
                                 }
                             }
@@ -876,7 +900,7 @@
                 "tags": [
                     "billing"
                 ],
-                "summary": "Top up advertiser balance",
+                "summary": "Top up the authenticated advertiser's balance",
                 "parameters": [
                     {
                         "description": "Top-up data",
@@ -886,9 +910,6 @@
                         "schema": {
                             "type": "object",
                             "properties": {
-                                "advertiser_id": {
-                                    "type": "integer"
-                                },
                                 "amount_cents": {
                                     "type": "integer"
                                 },
@@ -904,6 +925,17 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_billing.Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 }
@@ -922,14 +954,8 @@
                 "tags": [
                     "billing"
                 ],
-                "summary": "List billing transactions",
+                "summary": "List billing transactions for the authenticated advertiser",
                 "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Advertiser ID",
-                        "name": "advertiser_id",
-                        "in": "query"
-                    },
                     {
                         "type": "integer",
                         "default": 50,
@@ -1165,7 +1191,7 @@
                 "tags": [
                     "creatives"
                 ],
-                "summary": "List creatives for campaign",
+                "summary": "List creatives for a campaign (owner only)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1182,6 +1208,28 @@
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_campaign.Creative"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
                             }
                         }
                     }
@@ -1346,7 +1394,7 @@
                 "tags": [
                     "creatives"
                 ],
-                "summary": "Update creative",
+                "summary": "Update creative (owner only)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1367,6 +1415,28 @@
                                 }
                             }
                         }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -1379,7 +1449,7 @@
                 "tags": [
                     "creatives"
                 ],
-                "summary": "Delete creative",
+                "summary": "Delete creative (owner only)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1396,6 +1466,28 @@
                             "type": "object",
                             "properties": {
                                 "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
                                     "type": "string"
                                 }
                             }
@@ -1566,6 +1658,28 @@
                         "schema": {
                             "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_reporting.AttributionReport"
                         }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1616,6 +1730,28 @@
                                 "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_reporting.BidDetail"
                             }
                         }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1650,6 +1786,28 @@
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_reporting.GeoStats"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
                             }
                         }
                     }
@@ -1692,6 +1850,28 @@
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_reporting.HourlyStats"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
                             }
                         }
                     }
@@ -1778,6 +1958,28 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_reporting.CampaignStats"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 }
@@ -1922,41 +2124,6 @@
                     "type": "string"
                 },
                 "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_heartgryphon_dsp_internal_campaign.Advertiser": {
-            "type": "object",
-            "properties": {
-                "active_campaigns": {
-                    "type": "integer"
-                },
-                "api_key": {
-                    "type": "string"
-                },
-                "balance_cents": {
-                    "type": "integer"
-                },
-                "billing_type": {
-                    "type": "string"
-                },
-                "company_name": {
-                    "type": "string"
-                },
-                "contact_email": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "total_spent_cents": {
-                    "type": "integer"
-                },
-                "updated_at": {
                     "type": "string"
                 }
             }
@@ -2412,6 +2579,38 @@
                     "type": "string"
                 },
                 "time": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.AdvertiserResponse": {
+            "type": "object",
+            "properties": {
+                "active_campaigns": {
+                    "type": "integer"
+                },
+                "balance_cents": {
+                    "type": "integer"
+                },
+                "billing_type": {
+                    "type": "string"
+                },
+                "company_name": {
+                    "type": "string"
+                },
+                "contact_email": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "total_spent_cents": {
+                    "type": "integer"
+                },
+                "updated_at": {
                     "type": "string"
                 }
             }

@@ -1,7 +1,7 @@
 import type { components } from './api-types';
 
 // Types from generated OpenAPI spec (Required<> ensures fields are non-optional, matching runtime behavior)
-export type Advertiser = Required<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Advertiser']>;
+export type Advertiser = Required<components['schemas']['internal_handler.AdvertiserResponse']>;
 export type Campaign = Required<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Campaign']>;
 export type Creative = Required<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Creative']>;
 

@@ -47,7 +47,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List all advertisers */
+        /** List all advertisers (admin, api_key redacted) */
         get: {
             parameters: {
                 query?: never;
@@ -63,7 +63,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_heartgryphon_dsp_internal_campaign.Advertiser"][];
+                        "application/json": components["schemas"]["internal_handler.AdvertiserResponse"][];
                     };
                 };
             };
@@ -602,7 +602,16 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["Body2"];
+            /** @description Top-up data */
+            requestBody: {
+                content: {
+                    "application/json": {
+                        advertiser_id?: number;
+                        amount_cents?: number;
+                        description?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -687,7 +696,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get advertiser by ID */
+        /** Get advertiser by ID (self only) */
         get: {
             parameters: {
                 query?: never;
@@ -706,7 +715,18 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["github_com_heartgryphon_dsp_internal_campaign.Advertiser"];
+                        "application/json": components["schemas"]["internal_handler.AdvertiserResponse"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
                     };
                 };
             };
@@ -868,22 +888,19 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/billing/balance/{id}": {
+    "/billing/balance": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get advertiser balance */
+        /** Get the authenticated advertiser's balance */
         get: {
             parameters: {
                 query?: never;
                 header?: never;
-                path: {
-                    /** @description Advertiser ID */
-                    id: number;
-                };
+                path?: never;
                 cookie?: never;
             };
             requestBody?: never;
@@ -898,6 +915,28 @@ export interface paths {
                             advertiser_id?: number;
                             balance_cents?: number;
                             billing_type?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
                         };
                     };
                 };
@@ -920,7 +959,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Top up advertiser balance */
+        /** Top up the authenticated advertiser's balance */
         post: {
             parameters: {
                 query?: never;
@@ -928,7 +967,15 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: components["requestBodies"]["Body2"];
+            /** @description Top-up data */
+            requestBody: {
+                content: {
+                    "application/json": {
+                        amount_cents?: number;
+                        description?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -937,6 +984,17 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["github_com_heartgryphon_dsp_internal_billing.Transaction"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
                     };
                 };
             };
@@ -954,12 +1012,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List billing transactions */
+        /** List billing transactions for the authenticated advertiser */
         get: {
             parameters: {
                 query?: {
-                    /** @description Advertiser ID */
-                    advertiser_id?: number;
                     /** @description Limit */
                     limit?: number;
                     /** @description Offset */
@@ -1152,7 +1208,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List creatives for campaign */
+        /** List creatives for a campaign (owner only) */
         get: {
             parameters: {
                 query?: never;
@@ -1172,6 +1228,28 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["github_com_heartgryphon_dsp_internal_campaign.Creative"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
                     };
                 };
             };
@@ -1325,7 +1403,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Update creative */
+        /** Update creative (owner only) */
         put: {
             parameters: {
                 query?: never;
@@ -1349,10 +1427,32 @@ export interface paths {
                         };
                     };
                 };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
             };
         };
         post?: never;
-        /** Delete creative */
+        /** Delete creative (owner only) */
         delete: {
             parameters: {
                 query?: never;
@@ -1373,6 +1473,28 @@ export interface paths {
                     content: {
                         "*/*": {
                             status?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": {
+                            error?: string;
                         };
                     };
                 };
@@ -1544,6 +1666,28 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_heartgryphon_dsp_internal_reporting.AttributionReport"];
                     };
                 };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
             };
         };
         put?: never;
@@ -1588,6 +1732,28 @@ export interface paths {
                         "application/json": components["schemas"]["github_com_heartgryphon_dsp_internal_reporting.BidDetail"][];
                     };
                 };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
             };
         };
         put?: never;
@@ -1625,6 +1791,28 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["github_com_heartgryphon_dsp_internal_reporting.GeoStats"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
                     };
                 };
             };
@@ -1667,6 +1855,28 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["github_com_heartgryphon_dsp_internal_reporting.HourlyStats"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
                     };
                 };
             };
@@ -1753,6 +1963,28 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["github_com_heartgryphon_dsp_internal_reporting.CampaignStats"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
                     };
                 };
             };
@@ -1880,18 +2112,6 @@ export interface components {
             id?: number;
             reference_id?: string;
             type?: string;
-        };
-        "github_com_heartgryphon_dsp_internal_campaign.Advertiser": {
-            active_campaigns?: number;
-            api_key?: string;
-            balance_cents?: number;
-            billing_type?: string;
-            company_name?: string;
-            contact_email?: string;
-            created_at?: string;
-            id?: number;
-            total_spent_cents?: number;
-            updated_at?: string;
         };
         "github_com_heartgryphon_dsp_internal_campaign.Campaign": {
             advertiser_id?: number;
@@ -2047,6 +2267,17 @@ export interface components {
             request_id?: string;
             time?: string;
         };
+        "internal_handler.AdvertiserResponse": {
+            active_campaigns?: number;
+            balance_cents?: number;
+            billing_type?: string;
+            company_name?: string;
+            contact_email?: string;
+            created_at?: string;
+            id?: number;
+            total_spent_cents?: number;
+            updated_at?: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -2056,16 +2287,6 @@ export interface components {
             content: {
                 "application/json": {
                     reason?: string;
-                };
-            };
-        };
-        /** @description Top-up data */
-        Body2: {
-            content: {
-                "application/json": {
-                    advertiser_id?: number;
-                    amount_cents?: number;
-                    description?: string;
                 };
             };
         };

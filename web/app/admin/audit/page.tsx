@@ -49,14 +49,13 @@ export default function AuditPage() {
 
   const load = useCallback(
     (pageNum: number) => {
-      setLoading(true);
-      setError(null);
       adminApi
         .getAuditLog(PAGE_SIZE, pageNum * PAGE_SIZE)
         .then((data) => {
           const rows = Array.isArray(data) ? data : [];
           setEntries(rows);
           setHasMore(rows.length === PAGE_SIZE);
+          setError(null);
         })
         .catch((e) => setError(e.message))
         .finally(() => setLoading(false));
@@ -69,11 +68,25 @@ export default function AuditPage() {
   }, [load, page]);
 
   function handlePrev() {
-    if (page > 0) setPage((p) => p - 1);
+    if (page > 0) {
+      setLoading(true);
+      setError(null);
+      setPage((p) => p - 1);
+    }
   }
 
   function handleNext() {
-    if (hasMore) setPage((p) => p + 1);
+    if (hasMore) {
+      setLoading(true);
+      setError(null);
+      setPage((p) => p + 1);
+    }
+  }
+
+  function handleRetry() {
+    setLoading(true);
+    setError(null);
+    load(page);
   }
 
   return (
@@ -83,7 +96,7 @@ export default function AuditPage() {
       {error && (
         <div className="mb-4 px-4 py-3 rounded bg-red-50 text-red-700 text-sm flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => load(page)} className="text-xs underline ml-4">重试</button>
+          <button onClick={handleRetry} className="text-xs underline ml-4">重试</button>
         </div>
       )}
 

@@ -26,12 +26,11 @@ paths:
             application/json:
               schema:
                 items:
-                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_campaign.Adver\
-                    tiser"
+                  $ref: "#/components/schemas/internal_handler.AdvertiserResponse"
                 type: array
       security:
         - AdminAuth: []
-      summary: List all advertisers
+      summary: List all advertisers (admin, api_key redacted)
       tags:
         - admin
   /admin/audit-log:
@@ -337,7 +336,19 @@ paths:
   /admin/topup:
     post:
       requestBody:
-        $ref: "#/components/requestBodies/Body2"
+        content:
+          application/json:
+            schema:
+              properties:
+                advertiser_id:
+                  type: integer
+                amount_cents:
+                  type: integer
+                description:
+                  type: string
+              type: object
+        description: Top-up data
+        required: true
       responses:
         "200":
           description: OK
@@ -406,11 +417,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_campaign.Adver\
-                  tiser"
+                $ref: "#/components/schemas/internal_handler.AdvertiserResponse"
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
       security:
         - ApiKeyAuth: []
-      summary: Get advertiser by ID
+      summary: Get advertiser by ID (self only)
       tags:
         - advertisers
   /analytics/snapshot:
@@ -482,15 +501,8 @@ paths:
       summary: List billing models
       tags:
         - reference
-  "/billing/balance/{id}":
+  /billing/balance:
     get:
-      parameters:
-        - description: Advertiser ID
-          in: path
-          name: id
-          required: true
-          schema:
-            type: integer
       responses:
         "200":
           description: OK
@@ -505,15 +517,43 @@ paths:
                   billing_type:
                     type: string
                 type: object
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
       security:
         - ApiKeyAuth: []
-      summary: Get advertiser balance
+      summary: Get the authenticated advertiser's balance
       tags:
         - billing
   /billing/topup:
     post:
       requestBody:
-        $ref: "#/components/requestBodies/Body2"
+        content:
+          application/json:
+            schema:
+              properties:
+                amount_cents:
+                  type: integer
+                description:
+                  type: string
+              type: object
+        description: Top-up data
+        required: true
       responses:
         "200":
           description: OK
@@ -522,19 +562,23 @@ paths:
               schema:
                 $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_billing.Transa\
                   ction"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
       security:
         - ApiKeyAuth: []
-      summary: Top up advertiser balance
+      summary: Top up the authenticated advertiser's balance
       tags:
         - billing
   /billing/transactions:
     get:
       parameters:
-        - description: Advertiser ID
-          in: query
-          name: advertiser_id
-          schema:
-            type: integer
         - description: Limit
           in: query
           name: limit
@@ -559,7 +603,7 @@ paths:
                 type: array
       security:
         - ApiKeyAuth: []
-      summary: List billing transactions
+      summary: List billing transactions for the authenticated advertiser
       tags:
         - billing
   /campaigns:
@@ -704,9 +748,27 @@ paths:
                   $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_campaign.Creat\
                     ive"
                 type: array
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
       security:
         - ApiKeyAuth: []
-      summary: List creatives for campaign
+      summary: List creatives for a campaign (owner only)
       tags:
         - creatives
   "/campaigns/{id}/pause":
@@ -815,9 +877,27 @@ paths:
                   status:
                     type: string
                 type: object
+        "401":
+          description: Unauthorized
+          content:
+            "*/*":
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "404":
+          description: Not Found
+          content:
+            "*/*":
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
       security:
         - ApiKeyAuth: []
-      summary: Delete creative
+      summary: Delete creative (owner only)
       tags:
         - creatives
     put:
@@ -838,9 +918,27 @@ paths:
                   status:
                     type: string
                 type: object
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
       security:
         - ApiKeyAuth: []
-      summary: Update creative
+      summary: Update creative (owner only)
       tags:
         - creatives
   "/export/campaign/{id}/bids":
@@ -947,6 +1045,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.Attr\
                   ibutionReport"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
       security:
         - ApiKeyAuth: []
       summary: Get attribution report
@@ -983,6 +1099,24 @@ paths:
                   $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.BidD\
                     etail"
                 type: array
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
       security:
         - ApiKeyAuth: []
       summary: Get bid-level details
@@ -1007,6 +1141,24 @@ paths:
                   $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.GeoS\
                     tats"
                 type: array
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
       security:
         - ApiKeyAuth: []
       summary: Get geo breakdown
@@ -1036,6 +1188,24 @@ paths:
                   $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.Hour\
                     lyStats"
                 type: array
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
       security:
         - ApiKeyAuth: []
       summary: Get hourly stats
@@ -1096,6 +1266,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_reporting.Camp\
                   aignStats"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
       security:
         - ApiKeyAuth: []
       summary: Get campaign stats
@@ -1170,20 +1358,6 @@ components:
             type: object
       description: Rejection reason
       required: true
-    Body2:
-      content:
-        application/json:
-          schema:
-            properties:
-              advertiser_id:
-                type: integer
-              amount_cents:
-                type: integer
-              description:
-                type: string
-            type: object
-      description: Top-up data
-      required: true
   securitySchemes:
     AdminAuth:
       in: header
@@ -1231,29 +1405,6 @@ components:
         reference_id:
           type: string
         type:
-          type: string
-      type: object
-    github_com_heartgryphon_dsp_internal_campaign.Advertiser:
-      properties:
-        active_campaigns:
-          type: integer
-        api_key:
-          type: string
-        balance_cents:
-          type: integer
-        billing_type:
-          type: string
-        company_name:
-          type: string
-        contact_email:
-          type: string
-        created_at:
-          type: string
-        id:
-          type: integer
-        total_spent_cents:
-          type: integer
-        updated_at:
           type: string
       type: object
     github_com_heartgryphon_dsp_internal_campaign.Campaign:
@@ -1563,5 +1714,26 @@ components:
         request_id:
           type: string
         time:
+          type: string
+      type: object
+    internal_handler.AdvertiserResponse:
+      properties:
+        active_campaigns:
+          type: integer
+        balance_cents:
+          type: integer
+        billing_type:
+          type: string
+        company_name:
+          type: string
+        contact_email:
+          type: string
+        created_at:
+          type: string
+        id:
+          type: integer
+        total_spent_cents:
+          type: integer
+        updated_at:
           type: string
       type: object
