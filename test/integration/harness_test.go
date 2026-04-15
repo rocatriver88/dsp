@@ -161,7 +161,7 @@ func buildAuthedMux(d *handler.Deps, store *campaign.Store) http.Handler {
 	mux.HandleFunc("POST /api/v1/billing/topup", d.HandleTopUp)
 	mux.HandleFunc("GET /api/v1/billing/transactions", d.HandleTransactions)
 	mux.HandleFunc("GET /api/v1/billing/balance", d.HandleBalance)
-	mux.HandleFunc("GET /api/v1/billing/balance/{id}", d.HandleBalance) // legacy alias
+	mux.HandleFunc("GET /api/v1/billing/balance/{id}", d.HandleBalanceLegacyByID) // legacy alias
 
 	// Reports (all five in V5 §P0 plus simulate which also enforces owner check)
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/stats", d.HandleCampaignStats)

@@ -950,6 +950,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/billing/balance/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * [Deprecated] Get advertiser balance via legacy path id
+         * @deprecated
+         * @description Legacy alias for GET /billing/balance. The path id must match the authenticated advertiser or the response is 404. New clients should use GET /billing/balance which derives the advertiser from the auth context.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Advertiser ID (must match authenticated advertiser) */
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            advertiser_id?: number;
+                            balance_cents?: number;
+                            billing_type?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/billing/topup": {
         parameters: {
             query?: never;

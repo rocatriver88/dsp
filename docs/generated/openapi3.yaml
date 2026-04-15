@@ -540,6 +540,56 @@ paths:
       summary: Get the authenticated advertiser's balance
       tags:
         - billing
+  "/billing/balance/{id}":
+    get:
+      deprecated: true
+      description: Legacy alias for GET /billing/balance. The path id must match the
+        authenticated advertiser or the response is 404. New clients should use
+        GET /billing/balance which derives the advertiser from the auth context.
+      parameters:
+        - description: Advertiser ID (must match authenticated advertiser)
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  advertiser_id:
+                    type: integer
+                  balance_cents:
+                    type: integer
+                  billing_type:
+                    type: string
+                type: object
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+      security:
+        - ApiKeyAuth: []
+      summary: "[Deprecated] Get advertiser balance via legacy path id"
+      tags:
+        - billing
   /billing/topup:
     post:
       requestBody:

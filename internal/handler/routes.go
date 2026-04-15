@@ -46,12 +46,15 @@ func BuildPublicMux(d *Deps) *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/billing/topup", d.HandleTopUp)
 	mux.HandleFunc("GET /api/v1/billing/transactions", d.HandleTransactions)
 	mux.HandleFunc("GET /api/v1/billing/balance", d.HandleBalance)
-	// Legacy alias kept for backward compatibility with clients that still
-	// send GET /billing/balance/{id}. The handler enforces pathID == authID
-	// and returns 404 on mismatch per the V5 §P0 three-code rule (Round 1
-	// review reverted commit 4faa8c9's permissive "silently ignore path id"
-	// shortcut). See internal/handler/billing.go HandleBalance for rationale.
-	mux.HandleFunc("GET /api/v1/billing/balance/{id}", d.HandleBalance)
+	// Legacy alias kept for backward compatibility with clients (notably
+	// cmd/autopilot and the Batch 6 tenant isolation test suite) that still
+	// send GET /billing/balance/{id}. Routed through the dedicated stub
+	// HandleBalanceLegacyByID so swag emits this path as a distinct
+	// @Deprecated entry in the generated OpenAPI contract. The stub
+	// delegates to HandleBalance, which enforces pathID == authID → else
+	// 404 per V5 §P0 (Round 1 review reverted commit 4faa8c9's permissive
+	// "silently ignore path id" shortcut).
+	mux.HandleFunc("GET /api/v1/billing/balance/{id}", d.HandleBalanceLegacyByID)
 	mux.HandleFunc("POST /api/v1/upload", d.HandleUpload)
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", UploadFileServer()))
 	mux.HandleFunc("POST /api/v1/register", d.HandleRegister)
