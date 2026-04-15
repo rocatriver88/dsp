@@ -427,12 +427,20 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 		return fmt.Sprintf("cpm(remaining=%d)", remaining)
 	}())
 
-	// Record win + spend for bid strategy (pacing + win-rate tracking)
+	// Record win + spend for bid strategy (pacing + win-rate tracking).
+	// Use context.Background() — r.Context() is cancelled the moment the
+	// handler returns its 200, which races the goroutine's Redis INCR and
+	// can silently drop most RecordWin / RecordSpend calls. Same class of
+	// bug as Round 2's internal/bidder/engine.go:210 fix for RecordBid;
+	// Round 2 missed this handler-level instance. Carried from engine
+	// branch's equivalent handleWin which had already fixed it.
+	// M5 Round 3 regression caught by cmd/bidder/handlers_integration_test.go
+	// TestHandlers_WinNormalCPM "C1 regression sentinel".
 	if d.StrategySvc != nil {
-		go d.StrategySvc.RecordWin(r.Context(), campaignID)
+		go d.StrategySvc.RecordWin(context.Background(), campaignID)
 		if !isCPC {
 			spendCents := int64(price / 0.90 * 100) // advertiser charge in cents
-			go d.StrategySvc.RecordSpend(r.Context(), campaignID, spendCents)
+			go d.StrategySvc.RecordSpend(context.Background(), campaignID, spendCents)
 		}
 	}
 

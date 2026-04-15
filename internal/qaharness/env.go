@@ -14,8 +14,18 @@ import (
 )
 
 // Env holds connection parameters for the compose stack of this worktree.
-// Defaults match .worktrees/engine/docker-compose.override.yml (+12000 offset).
-// Passwords default to the compose stack's dev defaults (dsp_dev_password).
+// Defaults match main's docker-compose.yml:
+//
+//	postgres   → 15432
+//	redis      → 16380
+//	clickhouse → 19001 (native)
+//	kafka      → 19094
+//	bidder     → 18180
+//
+// Pre-merge these defaults pointed at the engine worktree stack
+// (17432/18380/21001/21094/20180) which no longer exists on main.
+// Override via QA_POSTGRES_DSN / QA_REDIS_ADDR / etc. when pointing
+// at a different stack. Passwords default to the dev defaults.
 type Env struct {
 	PostgresDSN     string
 	RedisAddr       string
@@ -30,15 +40,15 @@ type Env struct {
 
 func LoadEnv() *Env {
 	return &Env{
-		PostgresDSN:     getenv("QA_POSTGRES_DSN", "postgres://dsp:dsp_dev_password@localhost:17432/dsp?sslmode=disable"),
-		RedisAddr:       getenv("QA_REDIS_ADDR", "localhost:18380"),
+		PostgresDSN:     getenv("QA_POSTGRES_DSN", "postgres://dsp:dsp_dev_password@localhost:15432/dsp?sslmode=disable"),
+		RedisAddr:       getenv("QA_REDIS_ADDR", "localhost:16380"),
 		RedisPassword:   getenv("QA_REDIS_PASSWORD", "dsp_dev_password"),
 		RedisDB:         getenvInt("QA_REDIS_DB", 15),
-		KafkaBrokers:    []string{getenv("QA_KAFKA_BROKERS", "localhost:21094")},
-		ClickHouseAddr:  getenv("QA_CLICKHOUSE_ADDR", "localhost:21001"),
+		KafkaBrokers:    []string{getenv("QA_KAFKA_BROKERS", "localhost:19094")},
+		ClickHouseAddr:  getenv("QA_CLICKHOUSE_ADDR", "localhost:19001"),
 		ClickHouseUser:  getenv("QA_CLICKHOUSE_USER", "default"),
 		ClickHousePass:  getenv("QA_CLICKHOUSE_PASSWORD", "dsp_dev_password"),
-		BidderPublicURL: getenv("QA_BIDDER_PUBLIC_URL", "http://localhost:20180"),
+		BidderPublicURL: getenv("QA_BIDDER_PUBLIC_URL", "http://localhost:18180"),
 	}
 }
 

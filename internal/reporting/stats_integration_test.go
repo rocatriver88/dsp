@@ -3,6 +3,7 @@
 package reporting_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -23,21 +24,29 @@ func TestStats_MixedCounts(t *testing.T) {
 	})
 
 	base := time.Now().UTC().Truncate(time.Second)
-	// 10 bids with charge=0
+	// V5 §P1 Step A aggregation uses
+	// countDistinctIf(request_id, event_type IN ('win','impression'))
+	// so effective_delivery counts unique auctions that won AND
+	// rendered — matching production where each win maps to exactly
+	// one impression via the same request_id. The test data therefore
+	// pairs each win with an impression on the same request_id.
+	// M5 Round 3 regression fix.
+	//
+	// 10 auctions: req_ids qa-stats-req-0..9. Each emits a bid.
+	// Auctions 0..4 also win and render (win + impression rows).
+	// Auctions 0..1 are clicked (2 click rows on the same req_ids).
 	for i := 0; i < 10; i++ {
-		h.InsertBidLogRow(campID, advID, 1, "bid", "qa-stats-bid", "d", 500, 0, 0, base)
+		rid := fmt.Sprintf("qa-stats-req-%d", i)
+		h.InsertBidLogRow(campID, advID, 1, "bid", rid, "d", 500, 0, 0, base)
 	}
-	// 5 wins with clear_price=450 and charge=500 (the billed advertiser amount)
 	for i := 0; i < 5; i++ {
-		h.InsertBidLogRow(campID, advID, 1, "win", "qa-stats-win", "d", 500, 450, 500, base)
+		rid := fmt.Sprintf("qa-stats-req-%d", i)
+		h.InsertBidLogRow(campID, advID, 1, "win", rid, "d", 500, 450, 500, base)
+		h.InsertBidLogRow(campID, advID, 1, "impression", rid, "d", 0, 0, 0, base)
 	}
-	// 5 impressions with charge=0 (sidestep CB5 double-count for this test)
-	for i := 0; i < 5; i++ {
-		h.InsertBidLogRow(campID, advID, 1, "impression", "qa-stats-imp", "d", 0, 0, 0, base)
-	}
-	// 2 clicks with charge=0
 	for i := 0; i < 2; i++ {
-		h.InsertBidLogRow(campID, advID, 1, "click", "qa-stats-click", "d", 0, 0, 0, base)
+		rid := fmt.Sprintf("qa-stats-req-%d", i)
+		h.InsertBidLogRow(campID, advID, 1, "click", rid, "d", 0, 0, 0, base)
 	}
 
 	store, err := reporting.NewStore(h.Env.ClickHouseAddr, h.Env.ClickHouseUser, h.Env.ClickHousePass)

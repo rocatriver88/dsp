@@ -193,16 +193,21 @@ func TestHandlers_WinNormalCPM(t *testing.T) {
 			expectedDelta, actualDelta, beforeBudget, afterBudget)
 	}
 
-	// Kafka: dsp.bids should see 1 win event, dsp.impressions 1 impression event.
-	// 60s accommodates first-message auto-create handshake (~15-20s per fresh topic)
-	// plus the bidder's async Kafka writer batch flush.
+	// Kafka: dsp.bids should see 1 win event.
+	//
+	// Note: pre-V5, /win also emitted a duplicate 'impression' event, and
+	// this test asserted dsp.impressions >= 1 here. V5 §P1 Step B removed
+	// the spurious dsp.impressions write from /win — the real-impression
+	// signal now comes from a separate path that this test doesn't
+	// exercise (see docs/contracts/biz-engine.md). Reporting aggregation
+	// is unaffected because V5 Step A switched the query to
+	// countDistinctIf(request_id, event_type IN ('win','impression')).
+	//
+	// 60s accommodates first-message auto-create handshake (~15-20s per
+	// fresh topic) plus the bidder's async Kafka writer batch flush.
 	winCount := f.CountMessages("dsp.bids", reqID, 60*time.Second)
-	impCount := f.CountMessages("dsp.impressions", reqID, 60*time.Second)
 	if winCount != 1 {
 		t.Errorf("dsp.bids win count: want 1, got %d", winCount)
-	}
-	if impCount != 1 {
-		t.Errorf("dsp.impressions count: want 1, got %d", impCount)
 	}
 
 	// Regression sentinel for C1 (strategy goroutines racing r.Context()):
