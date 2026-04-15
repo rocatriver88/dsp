@@ -36,3 +36,31 @@ func TestInjectClickTracker_EmptyClickURL(t *testing.T) {
 		t.Errorf("empty click URL should return original markup, got %q", result)
 	}
 }
+
+// TestInjectClickTracker_NeverEmitsDestParam is the V5.1 P1-3 static
+// regression guard: the function that constructs click URLs in real
+// bid responses must NEVER put a `dest` query parameter into the URL
+// it injects. Any dest parameter that reached handleClick would be
+// client-controlled attack surface because the HMAC token only signs
+// (campaign_id, request_id). The click dest branch has been deleted
+// from handleClick; this test locks in the invariant that no
+// legitimate caller in this package can re-introduce it by accident.
+func TestInjectClickTracker_NeverEmitsDestParam(t *testing.T) {
+	cases := []struct {
+		name     string
+		markup   string
+		clickURL string
+	}{
+		{"banner", `<a href="https://example.com"><img src="ad.png"/></a>`, "http://bidder.example/click?campaign_id=7&request_id=r-abc&token=xyz"},
+		{"empty markup", "", "http://bidder.example/click?campaign_id=7&request_id=r-abc&token=xyz"},
+		{"empty url", `<div>ad</div>`, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := injectClickTracker(tc.markup, tc.clickURL)
+			if strings.Contains(out, "dest=") {
+				t.Fatalf("V5.1 P1-3 regression: injectClickTracker output contains dest=: %q", out)
+			}
+		})
+	}
+}

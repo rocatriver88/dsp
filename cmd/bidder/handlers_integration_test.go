@@ -441,6 +441,58 @@ func TestHandlers_ClickCPCBilling(t *testing.T) {
 }
 
 // ------------------------------------------------------------
+// V5.1 P1-3 regression guard — /click?dest=https://evil.example MUST
+// NOT 302 to the attacker-chosen URL. Prior to the hotfix the bidder
+// read `dest` from the query string and unconditionally redirected
+// to it (two branches: dedup path + happy path). The HMAC token
+// signed only (campaign_id, request_id), so anyone with a valid
+// click URL could whitelist-launder phishing links through the
+// bidder's public domain. The branch is now gone from handleClick.
+// ------------------------------------------------------------
+func TestHandlers_ClickRejectsArbitraryDest_NoRedirect(t *testing.T) {
+	f := newHandlerFixture(t)
+	advID := f.SeedAdvertiser("click-dest")
+	campID := f.SeedCampaign(qaharness.CampaignSpec{
+		AdvertiserID:     advID,
+		Name:             "qa-click-dest",
+		BillingModel:     campaign.BillingCPC,
+		BidCPCCents:      100,
+		BudgetDailyCents: 1_000_000,
+	})
+	f.Start(t)
+
+	reqID := fmt.Sprintf("qa-clickdest-%d", time.Now().UnixNano())
+	clickURL := f.buildClickURL(campID, reqID) + "&dest=https%3A%2F%2Fevil.example%2Ffree-money"
+
+	// Use a Client that refuses to follow redirects so we can inspect
+	// the Location header directly if the server returns 302.
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Get(clickURL)
+	if err != nil {
+		t.Fatalf("GET /click: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusMovedPermanently {
+		loc := resp.Header.Get("Location")
+		if strings.Contains(loc, "evil.example") {
+			t.Fatalf("V5.1 P1-3 regression: /click redirected to attacker-chosen dest: Location=%q", loc)
+		}
+		t.Fatalf("/click returned an unexpected redirect status %d with Location=%q", resp.StatusCode, loc)
+	}
+	if loc := resp.Header.Get("Location"); loc != "" {
+		t.Fatalf("V5.1 P1-3 regression: /click emitted a Location header %q on a non-redirect response", loc)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("/click status: want 200, got %d", resp.StatusCode)
+	}
+}
+
+// ------------------------------------------------------------
 // Scenario 27 — /convert with a mangled HMAC token is rejected 403
 // and emits no conversion event.
 // ------------------------------------------------------------

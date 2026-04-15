@@ -492,11 +492,26 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `{"status":"ok","remaining_cents":%d}`, remaining)
 }
 
+// handleClick validates a click callback's HMAC token, deduplicates by
+// request_id, and (for CPC campaigns) deducts the per-click budget.
+//
+// V5.1 P1-3: the legacy ?dest= redirect parameter was deleted. It was
+// dead code in the legitimate flow — injectClickTracker at the bottom
+// of this file only appends a 1x1 pixel and cmd/bidder/main.go:276
+// constructs the clickURL without a `dest` parameter, so no real ad
+// traffic ever carried one. It was also an open-redirect attack
+// surface: because the HMAC token signed only (campaign_id, request_id)
+// and NOT dest, anyone who observed a valid click URL (in ad exchange
+// logs, browser history, or by replaying a token within its 5-minute
+// TTL) could craft /click?campaign_id=X&request_id=Y&token=VALID&dest=
+// https://phish.example and use the bidder's public domain to
+// whitelist-launder phishing links past email / social-media link
+// detectors. Delete the read, delete both redirect branches, leave
+// the happy-path JSON response as the only outcome.
 func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 	campaignIDStr := r.URL.Query().Get("campaign_id")
 	requestID := r.URL.Query().Get("request_id")
 	token := r.URL.Query().Get("token")
-	dest := r.URL.Query().Get("dest")
 
 	// Validate HMAC token
 	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID) {
@@ -513,10 +528,6 @@ func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[CLICK-DEDUP] Redis error (proceeding): %v", dedupErr)
 	} else if !wasNew {
 		log.Printf("[CLICK-DEDUP] duplicate click for request_id=%s", requestID)
-		if dest != "" {
-			http.Redirect(w, r, dest, http.StatusFound)
-			return
-		}
 		fmt.Fprintf(w, `{"status":"duplicate"}`)
 		return
 	}
@@ -550,9 +561,9 @@ func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 			charge = float64(c.BidCPCCents) / 100.0 // CPC: charge per click in dollars
 		}
 		// Background context — request context cancels when the handler
-		// returns (especially on the dest redirect path), which would
-		// abort the Kafka write in flight. Tracked via producer.Go so
-		// shutdown drain can wait for it (Round 1 review I4).
+		// returns, which would abort the Kafka write in flight. Tracked
+		// via producer.Go so shutdown drain can wait for it (Round 1
+		// review I4).
 		evt := events.Event{
 			CampaignID:       campaignID,
 			RequestID:        requestID,
@@ -565,11 +576,6 @@ func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("[CLICK] campaign_id=%d request_id=%s", campaignID, requestID)
-
-	if dest != "" {
-		http.Redirect(w, r, dest, http.StatusFound)
-		return
-	}
 	fmt.Fprintf(w, `{"status":"clicked"}`)
 }
 
