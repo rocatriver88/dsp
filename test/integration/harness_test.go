@@ -181,7 +181,7 @@ func buildAuthedMux(d *handler.Deps, store *campaign.Store) http.Handler {
 	// on a separate mux, not APIKeyMiddleware. Tests that need to verify
 	// admin handler behavior invoke the handler method directly via
 	// httptest.NewRecorder, bypassing middleware — see
-	// TestListAdvertisers_OmitsAPIKey in apikey_leak_test.go.
+	// TestListAdvertisers_OmitsAPIKey in admin_list_test.go.
 
 	// APIKeyMiddleware routes auth-free requests to 401, which is what the
 	// 401-path regression tests actually want. It also turns a valid key

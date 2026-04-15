@@ -81,7 +81,7 @@
 1. **新请求停止进入** — 由 `http.Server.Shutdown` 停止 Accept 原子完成
 2. **worker 退出** — 通过 cancel `workerCtx` 触发后台 loop 的 `<-ctx.Done()` 分支
 3. **inflight 请求排空** — 由 `http.Server.Shutdown` 的 drain 阶段完成
-4. **producer flush** — bidder 专用,在 HTTP drain 后显式 `producer.Close()`(api 没有 producer)
+4. **producer flush** — bidder 专用。handler 和 engine 里所有 `go producer.SendXxx(...)` 的发送都通过 `producer.Go(...)` 进入 `sync.WaitGroup`,shutdown 在 HTTP drain 之后调用 `producer.WaitInflight(ctx, 5s)` 严格等待所有 tracked goroutine 退出,然后再 `producer.Close()` 关闭 Kafka writers。**严格** 满足 "producer flushes after last business write",不依赖 disk buffer 兜底(disk buffer 仍然是 Kafka 不可达时的最终一致性保护)
 5. **存储连接关闭** — `db.Close` / `rdb.Close` 通过 top-of-main defer 触发(main 函数返回之后)
 
 ### 时间顺序
@@ -101,8 +101,11 @@
          │
          ├─ loader.Stop() / statsCache.Stop()   # bidder only,冗余但幂等
          │
-         ├─ producer.Close()                # Inv 4 (bidder only)
-         │    flush Kafka 缓冲 / disk buffer
+         ├─ producer.WaitInflight(ctx, 5s)  # Inv 4a (bidder only)
+         │    阻塞等待所有 producer.Go 跟踪的
+         │    handler / engine 端发送 goroutine 退出
+         ├─ producer.Close()                # Inv 4b (bidder only)
+         │    关闭 Kafka writers,flush 已缓冲消息
          │
          └─ main() return
                 │
@@ -115,9 +118,16 @@ worker(autopause、reconciliation、statscache、loader 周期刷新)可能和 i
 
 先 cancel workerCtx,再 drain HTTP,drain 期间 worker 已经在退出或已退出,drain 完成后 DB 状态稳定。
 
-### 为什么 producer.Close 在 Shutdown 之后
+### 为什么 producer.Close 在 Shutdown 之后,且之前还要 WaitInflight
 
-bidder 的 click / convert / win handler 会调 `producer.SendXxx` 往 Kafka 写事件。如果 producer 先关闭,drain 期间还在跑的 handler 会丢最后一批事件(SendXxx 内部写入已关闭的 writer)。顺序必须是:HTTP drain → 所有 handler 返回 → producer 已经没有新写入者 → `producer.Close()` flush 最后一批 buffered 事件到 Kafka / disk。
+bidder 的 bid / click / convert / win handler 会调 `producer.SendXxx` 往 Kafka 写事件。发送操作是异步的——handler 在 spawn 完 goroutine 后立刻返回,goroutine 在后台往 Kafka 写。如果 producer 在 goroutine 还没写完时就被 Close,最后一批 inflight 事件就没了。
+
+两层保障:
+
+- **HTTP drain 结束 ≠ 所有 goroutine 已经退出**。`srv.Shutdown` 只等 handler 的同步返回,不等它们 spawn 的异步 goroutine。所以 drain 完成后,还可能有 bid / win / click 的 SendXxx goroutine 正在往 Kafka 写。
+- **解决方案**:所有这些 goroutine 都通过 `producer.Go(fn)` 启动,内部用 `sync.WaitGroup` 跟踪。shutdown 在 HTTP drain 之后调 `producer.WaitInflight(ctx, 5s)` 阻塞等每一个 tracked 都返回,然后才 `producer.Close()` 关 writers。5 秒 cap 防止病态 case 让关闭无限 hang,超时的最后残留事件落 disk buffer,下次启动 `ReplayBuffer` 回放。
+
+**关键**:`producer.Go` 必须在**所有**异步发送位点使用,含 `cmd/bidder/main.go` 的 handler 级调用 **和** `internal/bidder/engine.go` 里 bid 热路径的 `SendBid`。任何漏网的 `go producer.SendXxx(...)` 都会绕过 WaitInflight 跟踪,让不变量 4 的保证降级为 disk buffer 兜底。Round 2 review 抓到过一次这种疏漏(engine.go:238 的 SendBid)。
 
 ### 为什么请求 ctx 不绑定 workerCtx
 

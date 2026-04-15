@@ -205,9 +205,13 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		return nil, nil
 	}
 
-	// Record bid for strategy tracking
+	// Record bid for strategy tracking. Use context.Background() because
+	// the goroutine outlives the bid handler — the caller returns the
+	// bid response immediately and r.Context() gets cancelled, which
+	// would abort the Redis write mid-flight. Round 2 review I-Pre-1.
 	if e.strategy != nil {
-		go e.strategy.RecordBid(ctx, best.ID)
+		bestID := best.ID
+		go e.strategy.RecordBid(context.Background(), bestID)
 	}
 
 	// Pick first creative
@@ -233,9 +237,21 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		Cur: "CNY",
 	}
 
-	// Emit bid event to Kafka (async, non-blocking)
+	// Emit bid event to Kafka. Round 2 review I-New-1: this is the
+	// highest-volume producer call in the entire system (one per
+	// auction, vs one per click/win for the handler-level calls), and
+	// the Round 1 I4 fix missed it. Two bugs were stacked here:
+	//
+	//   1. Untracked goroutine (not visible to producer.WaitInflight)
+	//      → V5 §P1 invariant 4 was silently violated for every bid.
+	//   2. Wrong context: ctx is the bid handler's r.Context(), which
+	//      cancels within a few ms of the handler returning the bid
+	//      response. Most SendBid writes were aborted mid-flight.
+	//
+	// Fix: route through producer.Go (tracked) with context.Background()
+	// (outlives handler).
 	if e.producer != nil {
-		go e.producer.SendBid(ctx, events.Event{
+		evt := events.Event{
 			CampaignID:   best.ID,
 			CreativeID:   creative.ID,
 			AdvertiserID: best.AdvertiserID,
@@ -244,7 +260,8 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 			GeoCountry:   geoCountry,
 			DeviceOS:     deviceOS,
 			DeviceID:     userID, // IDFA/GAID for attribution
-		})
+		}
+		e.producer.Go(func() { e.producer.SendBid(context.Background(), evt) })
 	}
 
 	return resp, nil
