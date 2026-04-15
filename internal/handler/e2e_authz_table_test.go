@@ -70,7 +70,10 @@ func TestAuthz_PublicRoutes_401WithoutAPIKey(t *testing.T) {
 		{"GET", "/api/v1/billing/transactions"},
 		{"GET", "/api/v1/billing/balance/1"},
 		{"POST", "/api/v1/upload"},
-		{"POST", "/api/v1/advertisers"},
+		// POST /api/v1/advertisers was removed from BuildPublicMux
+		// in V5.1 P1-2. It now lives on BuildAdminMux and is
+		// verified by TestAuthz_AdminRoutes_401WithoutAdminToken
+		// below (which tests the admin mux as a whole).
 		{"GET", "/api/v1/advertisers/1"},
 		{"GET", "/api/v1/ad-types"},
 		{"GET", "/api/v1/billing-models"},
@@ -116,6 +119,9 @@ func TestAuthz_AdminRoutes_401WithoutAdminToken(t *testing.T) {
 		{"POST", "/api/v1/admin/circuit-reset"},
 		{"GET", "/api/v1/admin/circuit-status"},
 		{"GET", "/api/v1/admin/advertisers"},
+		// V5.1 P1-2: POST /api/v1/admin/advertisers relocated here
+		// from the public mux. Admin token required.
+		{"POST", "/api/v1/admin/advertisers"},
 		{"POST", "/api/v1/admin/topup"},
 		{"POST", "/api/v1/admin/invite-codes"},
 		{"GET", "/api/v1/admin/invite-codes"},

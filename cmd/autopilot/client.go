@@ -105,22 +105,37 @@ type CreativeRequest struct {
 
 // --- API methods ---
 
-func (c *DSPClient) CreateAdvertiser(companyName, email string) (*AdvertiserResponse, error) {
-	data, status, err := c.do("POST", "/api/v1/advertisers", map[string]string{
+// CreateAdvertiser creates an advertiser via the admin API. Requires
+// c.AdminToken to be set. adminURL is the internal API base
+// (e.g., http://localhost:8182). V5.1 P1-2: the old public POST
+// /api/v1/advertisers path was removed from the tenant mux because it
+// allowed any authenticated tenant to create a pre-funded advertiser;
+// this method now hits POST /api/v1/admin/advertisers with X-Admin-Token.
+func (c *DSPClient) CreateAdvertiser(adminURL, companyName, email string) (*AdvertiserResponse, error) {
+	body, _ := json.Marshal(map[string]string{
 		"company_name":  companyName,
 		"contact_email": email,
 	})
+	req, err := http.NewRequest("POST", adminURL+"/api/v1/admin/advertisers", bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create advertiser: build request: %w", err)
 	}
-	if status != 201 {
-		return nil, fmt.Errorf("create advertiser: status %d, body: %s", status, data)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Admin-Token", c.AdminToken)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("create advertiser: %w", err)
 	}
-	var resp AdvertiserResponse
-	if err := json.Unmarshal(data, &resp); err != nil {
+	defer resp.Body.Close()
+	data, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("create advertiser: status %d, body: %s", resp.StatusCode, data)
+	}
+	var result AdvertiserResponse
+	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, fmt.Errorf("create advertiser: decode: %w", err)
 	}
-	return &resp, nil
+	return &result, nil
 }
 
 func (c *DSPClient) TopUp(advertiserID int64, amountCents int64, description string) (int64, error) {

@@ -17,7 +17,16 @@ import (
 // Use in tests that want to bypass auth/ratelimit.
 func BuildPublicMux(d *Deps) *http.ServeMux {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/advertisers", d.HandleCreateAdvertiser)
+	// V5.1 P1-2: POST /api/v1/advertisers is NOT registered here. It
+	// used to be a dev-bootstrap handler that let any authenticated
+	// tenant create a new advertiser with a client-settable
+	// balance_cents — a privilege-escalation path where tenant A
+	// could POST /advertisers with balance_cents=100_000_000 and
+	// receive a fresh api_key for a new advertiser, then use that
+	// key to spend ADX dollars. The handler now lives on the admin
+	// mux at POST /api/v1/admin/advertisers (see BuildAdminMux).
+	// The legitimate tenant bootstrap path is POST /api/v1/register
+	// → admin approval → api_key delivery.
 	mux.HandleFunc("GET /api/v1/advertisers/{id}", d.HandleGetAdvertiser)
 	mux.HandleFunc("POST /api/v1/campaigns", d.HandleCreateCampaign)
 	mux.HandleFunc("GET /api/v1/campaigns", d.HandleListCampaigns)
@@ -89,6 +98,9 @@ func BuildAdminMux(d *Deps) *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/admin/circuit-reset", d.HandleCircuitReset)
 	mux.HandleFunc("GET /api/v1/admin/circuit-status", d.HandleCircuitStatus)
 	mux.HandleFunc("GET /api/v1/admin/advertisers", d.HandleListAdvertisers)
+	// V5.1 P1-2: relocated from the public mux. See BuildPublicMux for
+	// the rationale. Admin token required.
+	mux.HandleFunc("POST /api/v1/admin/advertisers", d.HandleCreateAdvertiser)
 	mux.HandleFunc("POST /api/v1/admin/topup", d.HandleAdminTopUp)
 	mux.HandleFunc("POST /api/v1/admin/invite-codes", d.HandleCreateInviteCode)
 	mux.HandleFunc("GET /api/v1/admin/invite-codes", d.HandleListInviteCodes)

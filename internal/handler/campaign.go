@@ -13,14 +13,26 @@ import (
 )
 
 // HandleCreateAdvertiser godoc
-// @Summary Create advertiser
-// @Tags advertisers
+// @Summary Create advertiser (admin only)
+// @Description Admin-only shortcut for bootstrapping an advertiser. Regular
+// @Description tenants must use POST /api/v1/register → admin approval
+// @Description instead. This endpoint was moved behind admin auth in V5.1
+// @Description to close a privilege-escalation path where any authenticated
+// @Description tenant could POST /api/v1/advertisers with a client-chosen
+// @Description balance_cents and receive a new api_key for an arbitrarily
+// @Description pre-funded advertiser account, which could then be used to
+// @Description spend ADX dollars without going through the top-up audit
+// @Description trail. The legitimate public bootstrap path is POST
+// @Description /api/v1/register (see HandleRegister).
+// @Tags admin
+// @Security AdminAuth
 // @Accept json
 // @Produce json
 // @Param body body object{company_name=string,contact_email=string,balance_cents=integer} true "Advertiser data"
-// @Success 201 {object} object{id=integer,api_key=string}
+// @Success 201 {object} object{id=integer,api_key=string,message=string}
 // @Failure 400 {object} object{error=string}
-// @Router /advertisers [post]
+// @Failure 401 {object} object{error=string}
+// @Router /admin/advertisers [post]
 func (d *Deps) HandleCreateAdvertiser(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CompanyName  string `json:"company_name"`

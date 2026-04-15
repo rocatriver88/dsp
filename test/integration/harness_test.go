@@ -140,8 +140,13 @@ func setupDeps() {
 func buildAuthedMux(d *handler.Deps, store *campaign.Store) http.Handler {
 	mux := http.NewServeMux()
 
-	// Advertisers (self-service + create)
-	mux.HandleFunc("POST /api/v1/advertisers", d.HandleCreateAdvertiser)
+	// Advertisers — self-service read path only.
+	// V5.1 P1-2: POST /api/v1/advertisers was removed from the tenant
+	// mux because it let any authenticated tenant self-credit a new
+	// advertiser (balance_cents was client-settable). The legitimate
+	// bootstrap path is POST /api/v1/register → admin approval. Admin
+	// paths are NOT registered on this test harness mux because they
+	// belong on the admin AuthMiddleware chain, not APIKeyMiddleware.
 	mux.HandleFunc("GET /api/v1/advertisers/{id}", d.HandleGetAdvertiser)
 
 	// Campaigns (self-scoped)
