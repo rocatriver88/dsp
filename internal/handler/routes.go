@@ -48,7 +48,9 @@ func BuildPublicMux(d *Deps) *http.ServeMux {
 	// into proxy logs / browser history / referrer headers (V5.1 P1-1).
 	// The token-issue endpoint below stays in publicMux so it gets the
 	// normal APIKeyMiddleware treatment.
-	mux.HandleFunc("POST /api/v1/analytics/token", d.HandleAnalyticsStreamToken)
+	// DO NOT add /analytics/stream or /analytics/snapshot to this mux —
+	// they live on BuildAnalyticsSSEMux behind SSETokenMiddleware (V5.1 P1-1).
+	mux.HandleFunc("POST /api/v1/analytics/token", d.HandleAnalyticsToken)
 	mux.HandleFunc("POST /api/v1/billing/topup", d.HandleTopUp)
 	mux.HandleFunc("GET /api/v1/billing/transactions", d.HandleTransactions)
 	mux.HandleFunc("GET /api/v1/billing/balance", d.HandleBalance)
@@ -137,8 +139,11 @@ func BuildPublicHandler(cfg *config.Config, d *Deps) http.Handler {
 	// Analytics SSE sub-chain: SSETokenMiddleware reads ?token= and injects
 	// the advertiser into context using the same advertiserKey as
 	// APIKeyMiddleware, so HandleAnalyticsStream / HandleAnalyticsSnapshot
-	// work unchanged. Rate-limited via APIKeyFunc which falls back to
-	// per-IP bucketing when X-API-Key is absent (see ratelimit.APIKeyFunc).
+	// work unchanged. Rate limit runs BEFORE SSE token validation so
+	// unauthenticated attackers cannot cheaply burn HMAC-verification CPU
+	// by spraying garbage tokens; the per-IP fallback in APIKeyFunc means
+	// missing X-API-Key (always the case for EventSource) buckets by
+	// RemoteAddr. Per-advertiser SSE rate limiting is Phase 2C debt.
 	analyticsSSEMux := BuildAnalyticsSSEMux(d)
 	analyticsSSEAuth := auth.SSETokenMiddleware(d.SSETokenSecret)(analyticsSSEMux)
 	analyticsSSE := ratelimit.Middleware(limiter, ratelimit.APIKeyFunc, 100, time.Minute)(analyticsSSEAuth)

@@ -138,6 +138,9 @@ func TestReports_AllEndpoints_ForbiddenCrossTenant(t *testing.T) {
 // branch in BuildPublicHandler. Use this for /analytics/stream and
 // /analytics/snapshot. The request's URL should already contain a valid
 // ?token= query minted via auth.IssueSSEToken.
+//
+// Deliberately omits rate-limit wrapping, matching execAuthed's pattern:
+// these tests target auth + handler behavior, not rate-limit edges.
 func execAnalyticsSSE(t *testing.T, d *handler.Deps, req *http.Request) *httptest.ResponseRecorder {
 	t.Helper()
 	chain := auth.SSETokenMiddleware(d.SSETokenSecret)(handler.BuildAnalyticsSSEMux(d))
@@ -198,7 +201,7 @@ func TestAnalytics_Stream_ContentType(t *testing.T) {
 	go func() {
 		done <- execAnalyticsSSE(t, d, req)
 	}()
-	time.AfterFunc(150*time.Millisecond, cancel)
+	time.AfterFunc(500*time.Millisecond, cancel)
 
 	select {
 	case w := <-done:

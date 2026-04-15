@@ -142,8 +142,17 @@ func (d *Deps) sendAnalyticsEvent(ctx context.Context, w http.ResponseWriter, fl
 	flusher.Flush()
 }
 
-// HandleAnalyticsStreamToken godoc
-// @Summary Issue a short-lived SSE auth token for /analytics/stream
+// AnalyticsTokenResponse is the JSON body returned by HandleAnalyticsToken.
+// ExpiresAt is emitted as RFC3339 to match the rest of the handler package
+// (admin.go, registration/invite.go) and to give frontend codegen a named
+// type to import instead of parsing a bare `object{...}` swag spec.
+type AnalyticsTokenResponse struct {
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// HandleAnalyticsToken godoc
+// @Summary Issue a short-lived SSE auth token for analytics endpoints
 // @Description Returns a 5-minute HMAC-signed token bound to the authenticated advertiser.
 // @Description Clients use this token in the ?token= query of /analytics/stream and /analytics/snapshot
 // @Description to authenticate EventSource connections without exposing the long-lived X-API-Key
@@ -151,16 +160,21 @@ func (d *Deps) sendAnalyticsEvent(ctx context.Context, w http.ResponseWriter, fl
 // @Tags analytics
 // @Security ApiKeyAuth
 // @Produce json
-// @Success 200 {object} object{token=string,expires_at=integer}
+// @Success 200 {object} handler.AnalyticsTokenResponse
 // @Failure 401 {object} object{error=string}
 // @Failure 500 {object} object{error=string}
 // @Router /analytics/token [post]
-func (d *Deps) HandleAnalyticsStreamToken(w http.ResponseWriter, r *http.Request) {
+func (d *Deps) HandleAnalyticsToken(w http.ResponseWriter, r *http.Request) {
 	advID := auth.AdvertiserIDFromContext(r.Context())
 	if advID == 0 {
 		WriteError(w, http.StatusUnauthorized, "not authenticated")
 		return
 	}
+	// Defense-in-depth: Config.Validate() enforces len(APIHMACSecret) >= 32 at
+	// startup in cmd/api/main.go, so in production this branch is unreachable.
+	// It exists for test/library consumers that construct a Deps directly and
+	// for tenants running the handler package outside the api binary —
+	// TestHandleAnalyticsToken_MissingSecret_Returns500 exercises this path.
 	if len(d.SSETokenSecret) == 0 {
 		WriteError(w, http.StatusInternalServerError, "SSE token signing not configured")
 		return
@@ -168,8 +182,8 @@ func (d *Deps) HandleAnalyticsStreamToken(w http.ResponseWriter, r *http.Request
 	const ttl = 5 * time.Minute
 	now := time.Now()
 	token := auth.IssueSSEToken(d.SSETokenSecret, advID, ttl, now)
-	WriteJSON(w, http.StatusOK, map[string]any{
-		"token":      token,
-		"expires_at": now.Add(ttl).Unix(),
+	WriteJSON(w, http.StatusOK, AnalyticsTokenResponse{
+		Token:     token,
+		ExpiresAt: now.Add(ttl),
 	})
 }
