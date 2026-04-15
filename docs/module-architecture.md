@@ -99,7 +99,54 @@ API 服务主要由以下包组成：
 - 合规与账务强化仍在 roadmap 中
 - 部分产品流达到的是运营可用深度，而不是完整企业级深度
 
-## 8. 推荐阅读顺序
+## 8. 测试布局
+
+仓库现在并行维护三套测试体系，每套走独立 build tag，不互相干扰：
+
+1. **Unit tests（默认）** — 单个包内的逻辑测试，`go test ./...` 默认跑。
+   不要求外部服务，nil-store 存根允许出现但不能覆盖 tenant-isolation 类
+   的安全断言（V5 教训：nil-store 会把 DB-WHERE→空→handler 映射成
+   500/409 的 bug 漏掉）。
+
+2. **Integration suite** — `test/integration/`，`//go:build integration`。
+   V5 §P2 加入的 main 自带的跨租户安全回归套件，hit 真实 postgres +
+   redis + clickhouse。共享 global `testDeps`，每个 case `truncateAll`。
+   跑法：
+   ```
+   go test -tags integration ./test/integration/...
+   ```
+   新加一个带 scope 的 handler 时，必须把 handler 加到
+   `tenant_isolation_test.go` 的 exhaustive case 表里 —— Round 1 漏掉的
+   就是这一步。
+
+3. **Bidder + consumer + reporting integration** — `internal/qaharness/`
+   是引擎侧可复用的 Go harness 包（`qaharness.New(t)` 返回真实 PG / Redis /
+   ClickHouse / Kafka client）。`cmd/bidder/handlers_integration_test.go`、
+   `internal/bidder/{engine,loader}_integration_test.go`、
+   `internal/budget/budget_integration_test.go`、
+   `internal/reconciliation/reconciliation_integration_test.go`、
+   `internal/reporting/{attribution,stats}_integration_test.go`、
+   `internal/events/producer_integration_test.go`、
+   `cmd/consumer/consumer_integration_test.go` 都跑在
+   `//go:build integration` 下，通过 qaharness 复用连接装配代码。
+
+4. **Handler e2e suite** — `internal/handler/e2e_*_test.go`，
+   `//go:build e2e`。12 个文件，覆盖前后端契约层：
+   advertiser/campaign/creative/billing/report/meta/admin/authz/pubsub。
+   通过 `handler.BuildPublicMux` / `BuildAdminMux`（`routes.go` 中定义）
+   直接在 `httptest.NewServer` 里装配生产 handler chain，绕过 docker-
+   compose 容器启动。跑法：
+   ```
+   go test -tags e2e ./internal/handler/...
+   ```
+   环境变量 `DSP_E2E_PG_DSN` / `DSP_E2E_REDIS_ADDR` /
+   `DSP_E2E_REDIS_PASSWORD` 指向目标栈。
+
+三套 build tag 互相独立，完整回归时分别跑。不要合并，不要互相替代 ——
+每套锚定的关注点不同（integration 是安全回归，qaharness 是引擎 flow，
+e2e 是 handler 契约），混在一起反而会让失败归因变难。
+
+## 9. 推荐阅读顺序
 新贡献者建议按以下顺序阅读：
 1. `cmd/api/main.go`
 2. `cmd/bidder/main.go`
