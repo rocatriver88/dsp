@@ -374,6 +374,28 @@ func (s *Store) CreateCreative(ctx context.Context, cr *Creative) (int64, error)
 	return id, err
 }
 
+// GetCreativeByID returns a single creative by id (any status). Used by
+// handlers that need the full record (e.g. CampaignID for ownership +
+// pubsub) before mutating or reviewing. Cherry-picked from biz branch
+// commit 6b21666 alongside the creative CRUD pubsub fix (3350437).
+func (s *Store) GetCreativeByID(ctx context.Context, id int64) (*Creative, error) {
+	cr := &Creative{}
+	err := s.db.QueryRow(ctx,
+		`SELECT id, campaign_id, name, ad_type, format, size, ad_markup, destination_url, status,
+		        COALESCE(native_title,''), COALESCE(native_desc,''), COALESCE(native_icon_url,''),
+		        COALESCE(native_image_url,''), COALESCE(native_cta,''), created_at
+		 FROM creatives WHERE id = $1`,
+		id,
+	).Scan(&cr.ID, &cr.CampaignID, &cr.Name, &cr.AdType, &cr.Format, &cr.Size,
+		&cr.AdMarkup, &cr.DestinationURL, &cr.Status,
+		&cr.NativeTitle, &cr.NativeDesc, &cr.NativeIconURL,
+		&cr.NativeImageURL, &cr.NativeCTA, &cr.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return cr, nil
+}
+
 // ListCreativesByStatus returns creatives with the given status, paginated.
 func (s *Store) ListCreativesByStatus(ctx context.Context, status string, limit, offset int) ([]*Creative, error) {
 	if limit <= 0 {

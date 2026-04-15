@@ -196,6 +196,12 @@ func (d *Deps) HandleApproveCreative(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusBadRequest, "invalid id")
 		return
 	}
+	// Existence check so unknown ids return 404 rather than silently
+	// succeeding against zero rows. Cherry-picked from biz c366288.
+	if _, err := d.Store.GetCreativeByID(r.Context(), id); err != nil {
+		WriteError(w, http.StatusNotFound, "creative not found")
+		return
+	}
 	if err := d.Store.UpdateCreativeStatus(r.Context(), id, "approved"); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -216,6 +222,11 @@ func (d *Deps) HandleRejectCreative(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	// Existence check — see HandleApproveCreative (biz c366288).
+	if _, err := d.Store.GetCreativeByID(r.Context(), id); err != nil {
+		WriteError(w, http.StatusNotFound, "creative not found")
 		return
 	}
 	if err := d.Store.UpdateCreativeStatus(r.Context(), id, "rejected"); err != nil {
