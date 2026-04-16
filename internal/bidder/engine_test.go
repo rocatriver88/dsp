@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/campaign"
+	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
 func TestEffectiveBidCPMCents_CPM(t *testing.T) {
@@ -105,6 +106,101 @@ func TestMatchesTargeting_EmptyRequestGeo(t *testing.T) {
 	// Empty geo in request should still match (targeting can't filter unknown geo)
 	if !matchesTargeting(c, "", "iOS") {
 		t.Error("empty request geo should pass through")
+	}
+}
+
+func TestParseCreativeSize(t *testing.T) {
+	tests := []struct {
+		input string
+		w, h  int64
+		ok    bool
+	}{
+		{"300x250", 300, 250, true},
+		{"728x90", 728, 90, true},
+		{"1080x1920", 1080, 1920, true},
+		{"bad", 0, 0, false},
+		{"300", 0, 0, false},
+		{"axb", 0, 0, false},
+		{"", 0, 0, false},
+	}
+	for _, tt := range tests {
+		w, h, ok := parseCreativeSize(tt.input)
+		if ok != tt.ok || w != tt.w || h != tt.h {
+			t.Errorf("parseCreativeSize(%q) = (%d,%d,%v), want (%d,%d,%v)", tt.input, w, h, ok, tt.w, tt.h, tt.ok)
+		}
+	}
+}
+
+func TestMatchCreativeToImp_BannerMatch(t *testing.T) {
+	w300, h250 := int64(300), int64(250)
+	imp := &openrtb2.Imp{
+		Banner: &openrtb2.Banner{W: &w300, H: &h250},
+	}
+	creatives := []*campaign.Creative{
+		{ID: 1, Size: "728x90"},
+		{ID: 2, Size: "300x250"},
+		{ID: 3, Size: "320x50"},
+	}
+	got := matchCreativeToImp(creatives, imp)
+	if got == nil || got.ID != 2 {
+		t.Errorf("expected creative 2 (300x250), got %v", got)
+	}
+}
+
+func TestMatchCreativeToImp_BannerNoMatch(t *testing.T) {
+	w160, h600 := int64(160), int64(600)
+	imp := &openrtb2.Imp{
+		Banner: &openrtb2.Banner{W: &w160, H: &h600},
+	}
+	creatives := []*campaign.Creative{
+		{ID: 1, Size: "728x90"},
+		{ID: 2, Size: "300x250"},
+	}
+	got := matchCreativeToImp(creatives, imp)
+	if got != nil {
+		t.Errorf("expected nil (no matching size), got creative %d", got.ID)
+	}
+}
+
+func TestMatchCreativeToImp_BannerFormatArray(t *testing.T) {
+	imp := &openrtb2.Imp{
+		Banner: &openrtb2.Banner{
+			Format: []openrtb2.Format{
+				{W: 728, H: 90},
+				{W: 300, H: 250},
+			},
+		},
+	}
+	creatives := []*campaign.Creative{
+		{ID: 1, Size: "300x250"},
+	}
+	got := matchCreativeToImp(creatives, imp)
+	if got == nil || got.ID != 1 {
+		t.Errorf("expected creative 1, got %v", got)
+	}
+}
+
+func TestMatchCreativeToImp_NonBanner(t *testing.T) {
+	imp := &openrtb2.Imp{
+		Native: &openrtb2.Native{Request: "{}"},
+	}
+	creatives := []*campaign.Creative{
+		{ID: 1, Size: ""},
+	}
+	got := matchCreativeToImp(creatives, imp)
+	if got == nil || got.ID != 1 {
+		t.Errorf("non-banner should accept any creative, got %v", got)
+	}
+}
+
+func TestMatchCreativeToImp_NoCreatives(t *testing.T) {
+	w300, h250 := int64(300), int64(250)
+	imp := &openrtb2.Imp{
+		Banner: &openrtb2.Banner{W: &w300, H: &h250},
+	}
+	got := matchCreativeToImp(nil, imp)
+	if got != nil {
+		t.Errorf("expected nil for empty creatives, got %v", got)
 	}
 }
 

@@ -3,10 +3,13 @@ package bidder
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/antifraud"
 	"github.com/heartgryphon/dsp/internal/budget"
+	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/events"
 	"github.com/heartgryphon/dsp/internal/guardrail"
 	"github.com/heartgryphon/dsp/internal/observability"
@@ -131,6 +134,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 	candidates := e.loader.GetActiveCampaigns()
 	now := time.Now()
 	var best *LoadedCampaign
+	var bestCreative *campaign.Creative
 	var bestBidCPM int
 	for _, c := range candidates {
 		// Defense in depth: loader cache may be stale for up to 30s
@@ -141,7 +145,10 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		if !matchesTargeting(c, geoCountry, deviceOS) {
 			continue
 		}
-		if len(c.Creatives) == 0 {
+
+		// Match creative to impression slot size
+		matched := matchCreativeToImp(c.Creatives, &imp)
+		if matched == nil {
 			continue
 		}
 
@@ -178,6 +185,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 
 		if best == nil || bidCPM > bestBidCPM {
 			best = c
+			bestCreative = matched
 			bestBidCPM = bidCPM
 		}
 	}
@@ -227,8 +235,8 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		go e.strategy.RecordBid(context.Background(), bestID)
 	}
 
-	// Pick first creative
-	creative := best.Creatives[0]
+	// Use the creative matched to the impression slot
+	creative := bestCreative
 	// Markup: bid to ADX at 90% of adjusted bid (platform keeps 10%)
 	bidPrice := float64(bestBidCPM) * 0.90 / 100.0 / 1000.0 // CPM cents × 0.90 → dollars per impression
 	bidID := fmt.Sprintf("bid-%d-%d", best.ID, time.Now().UnixNano())
@@ -302,6 +310,71 @@ func matchesTargeting(c *LoadedCampaign, geo, os string) bool {
 	}
 
 	return true
+}
+
+// matchCreativeToImp returns the first creative that matches the impression's
+// size requirements, or nil if none match. For banner impressions it checks
+// Banner.W/H and Banner.Format against creative.Size ("WxH"). For non-banner
+// impressions (video, native), any creative is accepted since size matching
+// doesn't apply.
+func matchCreativeToImp(creatives []*campaign.Creative, imp *openrtb2.Imp) *campaign.Creative {
+	if imp.Banner == nil {
+		// Non-banner: accept any creative (video/native don't use WxH matching)
+		if len(creatives) > 0 {
+			return creatives[0]
+		}
+		return nil
+	}
+
+	// Collect acceptable sizes from the impression
+	type size struct{ w, h int64 }
+	var acceptable []size
+	if imp.Banner.W != nil && imp.Banner.H != nil {
+		acceptable = append(acceptable, size{*imp.Banner.W, *imp.Banner.H})
+	}
+	for _, f := range imp.Banner.Format {
+		if f.W != 0 && f.H != 0 {
+			acceptable = append(acceptable, size{f.W, f.H})
+		}
+	}
+
+	// If the impression specifies no size, accept any creative
+	if len(acceptable) == 0 {
+		if len(creatives) > 0 {
+			return creatives[0]
+		}
+		return nil
+	}
+
+	for _, cr := range creatives {
+		cw, ch, ok := parseCreativeSize(cr.Size)
+		if !ok {
+			continue // unparseable size, skip
+		}
+		for _, s := range acceptable {
+			if cw == s.w && ch == s.h {
+				return cr
+			}
+		}
+	}
+	return nil
+}
+
+// parseCreativeSize parses a "WxH" string (e.g. "300x250") into width and height.
+func parseCreativeSize(s string) (w, h int64, ok bool) {
+	parts := strings.SplitN(s, "x", 2)
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	w, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return 0, 0, false
+	}
+	h, err = strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return 0, 0, false
+	}
+	return w, h, true
 }
 
 // campaignDateActive returns true if the campaign's date window includes the given time.
