@@ -41,14 +41,95 @@
                 "tags": [
                     "admin"
                 ],
-                "summary": "List all advertisers",
+                "summary": "List all advertisers (admin, api_key redacted)",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_campaign.Advertiser"
+                                "$ref": "#/definitions/internal_handler.AdvertiserResponse"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "AdminAuth": []
+                    }
+                ],
+                "description": "Admin-only shortcut for bootstrapping an advertiser. Regular\ntenants must use POST /api/v1/register → admin approval\ninstead. This endpoint was moved behind admin auth in V5.1\nto close a privilege-escalation path where any authenticated\ntenant could POST /api/v1/advertisers with a client-chosen\nbalance_cents and receive a new api_key for an arbitrarily\npre-funded advertiser account, which could then be used to\nspend ADX dollars without going through the top-up audit\ntrail. The legitimate public bootstrap path is POST\n/api/v1/register (see HandleRegister).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Create advertiser (admin only)",
+                "parameters": [
+                    {
+                        "description": "Advertiser data",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "balance_cents": {
+                                    "type": "integer"
+                                },
+                                "company_name": {
+                                    "type": "string"
+                                },
+                                "contact_email": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "api_key": {
+                                    "type": "string"
+                                },
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "message": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
                             }
                         }
                     }
@@ -610,69 +691,6 @@
                 }
             }
         },
-        "/advertisers": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "advertisers"
-                ],
-                "summary": "Create advertiser",
-                "parameters": [
-                    {
-                        "description": "Advertiser data",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "balance_cents": {
-                                    "type": "integer"
-                                },
-                                "company_name": {
-                                    "type": "string"
-                                },
-                                "contact_email": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "api_key": {
-                                    "type": "string"
-                                },
-                                "id": {
-                                    "type": "integer"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "error": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/advertisers/{id}": {
             "get": {
                 "security": [
@@ -686,7 +704,7 @@
                 "tags": [
                     "advertisers"
                 ],
-                "summary": "Get advertiser by ID",
+                "summary": "Get advertiser by ID (self only)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -700,7 +718,18 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_campaign.Advertiser"
+                            "$ref": "#/definitions/internal_handler.AdvertiserResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 }
@@ -710,9 +739,10 @@
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "SSETokenAuth": []
                     }
                 ],
+                "description": "Authenticates via the same `?token=` query parameter as\n/analytics/stream. See that endpoint for the full\nrationale. V5.1 P1-1.",
                 "produces": [
                     "application/json"
                 ],
@@ -726,6 +756,17 @@
                         "schema": {
                             "type": "object"
                         }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -734,9 +775,10 @@
             "get": {
                 "security": [
                     {
-                        "ApiKeyAuth": []
+                        "SSETokenAuth": []
                     }
                 ],
+                "description": "Authenticates via a short-lived HMAC token passed in the\n`?token=` query parameter (NOT via X-API-Key header, and\nNOT via an `?api_key=` query fallback — that was the\nV5.1 P1-1 vulnerability). Clients mint the token via\nPOST /api/v1/analytics/token.",
                 "produces": [
                     "text/event-stream"
                 ],
@@ -749,6 +791,64 @@
                         "description": "SSE stream",
                         "schema": {
                             "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/analytics/token": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Returns a 5-minute HMAC-signed token bound to the authenticated advertiser.\nClients use this token in the ?token= query of /analytics/stream and /analytics/snapshot\nto authenticate EventSource connections without exposing the long-lived X-API-Key\nin URL query logs (V5.1 P1-1).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Issue a short-lived SSE auth token for analytics endpoints",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.AnalyticsTokenResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 }
@@ -816,7 +916,7 @@
                 }
             }
         },
-        "/billing/balance/{id}": {
+        "/billing/balance": {
             "get": {
                 "security": [
                     {
@@ -829,11 +929,70 @@
                 "tags": [
                     "billing"
                 ],
-                "summary": "Get advertiser balance",
+                "summary": "Get the authenticated advertiser's balance",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "advertiser_id": {
+                                    "type": "integer"
+                                },
+                                "balance_cents": {
+                                    "type": "integer"
+                                },
+                                "billing_type": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/billing/balance/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Legacy alias for GET /billing/balance. The path id must match the authenticated advertiser or the response is 404. New clients should use GET /billing/balance which derives the advertiser from the auth context.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "billing"
+                ],
+                "summary": "[Deprecated] Get advertiser balance via legacy path id",
+                "deprecated": true,
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "Advertiser ID",
+                        "description": "Advertiser ID (must match authenticated advertiser)",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -852,6 +1011,28 @@
                                     "type": "integer"
                                 },
                                 "billing_type": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
                                     "type": "string"
                                 }
                             }
@@ -876,7 +1057,7 @@
                 "tags": [
                     "billing"
                 ],
-                "summary": "Top up advertiser balance",
+                "summary": "Top up the authenticated advertiser's balance",
                 "parameters": [
                     {
                         "description": "Top-up data",
@@ -886,9 +1067,6 @@
                         "schema": {
                             "type": "object",
                             "properties": {
-                                "advertiser_id": {
-                                    "type": "integer"
-                                },
                                 "amount_cents": {
                                     "type": "integer"
                                 },
@@ -904,6 +1082,17 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_billing.Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 }
@@ -922,14 +1111,8 @@
                 "tags": [
                     "billing"
                 ],
-                "summary": "List billing transactions",
+                "summary": "List billing transactions for the authenticated advertiser",
                 "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Advertiser ID",
-                        "name": "advertiser_id",
-                        "in": "query"
-                    },
                     {
                         "type": "integer",
                         "default": 50,
@@ -1165,7 +1348,7 @@
                 "tags": [
                     "creatives"
                 ],
-                "summary": "List creatives for campaign",
+                "summary": "List creatives for a campaign (owner only)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1182,6 +1365,28 @@
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_campaign.Creative"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
                             }
                         }
                     }
@@ -1346,7 +1551,7 @@
                 "tags": [
                     "creatives"
                 ],
-                "summary": "Update creative",
+                "summary": "Update creative (owner only)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1367,6 +1572,28 @@
                                 }
                             }
                         }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -1379,7 +1606,7 @@
                 "tags": [
                     "creatives"
                 ],
-                "summary": "Delete creative",
+                "summary": "Delete creative (owner only)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1396,6 +1623,28 @@
                             "type": "object",
                             "properties": {
                                 "status": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
                                     "type": "string"
                                 }
                             }
@@ -1566,6 +1815,28 @@
                         "schema": {
                             "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_reporting.AttributionReport"
                         }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1616,6 +1887,28 @@
                                 "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_reporting.BidDetail"
                             }
                         }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1650,6 +1943,28 @@
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_reporting.GeoStats"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
                             }
                         }
                     }
@@ -1692,6 +2007,28 @@
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_reporting.HourlyStats"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
                             }
                         }
                     }
@@ -1778,6 +2115,28 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_reporting.CampaignStats"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 }
@@ -1922,41 +2281,6 @@
                     "type": "string"
                 },
                 "type": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_heartgryphon_dsp_internal_campaign.Advertiser": {
-            "type": "object",
-            "properties": {
-                "active_campaigns": {
-                    "type": "integer"
-                },
-                "api_key": {
-                    "type": "string"
-                },
-                "balance_cents": {
-                    "type": "integer"
-                },
-                "billing_type": {
-                    "type": "string"
-                },
-                "company_name": {
-                    "type": "string"
-                },
-                "contact_email": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "total_spent_cents": {
-                    "type": "integer"
-                },
-                "updated_at": {
                     "type": "string"
                 }
             }
@@ -2415,6 +2739,49 @@
                     "type": "string"
                 }
             }
+        },
+        "internal_handler.AdvertiserResponse": {
+            "type": "object",
+            "properties": {
+                "active_campaigns": {
+                    "type": "integer"
+                },
+                "balance_cents": {
+                    "type": "integer"
+                },
+                "billing_type": {
+                    "type": "string"
+                },
+                "company_name": {
+                    "type": "string"
+                },
+                "contact_email": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "total_spent_cents": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.AnalyticsTokenResponse": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
         }
     },
     "securityDefinitions": {
@@ -2427,6 +2794,12 @@
             "type": "apiKey",
             "name": "X-API-Key",
             "in": "header"
+        },
+        "SSETokenAuth": {
+            "description": "V5.1 P1-1: analytics SSE endpoints authenticate via a\nshort-lived HMAC token passed in the `?token=` query\nparameter, NOT via the long-lived X-API-Key header.\nClients mint a token by POSTing to /analytics/token with\nthe X-API-Key header (ApiKeyAuth) and receive a\n5-minute bearer good for /analytics/stream and\n/analytics/snapshot. This scheme exists specifically so\nEventSource clients (which cannot set custom headers) do\nnot have to put their long-lived tenant credential in\nURL query, which would leak it into proxy logs, browser\nhistory, and referrer headers.",
+            "type": "apiKey",
+            "name": "token",
+            "in": "query"
         }
     }
 }

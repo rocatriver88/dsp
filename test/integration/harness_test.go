@@ -140,8 +140,13 @@ func setupDeps() {
 func buildAuthedMux(d *handler.Deps, store *campaign.Store) http.Handler {
 	mux := http.NewServeMux()
 
-	// Advertisers (self-service + create)
-	mux.HandleFunc("POST /api/v1/advertisers", d.HandleCreateAdvertiser)
+	// Advertisers — self-service read path only.
+	// V5.1 P1-2: POST /api/v1/advertisers was removed from the tenant
+	// mux because it let any authenticated tenant self-credit a new
+	// advertiser (balance_cents was client-settable). The legitimate
+	// bootstrap path is POST /api/v1/register → admin approval. Admin
+	// paths are NOT registered on this test harness mux because they
+	// belong on the admin AuthMiddleware chain, not APIKeyMiddleware.
 	mux.HandleFunc("GET /api/v1/advertisers/{id}", d.HandleGetAdvertiser)
 
 	// Campaigns (self-scoped)
@@ -161,7 +166,7 @@ func buildAuthedMux(d *handler.Deps, store *campaign.Store) http.Handler {
 	mux.HandleFunc("POST /api/v1/billing/topup", d.HandleTopUp)
 	mux.HandleFunc("GET /api/v1/billing/transactions", d.HandleTransactions)
 	mux.HandleFunc("GET /api/v1/billing/balance", d.HandleBalance)
-	mux.HandleFunc("GET /api/v1/billing/balance/{id}", d.HandleBalance) // legacy alias
+	mux.HandleFunc("GET /api/v1/billing/balance/{id}", d.HandleBalanceLegacyByID) // legacy alias
 
 	// Reports (all five in V5 §P0 plus simulate which also enforces owner check)
 	mux.HandleFunc("GET /api/v1/reports/campaign/{id}/stats", d.HandleCampaignStats)

@@ -11,6 +11,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/heartgryphon/dsp/internal/auth"
+	"github.com/heartgryphon/dsp/internal/handler"
 )
 
 // TestReports_AllEndpoints seeds a single fixture set (advertiser + campaign +
@@ -130,18 +133,47 @@ func TestReports_AllEndpoints_ForbiddenCrossTenant(t *testing.T) {
 	}
 }
 
+// execAnalyticsSSE runs a request through the SSE sub-chain
+// (BuildAnalyticsSSEMux + SSETokenMiddleware), mirroring the dispatcher
+// branch in BuildPublicHandler. Use this for /analytics/stream and
+// /analytics/snapshot. The request's URL should already contain a valid
+// ?token= query minted via auth.IssueSSEToken.
+//
+// Deliberately omits rate-limit wrapping, matching execAuthed's pattern:
+// these tests target auth + handler behavior, not rate-limit edges.
+func execAnalyticsSSE(t *testing.T, d *handler.Deps, req *http.Request) *httptest.ResponseRecorder {
+	t.Helper()
+	chain := auth.SSETokenMiddleware(d.SSETokenSecret)(handler.BuildAnalyticsSSEMux(d))
+	w := httptest.NewRecorder()
+	chain.ServeHTTP(w, req)
+	return w
+}
+
+// sseTokenFor mints a 5-minute SSE token for the given advertiser ID using
+// the test deps' SSETokenSecret. Matches what HandleAnalyticsToken
+// would return in production.
+func sseTokenFor(t *testing.T, d *handler.Deps, advID int64) string {
+	t.Helper()
+	return auth.IssueSSEToken(d.SSETokenSecret, advID, 5*time.Minute, time.Now())
+}
+
 // TestAnalytics_Snapshot hits the analytics snapshot endpoint and asserts a
 // 200 once an advertiser context is established. The body shape is not
 // asserted: when ClickHouse is reachable (mustDeps wired ReportStore) the
 // handler always returns JSON, otherwise the test is skipped above.
+//
+// V5.1 P1-1: authenticates via ?token= (SSE token middleware) instead of
+// X-API-Key header. The request reaches the handler through the same
+// advertiserKey context as APIKeyMiddleware would have set.
 func TestAnalytics_Snapshot(t *testing.T) {
 	d := mustDeps(t)
 	if d.ReportStore == nil {
 		t.Skip("clickhouse not available")
 	}
-	_, apiKey := newAdvertiser(t, d)
-	req := authedReq(t, "GET", "/api/v1/analytics/snapshot", nil, apiKey)
-	w := execAuthed(t, d, req)
+	advID, _ := newAdvertiser(t, d)
+	token := sseTokenFor(t, d, advID)
+	req := httptest.NewRequest("GET", "/api/v1/analytics/snapshot?token="+token, nil)
+	w := execAnalyticsSSE(t, d, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("snapshot: want 200, got %d body=%s", w.Code, w.Body.String())
 	}
@@ -151,22 +183,25 @@ func TestAnalytics_Snapshot(t *testing.T) {
 // text/event-stream content type and a 200 status. The handler enters a
 // 5s ticker loop that exits on ctx.Done; we attach a cancellable context to
 // the request and cancel it after 150ms so the test completes quickly even
-// though execAuthed is synchronous.
+// though execAnalyticsSSE is synchronous.
+//
+// V5.1 P1-1: authenticates via ?token= instead of X-API-Key header.
 func TestAnalytics_Stream_ContentType(t *testing.T) {
 	d := mustDeps(t)
 	if d.ReportStore == nil {
 		t.Skip("clickhouse not available")
 	}
-	_, apiKey := newAdvertiser(t, d)
+	advID, _ := newAdvertiser(t, d)
+	token := sseTokenFor(t, d, advID)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	req := authedReq(t, "GET", "/api/v1/analytics/stream", nil, apiKey).WithContext(ctx)
+	req := httptest.NewRequest("GET", "/api/v1/analytics/stream?token="+token, nil).WithContext(ctx)
 
 	done := make(chan *httptest.ResponseRecorder, 1)
 	go func() {
-		done <- execAuthed(t, d, req)
+		done <- execAnalyticsSSE(t, d, req)
 	}()
-	time.AfterFunc(150*time.Millisecond, cancel)
+	time.AfterFunc(500*time.Millisecond, cancel)
 
 	select {
 	case w := <-done:

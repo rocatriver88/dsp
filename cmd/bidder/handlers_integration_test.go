@@ -440,6 +440,18 @@ func TestHandlers_ClickCPCBilling(t *testing.T) {
 	}
 }
 
+// V5.1 P1-3 regression guard is in `cmd/bidder/main_test.go` as
+// TestHandleClick_RejectsArbitraryDest_NoRedirect (unit-level). The
+// integration-level version was attempted here but kept hanging on
+// Kafka producer cleanup — handleClick fires a background SendClick
+// via prod.Go(...) which the integration producer's Close() waits
+// on through V5 inflight tracking, and the Kafka first-message
+// handshake (~15-20s) can race test timeouts. The unit test uses a
+// minimal Deps with Producer=nil and campaignID=0 so both the
+// CPC-budget-deduction branch and the Kafka-send branch are skipped,
+// leaving only the HMAC+dedup+redirect-deletion path under test —
+// which is exactly the P1-3 scope.
+
 // ------------------------------------------------------------
 // Scenario 27 — /convert with a mangled HMAC token is rejected 403
 // and emits no conversion event.

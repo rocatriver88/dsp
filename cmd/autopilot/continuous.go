@@ -105,6 +105,7 @@ func (s *ContinuousSimulator) Run(ctx context.Context) {
 
 func (s *ContinuousSimulator) setup() error {
 	adv, err := s.client.CreateAdvertiser(
+		s.adminURL,
 		fmt.Sprintf("Autopilot Continuous %s", time.Now().Format("0102")),
 		"autopilot-continuous@test.local",
 	)

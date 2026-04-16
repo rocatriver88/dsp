@@ -98,18 +98,18 @@ func (d *Deps) HandleTransactions(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} object{error=string}
 // @Router /billing/balance [get]
 //
-// This handler is registered on two routes:
+// Canonical balance read. Advertiser id is always taken from the auth
+// context. The legacy alias GET /billing/balance/{id} is registered
+// through HandleBalanceLegacyByID (a thin delegate below) so that both
+// routes surface in the generated OpenAPI contract while the legacy
+// one is explicitly marked @Deprecated.
 //
-//   - GET /api/v1/billing/balance       — canonical; no path id, pure auth context
-//   - GET /api/v1/billing/balance/{id}  — legacy; path id must match auth id
-//
-// On the legacy route we enforce a scope check: if the path id is present
-// and differs from the authenticated advertiser, the response is 404 per
-// the V5 §P0 three-code rule. The earlier commit 4faa8c9 let the legacy
-// path silently ignore the id for reads, which the Batch 6 integration
-// suite caught as a tenant-isolation leak: the caller would still learn
-// "any id under /balance/{id} returns 200" — subtle, but V5's rule is
-// absolute, so the check is reinstated here.
+// Both routes share this function body, so the V5 §P0 scope check
+// (pathID == authID → else 404) is enforced here. The earlier commit
+// 4faa8c9 let the legacy path silently ignore the id, which the Batch 6
+// integration suite caught as a tenant-isolation leak: the caller would
+// still learn "any id under /balance/{id} returns 200". V5's three-code
+// rule is absolute, so the check is reinstated.
 func (d *Deps) HandleBalance(w http.ResponseWriter, r *http.Request) {
 	authID, ok := requireAuth(w, r)
 	if !ok {
@@ -132,4 +132,26 @@ func (d *Deps) HandleBalance(w http.ResponseWriter, r *http.Request) {
 		"balance_cents": balance,
 		"billing_type":  billingType,
 	})
+}
+
+// HandleBalanceLegacyByID godoc
+// @Summary [Deprecated] Get advertiser balance via legacy path id
+// @Description Legacy alias for GET /billing/balance. The path id must match the authenticated advertiser or the response is 404. New clients should use GET /billing/balance which derives the advertiser from the auth context.
+// @Tags billing
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path int true "Advertiser ID (must match authenticated advertiser)"
+// @Success 200 {object} object{advertiser_id=integer,balance_cents=integer,billing_type=string}
+// @Failure 401 {object} object{error=string}
+// @Failure 404 {object} object{error=string}
+// @Deprecated
+// @Router /billing/balance/{id} [get]
+//
+// Pure delegate to HandleBalance. Exists as a separate symbol solely so
+// swag emits the /billing/balance/{id} entry in the generated contract
+// (with @Deprecated + @Param id) — keeping the OpenAPI surface aligned
+// with the mux while signaling new clients not to adopt it. Behavior is
+// identical to the canonical route; the scope check lives in HandleBalance.
+func (d *Deps) HandleBalanceLegacyByID(w http.ResponseWriter, r *http.Request) {
+	d.HandleBalance(w, r)
 }

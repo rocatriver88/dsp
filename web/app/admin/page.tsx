@@ -35,8 +35,6 @@ export default function AdminOverviewPage() {
   const [circuitReason, setCircuitReason] = useState("");
 
   const load = useCallback(() => {
-    setLoading(true);
-    setError(null);
     Promise.all([
       adminApi.listAdvertisers(),
       adminApi.getCircuitStatus(),
@@ -54,6 +52,7 @@ export default function AdminOverviewPage() {
         });
         setCircuit(circuitData);
         setHealth(healthData);
+        setError(null);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -62,6 +61,12 @@ export default function AdminOverviewPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  function handleRetry() {
+    setLoading(true);
+    setError(null);
+    load();
+  }
 
   async function handleTrip() {
     setCircuitError(null);
@@ -97,7 +102,7 @@ export default function AdminOverviewPage() {
       {error && (
         <div className="mb-4 px-4 py-3 rounded bg-red-50 text-red-700 text-sm flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={load} className="text-xs underline ml-4">重试</button>
+          <button onClick={handleRetry} className="text-xs underline ml-4">重试</button>
         </div>
       )}
 

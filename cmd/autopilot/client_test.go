@@ -8,9 +8,18 @@ import (
 )
 
 func TestClientCreateAdvertiser(t *testing.T) {
+	// V5.1 P1-2: CreateAdvertiser now hits the admin path with an
+	// X-Admin-Token header. The old public POST /api/v1/advertisers
+	// route was removed from the tenant mux to close a privilege-
+	// escalation hole; autopilot legitimately needs to bootstrap an
+	// advertiser during continuous simulation runs, so it uses the
+	// admin path with the admin token it already carries.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" || r.URL.Path != "/api/v1/advertisers" {
-			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		if r.Method != "POST" || r.URL.Path != "/api/v1/admin/advertisers" {
+			t.Errorf("unexpected %s %s (want POST /api/v1/admin/advertisers)", r.Method, r.URL.Path)
+		}
+		if tok := r.Header.Get("X-Admin-Token"); tok != "test-admin-token" {
+			t.Errorf("expected X-Admin-Token=test-admin-token, got %q", tok)
 		}
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
@@ -23,7 +32,8 @@ func TestClientCreateAdvertiser(t *testing.T) {
 	defer srv.Close()
 
 	c := NewDSPClient(srv.URL, "")
-	adv, err := c.CreateAdvertiser("Test Co", "test@example.com")
+	c.AdminToken = "test-admin-token"
+	adv, err := c.CreateAdvertiser(srv.URL, "Test Co", "test@example.com")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

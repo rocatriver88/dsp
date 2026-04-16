@@ -39,29 +39,6 @@ definitions:
       type:
         type: string
     type: object
-  github_com_heartgryphon_dsp_internal_campaign.Advertiser:
-    properties:
-      active_campaigns:
-        type: integer
-      api_key:
-        type: string
-      balance_cents:
-        type: integer
-      billing_type:
-        type: string
-      company_name:
-        type: string
-      contact_email:
-        type: string
-      created_at:
-        type: string
-      id:
-        type: integer
-      total_spent_cents:
-        type: integer
-      updated_at:
-        type: string
-    type: object
   github_com_heartgryphon_dsp_internal_campaign.Campaign:
     properties:
       advertiser_id:
@@ -366,6 +343,34 @@ definitions:
       time:
         type: string
     type: object
+  internal_handler.AdvertiserResponse:
+    properties:
+      active_campaigns:
+        type: integer
+      balance_cents:
+        type: integer
+      billing_type:
+        type: string
+      company_name:
+        type: string
+      contact_email:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      total_spent_cents:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  internal_handler.AnalyticsTokenResponse:
+    properties:
+      expires_at:
+        type: string
+      token:
+        type: string
+    type: object
 host: localhost:8181
 info:
   contact: {}
@@ -394,11 +399,72 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/github_com_heartgryphon_dsp_internal_campaign.Advertiser'
+              $ref: '#/definitions/internal_handler.AdvertiserResponse'
             type: array
       security:
       - AdminAuth: []
-      summary: List all advertisers
+      summary: List all advertisers (admin, api_key redacted)
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Admin-only shortcut for bootstrapping an advertiser. Regular
+        tenants must use POST /api/v1/register → admin approval
+        instead. This endpoint was moved behind admin auth in V5.1
+        to close a privilege-escalation path where any authenticated
+        tenant could POST /api/v1/advertisers with a client-chosen
+        balance_cents and receive a new api_key for an arbitrarily
+        pre-funded advertiser account, which could then be used to
+        spend ADX dollars without going through the top-up audit
+        trail. The legitimate public bootstrap path is POST
+        /api/v1/register (see HandleRegister).
+      parameters:
+      - description: Advertiser data
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            balance_cents:
+              type: integer
+            company_name:
+              type: string
+            contact_email:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            properties:
+              api_key:
+                type: string
+              id:
+                type: integer
+              message:
+                type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - AdminAuth: []
+      summary: Create advertiser (admin only)
       tags:
       - admin
   /admin/audit-log:
@@ -738,46 +804,6 @@ paths:
       summary: Admin top-up advertiser balance
       tags:
       - admin
-  /advertisers:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Advertiser data
-        in: body
-        name: body
-        required: true
-        schema:
-          properties:
-            balance_cents:
-              type: integer
-            company_name:
-              type: string
-            contact_email:
-              type: string
-          type: object
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            properties:
-              api_key:
-                type: string
-              id:
-                type: integer
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            properties:
-              error:
-                type: string
-            type: object
-      summary: Create advertiser
-      tags:
-      - advertisers
   /advertisers/{id}:
     get:
       parameters:
@@ -792,14 +818,25 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_heartgryphon_dsp_internal_campaign.Advertiser'
+            $ref: '#/definitions/internal_handler.AdvertiserResponse'
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
       - ApiKeyAuth: []
-      summary: Get advertiser by ID
+      summary: Get advertiser by ID (self only)
       tags:
       - advertisers
   /analytics/snapshot:
     get:
+      description: |-
+        Authenticates via the same `?token=` query parameter as
+        /analytics/stream. See that endpoint for the full
+        rationale. V5.1 P1-1.
       produces:
       - application/json
       responses:
@@ -807,13 +844,26 @@ paths:
           description: OK
           schema:
             type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
-      - ApiKeyAuth: []
+      - SSETokenAuth: []
       summary: Get analytics snapshot
       tags:
       - analytics
   /analytics/stream:
     get:
+      description: |-
+        Authenticates via a short-lived HMAC token passed in the
+        `?token=` query parameter (NOT via X-API-Key header, and
+        NOT via an `?api_key=` query fallback — that was the
+        V5.1 P1-1 vulnerability). Clients mint the token via
+        POST /api/v1/analytics/token.
       produces:
       - text/event-stream
       responses:
@@ -821,9 +871,49 @@ paths:
           description: SSE stream
           schema:
             type: string
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - SSETokenAuth: []
+      summary: Real-time analytics SSE stream
+      tags:
+      - analytics
+  /analytics/token:
+    post:
+      description: |-
+        Returns a 5-minute HMAC-signed token bound to the authenticated advertiser.
+        Clients use this token in the ?token= query of /analytics/stream and /analytics/snapshot
+        to authenticate EventSource connections without exposing the long-lived X-API-Key
+        in URL query logs (V5.1 P1-1).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_handler.AnalyticsTokenResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
       - ApiKeyAuth: []
-      summary: Real-time analytics SSE stream
+      summary: Issue a short-lived SSE auth token for analytics endpoints
       tags:
       - analytics
   /audit-log:
@@ -865,10 +955,49 @@ paths:
       summary: List billing models
       tags:
       - reference
+  /billing/balance:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            properties:
+              advertiser_id:
+                type: integer
+              balance_cents:
+                type: integer
+              billing_type:
+                type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Get the authenticated advertiser's balance
+      tags:
+      - billing
   /billing/balance/{id}:
     get:
+      deprecated: true
+      description: Legacy alias for GET /billing/balance. The path id must match the
+        authenticated advertiser or the response is 404. New clients should use GET
+        /billing/balance which derives the advertiser from the auth context.
       parameters:
-      - description: Advertiser ID
+      - description: Advertiser ID (must match authenticated advertiser)
         in: path
         name: id
         required: true
@@ -887,9 +1016,23 @@ paths:
               billing_type:
                 type: string
             type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
       - ApiKeyAuth: []
-      summary: Get advertiser balance
+      summary: '[Deprecated] Get advertiser balance via legacy path id'
       tags:
       - billing
   /billing/topup:
@@ -903,8 +1046,6 @@ paths:
         required: true
         schema:
           properties:
-            advertiser_id:
-              type: integer
             amount_cents:
               type: integer
             description:
@@ -917,18 +1058,21 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/github_com_heartgryphon_dsp_internal_billing.Transaction'
+        "400":
+          description: Bad Request
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
       - ApiKeyAuth: []
-      summary: Top up advertiser balance
+      summary: Top up the authenticated advertiser's balance
       tags:
       - billing
   /billing/transactions:
     get:
       parameters:
-      - description: Advertiser ID
-        in: query
-        name: advertiser_id
-        type: integer
       - default: 50
         description: Limit
         in: query
@@ -950,7 +1094,7 @@ paths:
             type: array
       security:
       - ApiKeyAuth: []
-      summary: List billing transactions
+      summary: List billing transactions for the authenticated advertiser
       tags:
       - billing
   /campaigns:
@@ -1090,9 +1234,23 @@ paths:
             items:
               $ref: '#/definitions/github_com_heartgryphon_dsp_internal_campaign.Creative'
             type: array
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
       - ApiKeyAuth: []
-      summary: List creatives for campaign
+      summary: List creatives for a campaign (owner only)
       tags:
       - creatives
   /campaigns/{id}/pause:
@@ -1198,9 +1356,23 @@ paths:
               status:
                 type: string
             type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
       - ApiKeyAuth: []
-      summary: Delete creative
+      summary: Delete creative (owner only)
       tags:
       - creatives
     put:
@@ -1222,9 +1394,23 @@ paths:
               status:
                 type: string
             type: object
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
       - ApiKeyAuth: []
-      summary: Update creative
+      summary: Update creative (owner only)
       tags:
       - creatives
   /export/campaign/{id}/bids:
@@ -1325,6 +1511,20 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/github_com_heartgryphon_dsp_internal_reporting.AttributionReport'
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
       - ApiKeyAuth: []
       summary: Get attribution report
@@ -1357,6 +1557,20 @@ paths:
             items:
               $ref: '#/definitions/github_com_heartgryphon_dsp_internal_reporting.BidDetail'
             type: array
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
       - ApiKeyAuth: []
       summary: Get bid-level details
@@ -1379,6 +1593,20 @@ paths:
             items:
               $ref: '#/definitions/github_com_heartgryphon_dsp_internal_reporting.GeoStats'
             type: array
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
       - ApiKeyAuth: []
       summary: Get geo breakdown
@@ -1405,6 +1633,20 @@ paths:
             items:
               $ref: '#/definitions/github_com_heartgryphon_dsp_internal_reporting.HourlyStats'
             type: array
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
       - ApiKeyAuth: []
       summary: Get hourly stats
@@ -1458,6 +1700,20 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/github_com_heartgryphon_dsp_internal_reporting.CampaignStats'
+        "401":
+          description: Unauthorized
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
       security:
       - ApiKeyAuth: []
       summary: Get campaign stats
@@ -1521,5 +1777,21 @@ securityDefinitions:
   ApiKeyAuth:
     in: header
     name: X-API-Key
+    type: apiKey
+  SSETokenAuth:
+    description: |-
+      V5.1 P1-1: analytics SSE endpoints authenticate via a
+      short-lived HMAC token passed in the `?token=` query
+      parameter, NOT via the long-lived X-API-Key header.
+      Clients mint a token by POSTing to /analytics/token with
+      the X-API-Key header (ApiKeyAuth) and receive a
+      5-minute bearer good for /analytics/stream and
+      /analytics/snapshot. This scheme exists specifically so
+      EventSource clients (which cannot set custom headers) do
+      not have to put their long-lived tenant credential in
+      URL query, which would leak it into proxy logs, browser
+      history, and referrer headers.
+    in: query
+    name: token
     type: apiKey
 swagger: "2.0"

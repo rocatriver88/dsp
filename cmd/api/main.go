@@ -36,6 +36,20 @@ import (
 // @securityDefinitions.apikey AdminAuth
 // @in header
 // @name X-Admin-Token
+// @securityDefinitions.apikey SSETokenAuth
+// @in query
+// @name token
+// @description V5.1 P1-1: analytics SSE endpoints authenticate via a
+// @description short-lived HMAC token passed in the `?token=` query
+// @description parameter, NOT via the long-lived X-API-Key header.
+// @description Clients mint a token by POSTing to /analytics/token with
+// @description the X-API-Key header (ApiKeyAuth) and receive a
+// @description 5-minute bearer good for /analytics/stream and
+// @description /analytics/snapshot. This scheme exists specifically so
+// @description EventSource clients (which cannot set custom headers) do
+// @description not have to put their long-lived tenant credential in
+// @description URL query, which would leak it into proxy logs, browser
+// @description history, and referrer headers.
 func main() {
 	observability.InitLogger()
 	cfg := config.Load()
@@ -134,6 +148,7 @@ func main() {
 		Redis:       rdb,
 		Guardrail:   guard,
 		AuditLog:    auditLogger,
+		SSETokenSecret: []byte(cfg.APIHMACSecret),
 	}
 
 	publicSrv := &http.Server{

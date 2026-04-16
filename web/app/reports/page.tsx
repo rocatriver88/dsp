@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
 import { LoadingSkeleton, ErrorState } from "../_components/LoadingState";
@@ -10,16 +10,25 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = () => {
-    setLoading(true);
-    setError(null);
+  const load = useCallback(() => {
     api.listCampaigns()
-      .then(setCampaigns)
+      .then((data) => {
+        setCampaigns(data);
+        setError(null);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleRetry = () => {
+    setLoading(true);
+    setError(null);
+    load();
+  };
 
   return (
     <div>
@@ -29,7 +38,7 @@ export default function ReportsPage() {
       {loading ? (
         <LoadingSkeleton rows={3} />
       ) : error ? (
-        <ErrorState message={error} onRetry={load} />
+        <ErrorState message={error} onRetry={handleRetry} />
       ) : campaigns.length === 0 ? (
         <div className="rounded-lg bg-white p-12 text-center">
           <p className="text-lg font-medium mb-2">还没有 Campaign</p>

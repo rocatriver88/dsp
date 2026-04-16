@@ -1,24 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 
+const STORAGE_KEY = "dsp_api_key";
+const listeners = new Set<() => void>();
+
+function subscribeApiKey(cb: () => void) {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+function getApiKeySnapshot(): string {
+  return localStorage.getItem(STORAGE_KEY) ?? "";
+}
+
+// Returning null on the server distinguishes "not hydrated yet" from "no key
+// saved" (""), which lets the component render nothing during SSR and avoid a
+// hydration mismatch while still showing the login screen once mounted.
+function getApiKeyServerSnapshot(): string | null {
+  return null;
+}
+
+function saveApiKey(value: string) {
+  localStorage.setItem(STORAGE_KEY, value);
+  listeners.forEach((cb) => cb());
+}
+
 export default function ApiKeyGate({ children, sidebar }: { children: React.ReactNode; sidebar?: React.ReactNode }) {
-  const [apiKey, setApiKey] = useState<string | null>(null);
+  const apiKey = useSyncExternalStore(subscribeApiKey, getApiKeySnapshot, getApiKeyServerSnapshot);
   const [input, setInput] = useState("");
-  const [checking, setChecking] = useState(true);
   const pathname = usePathname();
   const isAdmin = pathname.startsWith("/admin");
 
-  useEffect(() => {
-    const key = localStorage.getItem("dsp_api_key");
-    if (key) {
-      setApiKey(key);
-    }
-    setChecking(false);
-  }, []);
-
-  if (checking) return null;
+  if (apiKey === null) return null;
 
   if (!apiKey) {
     return (
@@ -37,16 +54,14 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
             autoFocus
             onKeyDown={(e) => {
               if (e.key === "Enter" && input.startsWith("dsp_")) {
-                localStorage.setItem("dsp_api_key", input.trim());
-                setApiKey(input.trim());
+                saveApiKey(input.trim());
               }
             }}
           />
           <button
             onClick={() => {
               if (input.startsWith("dsp_")) {
-                localStorage.setItem("dsp_api_key", input.trim());
-                setApiKey(input.trim());
+                saveApiKey(input.trim());
               }
             }}
             disabled={!input.startsWith("dsp_")}

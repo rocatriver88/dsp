@@ -64,7 +64,7 @@ func TestCreative_ListByCampaign(t *testing.T) {
 // so we use execPublic to avoid the auth dance.
 func TestCreative_Create_BadAdType_400(t *testing.T) {
 	d := mustDeps(t)
-	advID, _ := newAdvertiser(t, d)
+	advID, apiKey := newAdvertiser(t, d)
 	campaignID := newCampaign(t, d, advID)
 
 	body := map[string]any{
@@ -76,8 +76,11 @@ func TestCreative_Create_BadAdType_400(t *testing.T) {
 		"ad_markup":       `<a href="https://example.com">ad</a>`,
 		"destination_url": "https://example.com",
 	}
-	req := authedReq(t, http.MethodPost, "/api/v1/creatives", body, "")
-	w := execPublic(t, d, req)
+	// V5 hardened creative handlers to authenticate before running
+	// ad_type validation. Use execAuthed + a real api key so the auth
+	// context is populated and the request reaches the 400 branch.
+	req := authedReq(t, http.MethodPost, "/api/v1/creatives", body, apiKey)
+	w := execAuthed(t, d, req)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("POST /creatives (bad ad_type): expected 400, got %d: %s",
 			w.Code, w.Body.String())
@@ -90,9 +93,12 @@ func TestCreative_Create_BadAdType_400(t *testing.T) {
 
 // TestCreative_Update_NotFound_404 verifies PUT /api/v1/creatives/{id} with
 // a non-existent id returns 404. The handler calls GetCreativeByID first
-// (added in P1 commit 3350437) and returns 404 on lookup failure.
+// (added in P1 commit 3350437) and returns 404 on lookup failure. V5
+// hardened this path to authenticate before the lookup — the test now
+// passes a real api key so the auth context is populated.
 func TestCreative_Update_NotFound_404(t *testing.T) {
 	d := mustDeps(t)
+	_, apiKey := newAdvertiser(t, d)
 
 	body := map[string]any{
 		"name":            "ghost-" + safeName(t.Name()),
@@ -102,8 +108,8 @@ func TestCreative_Update_NotFound_404(t *testing.T) {
 		"ad_markup":       `<a>ghost</a>`,
 		"destination_url": "https://example.com",
 	}
-	req := authedReq(t, http.MethodPut, "/api/v1/creatives/999999999", body, "")
-	w := execPublic(t, d, req)
+	req := authedReq(t, http.MethodPut, "/api/v1/creatives/999999999", body, apiKey)
+	w := execAuthed(t, d, req)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("PUT /creatives/999999999: expected 404, got %d: %s",
 			w.Code, w.Body.String())
@@ -112,11 +118,13 @@ func TestCreative_Update_NotFound_404(t *testing.T) {
 
 // TestCreative_Delete_NotFound_404 verifies DELETE /api/v1/creatives/{id}
 // with a non-existent id returns 404 via the same GetCreativeByID guard.
+// Needs a real api key per the V5 auth-first ordering (see above).
 func TestCreative_Delete_NotFound_404(t *testing.T) {
 	d := mustDeps(t)
+	_, apiKey := newAdvertiser(t, d)
 
-	req := authedReq(t, http.MethodDelete, "/api/v1/creatives/999999999", nil, "")
-	w := execPublic(t, d, req)
+	req := authedReq(t, http.MethodDelete, "/api/v1/creatives/999999999", nil, apiKey)
+	w := execAuthed(t, d, req)
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("DELETE /creatives/999999999: expected 404, got %d: %s",
 			w.Code, w.Body.String())

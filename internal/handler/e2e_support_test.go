@@ -126,6 +126,11 @@ func mustDeps(t *testing.T) *handler.Deps {
 		BudgetSvc:   budget.New(rdb),
 		Redis:       rdb,
 		AuditLog:    audit.NewLogger(db),
+		// V5.1 P1-1: analytics SSE tokens are signed with this secret.
+		// Fixture value ≥ 32 bytes so Config.Validate's production
+		// length check (32-byte minimum) would pass if this test deps
+		// were ever cross-loaded from a full config init path.
+		SSETokenSecret: []byte("e2e-test-sse-secret-32-bytes-min-padding"),
 	}
 }
 

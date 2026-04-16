@@ -12,6 +12,7 @@ import (
 // misconfigured deployment fails fast at startup.
 const (
 	defaultBidderHMACSecret = "dev-hmac-secret-change-in-production"
+	defaultAPIHMACSecret    = "dev-api-hmac-secret-change-in-production"
 	defaultCORSOrigins      = "http://localhost:4000"
 )
 
@@ -33,6 +34,7 @@ type Config struct {
 	CORSAllowedOrigins string
 	BidderPublicURL    string
 	BidderHMACSecret   string
+	APIHMACSecret      string
 
 	// Guardrails
 	GlobalDailyBudgetCents int64   // all campaigns combined, 0 = no limit
@@ -62,6 +64,7 @@ func Load() *Config {
 		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", defaultCORSOrigins),
 		BidderPublicURL:    getEnv("BIDDER_PUBLIC_URL", "http://localhost:8180"),
 		BidderHMACSecret:   getEnv("BIDDER_HMAC_SECRET", defaultBidderHMACSecret),
+		APIHMACSecret:      getEnv("API_HMAC_SECRET", defaultAPIHMACSecret),
 
 		GlobalDailyBudgetCents: parseInt64("GLOBAL_DAILY_BUDGET_CENTS", 0),
 		MaxBidCPMCents:         parseInt("MAX_BID_CPM_CENTS", 0),
@@ -80,6 +83,9 @@ func Load() *Config {
 //
 // The production-only checks are:
 //   - BIDDER_HMAC_SECRET must be overridden (not the baked-in dev default)
+//   - API_HMAC_SECRET must be overridden (signs analytics SSE tokens; kept
+//     distinct from BIDDER_HMAC_SECRET so the two trust domains cannot
+//     cross-contaminate if one signing key leaks)
 //   - ADMIN_TOKEN must be set (no fallback is accepted, and admin_auth now
 //     refuses empty tokens at request time as defense in depth)
 //   - CORS_ALLOWED_ORIGINS must be overridden (the dev default trusts
@@ -91,6 +97,17 @@ func (c *Config) Validate() error {
 	}
 	if c.BidderHMACSecret == defaultBidderHMACSecret {
 		return fmt.Errorf("BIDDER_HMAC_SECRET must be set in production; refusing to start with the baked-in dev secret")
+	}
+	if c.APIHMACSecret == defaultAPIHMACSecret {
+		return fmt.Errorf("API_HMAC_SECRET must be set in production; refusing to start with the baked-in dev secret")
+	}
+	// HMAC-SHA256 with a trivially short key is security theatre. Enforce
+	// a 32-byte floor so a typo'd deploy (API_HMAC_SECRET=x) fails at
+	// startup rather than silently weakening the SSE token signature.
+	// BidderHMACSecret has the same latent hole but that hardening is
+	// deferred to Phase 2C.
+	if len(c.APIHMACSecret) < 32 {
+		return fmt.Errorf("API_HMAC_SECRET must be at least 32 bytes for HMAC-SHA256; got %d", len(c.APIHMACSecret))
 	}
 	if getEnv("ADMIN_TOKEN", "") == "" {
 		return fmt.Errorf("ADMIN_TOKEN must be set in production; there is no default fallback")

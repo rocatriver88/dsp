@@ -12,10 +12,16 @@ import (
 
 // HandleAnalyticsStream godoc
 // @Summary Real-time analytics SSE stream
+// @Description Authenticates via a short-lived HMAC token passed in the
+// @Description `?token=` query parameter (NOT via X-API-Key header, and
+// @Description NOT via an `?api_key=` query fallback — that was the
+// @Description V5.1 P1-1 vulnerability). Clients mint the token via
+// @Description POST /api/v1/analytics/token.
 // @Tags analytics
-// @Security ApiKeyAuth
+// @Security SSETokenAuth
 // @Produce text/event-stream
 // @Success 200 {string} string "SSE stream"
+// @Failure 401 {object} object{error=string}
 // @Router /analytics/stream [get]
 func (d *Deps) HandleAnalyticsStream(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
@@ -60,10 +66,14 @@ func (d *Deps) HandleAnalyticsStream(w http.ResponseWriter, r *http.Request) {
 
 // HandleAnalyticsSnapshot godoc
 // @Summary Get analytics snapshot
+// @Description Authenticates via the same `?token=` query parameter as
+// @Description /analytics/stream. See that endpoint for the full
+// @Description rationale. V5.1 P1-1.
 // @Tags analytics
-// @Security ApiKeyAuth
+// @Security SSETokenAuth
 // @Produce json
 // @Success 200 {object} object
+// @Failure 401 {object} object{error=string}
 // @Router /analytics/snapshot [get]
 func (d *Deps) HandleAnalyticsSnapshot(w http.ResponseWriter, r *http.Request) {
 	if d.ReportStore == nil {
@@ -140,4 +150,50 @@ func (d *Deps) sendAnalyticsEvent(ctx context.Context, w http.ResponseWriter, fl
 	data, _ := json.Marshal(d.buildAnalyticsData(ctx, advID))
 	fmt.Fprintf(w, "data: %s\n\n", data)
 	flusher.Flush()
+}
+
+// AnalyticsTokenResponse is the JSON body returned by HandleAnalyticsToken.
+// ExpiresAt is emitted as RFC3339 to match the rest of the handler package
+// (admin.go, registration/invite.go) and to give frontend codegen a named
+// type to import instead of parsing a bare `object{...}` swag spec.
+type AnalyticsTokenResponse struct {
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// HandleAnalyticsToken godoc
+// @Summary Issue a short-lived SSE auth token for analytics endpoints
+// @Description Returns a 5-minute HMAC-signed token bound to the authenticated advertiser.
+// @Description Clients use this token in the ?token= query of /analytics/stream and /analytics/snapshot
+// @Description to authenticate EventSource connections without exposing the long-lived X-API-Key
+// @Description in URL query logs (V5.1 P1-1).
+// @Tags analytics
+// @Security ApiKeyAuth
+// @Produce json
+// @Success 200 {object} handler.AnalyticsTokenResponse
+// @Failure 401 {object} object{error=string}
+// @Failure 500 {object} object{error=string}
+// @Router /analytics/token [post]
+func (d *Deps) HandleAnalyticsToken(w http.ResponseWriter, r *http.Request) {
+	advID := auth.AdvertiserIDFromContext(r.Context())
+	if advID == 0 {
+		WriteError(w, http.StatusUnauthorized, "not authenticated")
+		return
+	}
+	// Defense-in-depth: Config.Validate() enforces len(APIHMACSecret) >= 32 at
+	// startup in cmd/api/main.go, so in production this branch is unreachable.
+	// It exists for test/library consumers that construct a Deps directly and
+	// for tenants running the handler package outside the api binary —
+	// TestHandleAnalyticsToken_MissingSecret_Returns500 exercises this path.
+	if len(d.SSETokenSecret) == 0 {
+		WriteError(w, http.StatusInternalServerError, "SSE token signing not configured")
+		return
+	}
+	const ttl = 5 * time.Minute
+	now := time.Now()
+	token := auth.IssueSSEToken(d.SSETokenSecret, advID, ttl, now)
+	WriteJSON(w, http.StatusOK, AnalyticsTokenResponse{
+		Token:     token,
+		ExpiresAt: now.Add(ttl),
+	})
 }

@@ -66,8 +66,8 @@
   - Kafka 不可达时,事件 JSON 落盘到 `/tmp/dsp-kafka-buffer/{topic}.jsonl`(append-only)
   - Buffer 上限 1GB/节点(`internal/events/producer.go:16-28` 头注释)
   - 启动时 `producer.ReplayBuffer(processCtx)` 回放 buffer
-- **buffer 满时行为**:丢最老(file truncate)。出价热路径不能因为磁盘满而阻塞。
-- **理由**:dsp.bids / dsp.impressions 是分析用事件流,可以容忍秒级延迟,但不能阻塞出价 handler。disk buffer 换秒级一致性收益,事故期的事件不丢(除非磁盘也坏)。
+- **buffer 满时行为**:达到 1GB 上限后,`producer.bufferToDisk`(`internal/events/producer.go:152`)直接拒绝写入当前新事件并 `log.Printf("buffer full ... dropping event")`——**丢新的,不丢最老的**。出价热路径因此不会被磁盘写入阻塞,但也意味着事故期超量的事件在 Kafka 恢复前无法回放。
+- **理由**:dsp.bids / dsp.impressions 是分析用事件流,可以容忍秒级延迟,但不能阻塞出价 handler。disk buffer 把 Kafka 秒级不可用时的事件先落盘换一致性收益——在 1GB 上限内的事故窗口事件不丢(除非磁盘也坏),超过上限的新增事件则直接丢弃而不是阻塞出价。
 - **相关代码**:`internal/events/producer.go`、`cmd/bidder/main.go:85-90`、`cmd/bidder/main.go:126-128`。
 
 ---

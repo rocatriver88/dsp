@@ -51,6 +51,7 @@ func TestValidate_DevMode_NoError(t *testing.T) {
 func TestValidate_ProductionWithAllSecrets_NoError(t *testing.T) {
 	t.Setenv("ENV", "production")
 	t.Setenv("BIDDER_HMAC_SECRET", "real-production-secret-32chars-min")
+	t.Setenv("API_HMAC_SECRET", "real-production-api-secret-32chars-min")
 	t.Setenv("ADMIN_TOKEN", "test-admin-token")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
 	cfg := Load()
@@ -77,6 +78,7 @@ func TestValidate_ProductionDefaultHMAC_Errors(t *testing.T) {
 func TestValidate_ProductionMissingAdminToken_Errors(t *testing.T) {
 	t.Setenv("ENV", "production")
 	t.Setenv("BIDDER_HMAC_SECRET", "real-production-secret-32chars-min")
+	t.Setenv("API_HMAC_SECRET", "real-production-api-secret-32chars-min")
 	t.Setenv("ADMIN_TOKEN", "")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
 	cfg := Load()
@@ -92,6 +94,7 @@ func TestValidate_ProductionMissingAdminToken_Errors(t *testing.T) {
 func TestValidate_ProductionDefaultCORS_Errors(t *testing.T) {
 	t.Setenv("ENV", "production")
 	t.Setenv("BIDDER_HMAC_SECRET", "real-production-secret-32chars-min")
+	t.Setenv("API_HMAC_SECRET", "real-production-api-secret-32chars-min")
 	t.Setenv("ADMIN_TOKEN", "test-admin-token")
 	// Intentionally do NOT set CORS_ALLOWED_ORIGINS so Load picks the dev default.
 	cfg := Load()
@@ -101,6 +104,46 @@ func TestValidate_ProductionDefaultCORS_Errors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "CORS_ALLOWED_ORIGINS") {
 		t.Errorf("error should mention CORS_ALLOWED_ORIGINS, got: %v", err)
+	}
+}
+
+func TestLoad_APIHMACSecret_EnvOverride(t *testing.T) {
+	t.Setenv("API_HMAC_SECRET", "test-api-hmac-secret-long-enough-12345678")
+	cfg := Load()
+	if cfg.APIHMACSecret != "test-api-hmac-secret-long-enough-12345678" {
+		t.Errorf("expected API_HMAC_SECRET to be loaded into cfg.APIHMACSecret, got %q", cfg.APIHMACSecret)
+	}
+}
+
+func TestValidate_ProductionDefaultAPIHMAC_Errors(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("BIDDER_HMAC_SECRET", "real-production-secret-32chars-min")
+	t.Setenv("ADMIN_TOKEN", "test-admin-token")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	// Intentionally do NOT set API_HMAC_SECRET so Load picks the dev default.
+	cfg := Load()
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error when API_HMAC_SECRET is the dev default in production")
+	}
+	if !strings.Contains(err.Error(), "API_HMAC_SECRET") {
+		t.Errorf("error should mention API_HMAC_SECRET, got: %v", err)
+	}
+}
+
+func TestValidate_APIHMACSecretTooShort_Errors(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("BIDDER_HMAC_SECRET", "real-production-bidder-secret-32chars-min")
+	t.Setenv("API_HMAC_SECRET", "tooshort") // 8 bytes — fails length check
+	t.Setenv("ADMIN_TOKEN", "real-production-admin-token-32chars-min")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://example.com")
+	cfg := Load()
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error when API_HMAC_SECRET is shorter than 32 bytes")
+	}
+	if !strings.Contains(err.Error(), "at least 32 bytes") {
+		t.Errorf("expected length error, got: %v", err)
 	}
 }
 
