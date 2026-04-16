@@ -286,18 +286,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "properties": {
-                                "circuit_breaker": {
-                                    "type": "string"
-                                },
-                                "global_spend_today_cents": {
-                                    "type": "integer"
-                                },
-                                "reason": {
-                                    "type": "string"
-                                }
-                            }
+                            "$ref": "#/definitions/internal_handler.CircuitStatusResponse"
                         }
                     }
                 }
@@ -435,18 +424,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "properties": {
-                                "active_campaigns": {
-                                    "type": "integer"
-                                },
-                                "status": {
-                                    "type": "string"
-                                },
-                                "time": {
-                                    "type": "string"
-                                }
-                            }
+                            "$ref": "#/definitions/internal_handler.SystemHealthResponse"
                         }
                     }
                 }
@@ -2827,6 +2805,40 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.CircuitStatusResponse": {
+            "type": "object",
+            "properties": {
+                "circuit_breaker": {
+                    "type": "string"
+                },
+                "global_spend_today_cents": {
+                    "type": "integer"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.SystemHealthResponse": {
+            "type": "object",
+            "properties": {
+                "active_campaigns": {
+                    "type": "integer"
+                },
+                "clickhouse": {
+                    "type": "string"
+                },
+                "pending_registrations": {
+                    "type": "integer"
+                },
+                "redis": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }

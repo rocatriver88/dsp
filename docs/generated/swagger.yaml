@@ -371,6 +371,28 @@ definitions:
       token:
         type: string
     type: object
+  internal_handler.CircuitStatusResponse:
+    properties:
+      circuit_breaker:
+        type: string
+      global_spend_today_cents:
+        type: integer
+      reason:
+        type: string
+    type: object
+  internal_handler.SystemHealthResponse:
+    properties:
+      active_campaigns:
+        type: integer
+      clickhouse:
+        type: string
+      pending_registrations:
+        type: integer
+      redis:
+        type: string
+      status:
+        type: string
+    type: object
 host: localhost:8181
 info:
   contact: {}
@@ -560,14 +582,7 @@ paths:
         "200":
           description: OK
           schema:
-            properties:
-              circuit_breaker:
-                type: string
-              global_spend_today_cents:
-                type: integer
-              reason:
-                type: string
-            type: object
+            $ref: '#/definitions/internal_handler.CircuitStatusResponse'
       security:
       - AdminAuth: []
       summary: Get circuit breaker status
@@ -650,14 +665,7 @@ paths:
         "200":
           description: OK
           schema:
-            properties:
-              active_campaigns:
-                type: integer
-              status:
-                type: string
-              time:
-                type: string
-            type: object
+            $ref: '#/definitions/internal_handler.SystemHealthResponse'
       security:
       - AdminAuth: []
       summary: Get system health

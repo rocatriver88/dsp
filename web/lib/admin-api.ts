@@ -39,22 +39,9 @@ async function adminRequest<T>(path: string, options?: RequestInit): Promise<T> 
   return res.json();
 }
 
-// TODO(v5.2a): CircuitStatus and SystemHealth have no generated schema —
-// backend handlers return inline JSON without a named @Success struct.
-// Add @Success annotations to HandleCircuitStatus / HandleHealth and re-generate.
-export interface CircuitStatus {
-  circuit_breaker: string;
-  reason: string;
-  global_spend_today_cents: number;
-}
-
-export interface SystemHealth {
-  status: string;
-  active_campaigns: number;
-  pending_registrations: number;
-  redis: string;
-  clickhouse: string;
-}
+// Types from generated OpenAPI spec — circuit breaker & system health
+export type CircuitStatus = Required<components['schemas']['internal_handler.CircuitStatusResponse']>;
+export type SystemHealth = Required<components['schemas']['internal_handler.SystemHealthResponse']>;
 
 export const adminApi = {
   // Advertisers

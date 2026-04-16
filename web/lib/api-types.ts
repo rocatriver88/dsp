@@ -304,11 +304,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            circuit_breaker?: string;
-                            global_spend_today_cents?: number;
-                            reason?: string;
-                        };
+                        "application/json": components["schemas"]["internal_handler.CircuitStatusResponse"];
                     };
                 };
             };
@@ -462,11 +458,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            active_campaigns?: number;
-                            status?: string;
-                            time?: string;
-                        };
+                        "application/json": components["schemas"]["internal_handler.SystemHealthResponse"];
                     };
                 };
             };
@@ -2520,6 +2512,18 @@ export interface components {
         "internal_handler.AnalyticsTokenResponse": {
             expires_at?: string;
             token?: string;
+        };
+        "internal_handler.CircuitStatusResponse": {
+            circuit_breaker?: string;
+            global_spend_today_cents?: number;
+            reason?: string;
+        };
+        "internal_handler.SystemHealthResponse": {
+            active_campaigns?: number;
+            clickhouse?: string;
+            pending_registrations?: number;
+            redis?: string;
+            status?: string;
         };
     };
     responses: never;

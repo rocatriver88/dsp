@@ -6,6 +6,13 @@ import (
 	"time"
 )
 
+// CircuitStatusResponse is the JSON shape returned by GET /admin/circuit-status.
+type CircuitStatusResponse struct {
+	CircuitBreaker       string `json:"circuit_breaker"`
+	Reason               string `json:"reason"`
+	GlobalSpendTodayCents int64 `json:"global_spend_today_cents"`
+}
+
 // HandleCircuitBreak godoc
 // @Summary Trip circuit breaker
 // @Description Opens the circuit breaker (standard CB terminology: open = tripped,
@@ -65,7 +72,7 @@ func (d *Deps) HandleCircuitReset(w http.ResponseWriter, r *http.Request) {
 // @Tags admin
 // @Security AdminAuth
 // @Produce json
-// @Success 200 {object} object{circuit_breaker=string,reason=string,global_spend_today_cents=integer}
+// @Success 200 {object} handler.CircuitStatusResponse
 // @Router /admin/circuit-status [get]
 func (d *Deps) HandleCircuitStatus(w http.ResponseWriter, r *http.Request) {
 	if d.Guardrail == nil {
@@ -88,9 +95,9 @@ func (d *Deps) HandleCircuitStatus(w http.ResponseWriter, r *http.Request) {
 		status = "open"
 	}
 
-	WriteJSON(w, http.StatusOK, map[string]any{
-		"circuit_breaker":          status,
-		"reason":                   reason,
-		"global_spend_today_cents": globalSpend,
+	WriteJSON(w, http.StatusOK, CircuitStatusResponse{
+		CircuitBreaker:        status,
+		Reason:                reason,
+		GlobalSpendTodayCents: globalSpend,
 	})
 }
