@@ -46,6 +46,7 @@ func (cb *CircuitBreaker) IsOpen(ctx context.Context) bool {
 		return true
 	}
 	if err != nil {
+		observability.RedisErrorsTotal.WithLabelValues("get").Inc()
 		log.Printf("[CIRCUIT-BREAKER] Redis error (fail-open): %v", err)
 		return true
 	}

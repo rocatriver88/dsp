@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/heartgryphon/dsp/internal/observability"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -102,10 +103,12 @@ func (p *Producer) Send(ctx context.Context, topic string, evt Event) {
 		return
 	}
 
+	observability.ProducerInflight.WithLabelValues(topic).Inc()
 	err = writer.WriteMessages(ctx, kafka.Message{
 		Key:   key,
 		Value: data,
 	})
+	observability.ProducerInflight.WithLabelValues(topic).Dec()
 
 	if err != nil {
 		p.bufferToDisk(topic, data)
