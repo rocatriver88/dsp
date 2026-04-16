@@ -13,9 +13,8 @@ import (
 )
 
 const (
-	uploadDir       = "var/uploads"
-	legacyUploadDir = "uploads"
-	maxUploadSize   = 10 << 20 // 10MB
+	uploadDir     = "var/uploads"
+	maxUploadSize = 10 << 20 // 10MB
 )
 
 var allowedExts = map[string]bool{
@@ -32,28 +31,9 @@ var allowedMIMEs = map[string]bool{
 	"image/webp": true,
 }
 
-// UploadFileServer serves files from the new upload directory first, then falls back
-// to the legacy uploads directory so existing creative URLs remain valid during migration.
+// UploadFileServer serves uploaded files from var/uploads/.
 func UploadFileServer() http.Handler {
-	readDirs := []string{uploadDir, legacyUploadDir}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		relPath := strings.TrimPrefix(filepath.Clean("/"+r.URL.Path), "/")
-		if relPath == "" || relPath == "." {
-			http.NotFound(w, r)
-			return
-		}
-
-		for _, dir := range readDirs {
-			fullPath := filepath.Join(dir, relPath)
-			info, err := os.Stat(fullPath)
-			if err == nil && !info.IsDir() {
-				http.FileServer(http.Dir(dir)).ServeHTTP(w, r)
-				return
-			}
-		}
-
-		http.NotFound(w, r)
-	})
+	return http.FileServer(http.Dir(uploadDir))
 }
 
 // HandleUpload godoc
