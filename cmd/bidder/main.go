@@ -489,7 +489,7 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 			if isCPC {
 				advertiserCharge = 0 // CPC: charged on click, not impression
 			} else {
-				advertiserCharge = float64(advertiserChargeCents(price)) / 100.0
+				advertiserCharge = price / (1 - PlatformMargin)
 			}
 		}
 		var creativeID, advertiserID int64

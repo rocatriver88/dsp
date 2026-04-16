@@ -14,6 +14,7 @@ const (
 	defaultBidderHMACSecret = "dev-hmac-secret-change-in-production"
 	defaultAPIHMACSecret    = "dev-api-hmac-secret-change-in-production"
 	defaultCORSOrigins      = "http://localhost:4000"
+	defaultRedisAddr        = "localhost:6380"
 )
 
 type Config struct {
@@ -53,7 +54,7 @@ func Load() *Config {
 		DBUser:             getEnv("DB_USER", "dsp"),
 		DBPassword:         getEnv("DB_PASSWORD", "dsp_dev_password"),
 		DBName:             getEnv("DB_NAME", "dsp"),
-		RedisAddr:          getEnv("REDIS_ADDR", "localhost:6380"),
+		RedisAddr:          getEnv("REDIS_ADDR", defaultRedisAddr),
 		RedisPassword:      getEnv("REDIS_PASSWORD", ""),
 		KafkaBrokers:       getEnv("KAFKA_BROKERS", "localhost:9094"),
 		ClickHouseAddr:     getEnv("CLICKHOUSE_ADDR", "localhost:9001"),
@@ -117,6 +118,9 @@ func (c *Config) Validate() error {
 	}
 	if c.CORSAllowedOrigins == defaultCORSOrigins {
 		return fmt.Errorf("CORS_ALLOWED_ORIGINS must be set in production; refusing to start with the dev default %q", defaultCORSOrigins)
+	}
+	if c.RedisAddr == defaultRedisAddr {
+		return fmt.Errorf("REDIS_ADDR must be set in production; rate limiting requires Redis")
 	}
 	return nil
 }
