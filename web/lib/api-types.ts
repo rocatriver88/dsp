@@ -193,7 +193,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Trip circuit breaker */
+        /**
+         * Trip circuit breaker
+         * @description Opens the circuit breaker (standard CB terminology: open = tripped,
+         *     traffic blocked). All bidding stops until the breaker is reset.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -239,7 +243,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reset circuit breaker */
+        /**
+         * Reset circuit breaker
+         * @description Closes the circuit breaker (standard CB terminology: closed = normal,
+         *     traffic flowing). Bidding resumes.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -275,7 +283,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get circuit breaker status */
+        /**
+         * Get circuit breaker status
+         * @description Returns the current circuit breaker state using standard CB terminology:
+         *     "closed" = normal operation (breaker closed, circuit connected, traffic flowing).
+         *     "open" = tripped (breaker open, circuit broken, fail-fast, traffic blocked).
+         */
         get: {
             parameters: {
                 query?: never;
@@ -1751,6 +1764,57 @@ export interface paths {
                     };
                     content: {
                         "text/csv": string;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/active-campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List active campaigns (internal/bidder)
+         * @description Returns all campaigns with status "active". Used by the bidder
+         *     service to refresh its in-memory campaign set.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["github_com_heartgryphon_dsp_internal_campaign.Campaign"][];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
                     };
                 };
             };

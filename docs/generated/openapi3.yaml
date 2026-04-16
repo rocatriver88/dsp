@@ -127,6 +127,9 @@ paths:
         - admin
   /admin/circuit-break:
     post:
+      description: |-
+        Opens the circuit breaker (standard CB terminology: open = tripped,
+        traffic blocked). All bidding stops until the breaker is reset.
       requestBody:
         content:
           application/json:
@@ -156,6 +159,9 @@ paths:
         - admin
   /admin/circuit-reset:
     post:
+      description: |-
+        Closes the circuit breaker (standard CB terminology: closed = normal,
+        traffic flowing). Bidding resumes.
       responses:
         "200":
           description: OK
@@ -173,6 +179,12 @@ paths:
         - admin
   /admin/circuit-status:
     get:
+      description: >-
+        Returns the current circuit breaker state using standard CB terminology:
+
+        "closed" = normal operation (breaker closed, circuit connected, traffic flowing).
+
+        "open" = tripped (breaker open, circuit broken, fail-fast, traffic blocked).
       responses:
         "200":
           description: OK
@@ -1137,6 +1149,35 @@ paths:
       summary: Export campaign stats as CSV
       tags:
         - export
+  /internal/active-campaigns:
+    get:
+      description: |-
+        Returns all campaigns with status "active". Used by the bidder
+        service to refresh its in-memory campaign set.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_campaign.Campa\
+                    ign"
+                type: array
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+      security:
+        - AdminAuth: []
+      summary: List active campaigns (internal/bidder)
+      tags:
+        - admin
   /register:
     post:
       requestBody:

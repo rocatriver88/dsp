@@ -36,6 +36,16 @@ func parsePagination(r *http.Request) (limit, offset int) {
 	return
 }
 
+// HandleActiveCampaigns godoc
+// @Summary List active campaigns (internal/bidder)
+// @Description Returns all campaigns with status "active". Used by the bidder
+// @Description service to refresh its in-memory campaign set.
+// @Tags admin
+// @Security AdminAuth
+// @Produce json
+// @Success 200 {array} campaign.Campaign
+// @Failure 500 {object} object{error=string}
+// @Router /internal/active-campaigns [get]
 func (d *Deps) HandleActiveCampaigns(w http.ResponseWriter, r *http.Request) {
 	campaigns, err := d.Store.ListActiveCampaigns(r.Context())
 	if err != nil {
