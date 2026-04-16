@@ -30,16 +30,32 @@ const circuitBreakerReasonKey = "guardrail:circuit_breaker:reason"
 
 // CircuitBreaker is a Redis-backed kill switch for all bidding.
 // "Open" means bidding is allowed. "Tripped" means all bidding stops.
+//
+// When FailClosed is true (production mode), Redis errors cause bidding
+// to be blocked — preventing unlimited spend when the guardrail state
+// is unknown. When FailClosed is false (dev mode, default), Redis errors
+// are treated as "bidding allowed" to avoid blocking local development.
 type CircuitBreaker struct {
-	rdb *redis.Client
+	rdb        *redis.Client
+	FailClosed bool // true = production: block bids on Redis error
 }
 
 func NewCircuitBreaker(rdb *redis.Client) *CircuitBreaker {
 	return &CircuitBreaker{rdb: rdb}
 }
 
+// NewCircuitBreakerWithMode creates a CircuitBreaker with explicit fail
+// mode. Pass failClosed=true for production (block bids on Redis error)
+// or false for development (allow bids on Redis error).
+func NewCircuitBreakerWithMode(rdb *redis.Client, failClosed bool) *CircuitBreaker {
+	return &CircuitBreaker{rdb: rdb, FailClosed: failClosed}
+}
+
 // IsOpen returns true if bidding is allowed (circuit is open/normal).
-// Returns true (allow) on Redis errors — fail-open to avoid blocking bids.
+//
+// On Redis errors the behaviour depends on FailClosed:
+//   - FailClosed=false (dev): returns true  (fail-open, allow bids)
+//   - FailClosed=true (prod): returns false (fail-closed, block bids)
 func (cb *CircuitBreaker) IsOpen(ctx context.Context) bool {
 	val, err := cb.rdb.Get(ctx, circuitBreakerKey).Result()
 	if err == redis.Nil {
@@ -47,6 +63,10 @@ func (cb *CircuitBreaker) IsOpen(ctx context.Context) bool {
 	}
 	if err != nil {
 		observability.RedisErrorsTotal.WithLabelValues("get").Inc()
+		if cb.FailClosed {
+			log.Printf("[CIRCUIT-BREAKER] Redis error (fail-CLOSED, blocking bids): %v", err)
+			return false
+		}
 		log.Printf("[CIRCUIT-BREAKER] Redis error (fail-open): %v", err)
 		return true
 	}

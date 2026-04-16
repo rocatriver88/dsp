@@ -107,6 +107,7 @@ func main() {
 		guard = guardrail.New(rdb, guardrail.Config{
 			GlobalDailyBudgetCents: cfg.GlobalDailyBudgetCents,
 			MaxBidCPMCents:         cfg.MaxBidCPMCents,
+			FailClosed:             cfg.IsProduction(),
 		})
 		log.Println("Guardrail initialized")
 	}

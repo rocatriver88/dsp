@@ -15,6 +15,7 @@ type Config struct {
 	MinBalanceCents        int64
 	SpendRateWindowSec     int
 	SpendRateMultiplier    float64
+	FailClosed             bool // true = production: block bids on Redis error
 }
 
 type CheckResult struct {
@@ -32,7 +33,7 @@ func New(rdb *redis.Client, cfg Config) *Guardrail {
 	return &Guardrail{
 		rdb:    rdb,
 		config: cfg,
-		CB:     NewCircuitBreaker(rdb),
+		CB:     NewCircuitBreakerWithMode(rdb, cfg.FailClosed),
 	}
 }
 
@@ -71,6 +72,10 @@ func (g *Guardrail) CheckGlobalBudget(ctx context.Context) CheckResult {
 	if err == redis.Nil {
 		spent = 0
 	} else if err != nil {
+		if g.config.FailClosed {
+			log.Printf("[GUARDRAIL] Redis error (fail-CLOSED, blocking bids): %v", err)
+			return CheckResult{Allowed: false, Reason: "redis_error_fail_closed"}
+		}
 		log.Printf("[GUARDRAIL] Redis error (fail-open): %v", err)
 		return CheckResult{Allowed: true}
 	}

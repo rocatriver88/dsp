@@ -152,6 +152,11 @@ func init() {
 	}
 }
 
+// IsProduction returns true when ENV is set to "production".
+func (c *Config) IsProduction() bool {
+	return getEnv("ENV", "development") == "production"
+}
+
 func (c *Config) DSN() string {
 	return "postgres://" + c.DBUser + ":" + c.DBPassword + "@" + c.DBHost + ":" + c.DBPort + "/" + c.DBName + "?sslmode=disable"
 }
