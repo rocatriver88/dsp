@@ -105,6 +105,7 @@ func main() {
 		MinBalanceCents:        cfg.MinBalanceCents,
 		SpendRateWindowSec:     cfg.SpendRateWindowSec,
 		SpendRateMultiplier:    cfg.SpendRateMultiplier,
+		FailClosed:             cfg.IsProduction(),
 	})
 	log.Println("Guardrail initialized")
 
