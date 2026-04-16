@@ -39,6 +39,9 @@ async function adminRequest<T>(path: string, options?: RequestInit): Promise<T> 
   return res.json();
 }
 
+// TODO(v5.2a): CircuitStatus and SystemHealth have no generated schema —
+// backend handlers return inline JSON without a named @Success struct.
+// Add @Success annotations to HandleCircuitStatus / HandleHealth and re-generate.
 export interface CircuitStatus {
   circuit_breaker: string;
   reason: string;
