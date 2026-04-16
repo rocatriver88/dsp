@@ -150,11 +150,12 @@ func main() {
 		log.Println("Alert channel: noop (no webhook or SMTP configured)")
 	}
 
-	// Start hourly reconciliation
+	// Start reconciliation schedules
 	if reportStore != nil && rdb != nil {
 		reconSvc := reconciliation.New(rdb, store, reportStore, billingSvc, alertSender)
 		reconSvc.StartHourlySchedule(workerCtx, 1.0) // 1% threshold
-		log.Println("Hourly reconciliation started")
+		reconSvc.StartDailySchedule(workerCtx)
+		log.Println("Hourly + daily reconciliation started")
 	}
 
 	// Handler dependencies

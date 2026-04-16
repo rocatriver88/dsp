@@ -10,6 +10,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/alert"
 	"github.com/heartgryphon/dsp/internal/billing"
 	"github.com/heartgryphon/dsp/internal/campaign"
+	"github.com/heartgryphon/dsp/internal/config"
 	"github.com/heartgryphon/dsp/internal/reporting"
 	"github.com/redis/go-redis/v9"
 )
@@ -174,6 +175,17 @@ func (s *Service) RunDaily(ctx context.Context, date time.Time) error {
 		totalAdjustment += adjustment
 		log.Printf("[RECONCILIATION] Campaign %d: redis=%d ch=%d adj=%d status=%s",
 			c.ID, redisSpent, chSpent, adjustment, status)
+
+		// Debit advertiser balance for the day's ClickHouse-verified spend.
+		// This is the authoritative spend record — Redis is the real-time
+		// estimate, ClickHouse is the source of truth after event ingestion.
+		if chSpent > 0 {
+			if err := s.billingSvc.RecordSpend(ctx, c.AdvertiserID, chSpent, c.ID); err != nil {
+				log.Printf("[RECONCILIATION] RecordSpend failed for campaign %d (advertiser %d): %v",
+					c.ID, c.AdvertiserID, err)
+				// Continue — don't let one advertiser's DB error block the rest.
+			}
+		}
 	}
 
 	s.alerter.Send("Daily Reconciliation Complete",
@@ -181,6 +193,36 @@ func (s *Service) RunDaily(ctx context.Context, date time.Time) error {
 			date.Format("2006-01-02"), len(campaigns), totalAdjustment))
 
 	return nil
+}
+
+// StartDailySchedule runs end-of-day reconciliation at midnight CST.
+// It reconciles the previous day's spend (Redis vs ClickHouse) and
+// debits each advertiser's balance via billingSvc.RecordSpend.
+func (s *Service) StartDailySchedule(ctx context.Context) {
+	go func() {
+		loc := config.CSTLocation
+		for {
+			now := time.Now().In(loc)
+			// Schedule for 00:05 CST tomorrow (5min after midnight to ensure
+			// ClickHouse has ingested the last events of the day)
+			next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 5, 0, 0, loc)
+			timer := time.NewTimer(next.Sub(now))
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return
+			case t := <-timer.C:
+				// Reconcile yesterday
+				yesterday := t.In(loc).Add(-24 * time.Hour)
+				if err := s.RunDaily(ctx, yesterday); err != nil {
+					log.Printf("[RECONCILIATION] Daily error: %v", err)
+				} else {
+					log.Printf("[RECONCILIATION] Daily reconciliation complete for %s",
+						yesterday.Format("2006-01-02"))
+				}
+			}
+		}
+	}()
 }
 
 // StartHourlySchedule runs hourly reconciliation in a goroutine.
