@@ -23,6 +23,7 @@ type Config struct {
 	DBUser             string
 	DBPassword         string
 	DBName             string
+	DBSSLMode          string // postgres sslmode: disable, require, verify-ca, verify-full
 	RedisAddr          string
 	RedisPassword      string
 	KafkaBrokers       string
@@ -61,6 +62,7 @@ func Load() *Config {
 		DBUser:             getEnv("DB_USER", "dsp"),
 		DBPassword:         getEnv("DB_PASSWORD", "dsp_dev_password"),
 		DBName:             getEnv("DB_NAME", "dsp"),
+		DBSSLMode:          getEnv("DB_SSL_MODE", "disable"),
 		RedisAddr:          getEnv("REDIS_ADDR", defaultRedisAddr),
 		RedisPassword:      getEnv("REDIS_PASSWORD", ""),
 		KafkaBrokers:       getEnv("KAFKA_BROKERS", "localhost:9094"),
@@ -138,6 +140,9 @@ func (c *Config) Validate() error {
 	if c.SlackWebhookURL == "" && c.AlertEmailSMTPHost == "" {
 		return fmt.Errorf("at least one alert channel (SLACK_WEBHOOK_URL or ALERT_EMAIL_SMTP_HOST) must be configured in production")
 	}
+	if c.DBSSLMode == "disable" || c.DBSSLMode == "" {
+		return fmt.Errorf("DB_SSL_MODE must not be 'disable' in production; use 'require', 'verify-ca', or 'verify-full'")
+	}
 	return nil
 }
 
@@ -158,7 +163,11 @@ func (c *Config) IsProduction() bool {
 }
 
 func (c *Config) DSN() string {
-	return "postgres://" + c.DBUser + ":" + c.DBPassword + "@" + c.DBHost + ":" + c.DBPort + "/" + c.DBName + "?sslmode=disable"
+	sslmode := c.DBSSLMode
+	if sslmode == "" {
+		sslmode = "disable"
+	}
+	return "postgres://" + c.DBUser + ":" + c.DBPassword + "@" + c.DBHost + ":" + c.DBPort + "/" + c.DBName + "?sslmode=" + sslmode
 }
 
 func getEnv(key, fallback string) string {

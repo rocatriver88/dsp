@@ -56,6 +56,7 @@ func TestValidate_ProductionWithAllSecrets_NoError(t *testing.T) {
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
 	t.Setenv("REDIS_ADDR", "redis.prod.internal:6379")
 	t.Setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/T00/B00/xxx")
+	t.Setenv("DB_SSL_MODE", "require")
 	cfg := Load()
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("production with all secrets set should not error, got: %v", err)
@@ -88,6 +89,7 @@ func TestValidate_ProductionEmailAlertChannel_NoError(t *testing.T) {
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
 	t.Setenv("REDIS_ADDR", "redis.prod.internal:6379")
 	t.Setenv("ALERT_EMAIL_SMTP_HOST", "smtp.example.com")
+	t.Setenv("DB_SSL_MODE", "verify-full")
 	cfg := Load()
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("production with email alert should not error, got: %v", err)
@@ -178,6 +180,57 @@ func TestValidate_APIHMACSecretTooShort_Errors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "at least 32 bytes") {
 		t.Errorf("expected length error, got: %v", err)
+	}
+}
+
+func TestDSN_DefaultSSLMode(t *testing.T) {
+	cfg := Load()
+	dsn := cfg.DSN()
+	if !strings.Contains(dsn, "sslmode=disable") {
+		t.Errorf("default DSN should contain sslmode=disable, got %s", dsn)
+	}
+}
+
+func TestDSN_CustomSSLMode(t *testing.T) {
+	t.Setenv("DB_SSL_MODE", "verify-full")
+	cfg := Load()
+	dsn := cfg.DSN()
+	if !strings.Contains(dsn, "sslmode=verify-full") {
+		t.Errorf("DSN should contain sslmode=verify-full, got %s", dsn)
+	}
+}
+
+func TestValidate_ProductionDefaultSSLMode_Errors(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("BIDDER_HMAC_SECRET", "real-production-secret-32chars-min")
+	t.Setenv("API_HMAC_SECRET", "real-production-api-secret-32chars-min")
+	t.Setenv("ADMIN_TOKEN", "test-admin-token")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("REDIS_ADDR", "redis.prod.internal:6379")
+	t.Setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/T00/B00/xxx")
+	// Intentionally do NOT set DB_SSL_MODE so Load picks the default "disable".
+	cfg := Load()
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error when DB_SSL_MODE is 'disable' in production")
+	}
+	if !strings.Contains(err.Error(), "DB_SSL_MODE") {
+		t.Errorf("error should mention DB_SSL_MODE, got: %v", err)
+	}
+}
+
+func TestValidate_ProductionRequireSSLMode_NoError(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("BIDDER_HMAC_SECRET", "real-production-secret-32chars-min")
+	t.Setenv("API_HMAC_SECRET", "real-production-api-secret-32chars-min")
+	t.Setenv("ADMIN_TOKEN", "test-admin-token")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("REDIS_ADDR", "redis.prod.internal:6379")
+	t.Setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/T00/B00/xxx")
+	t.Setenv("DB_SSL_MODE", "require")
+	cfg := Load()
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("production with DB_SSL_MODE=require should not error, got: %v", err)
 	}
 }
 
