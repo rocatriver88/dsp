@@ -154,7 +154,7 @@ func TestPipelineCheck_BudgetExhausted(t *testing.T) {
 	}
 }
 
-func TestPipelineCheck_FreqCapRefundsBudget(t *testing.T) {
+func TestPipelineCheck_FreqCapDoesNotDeductBudget(t *testing.T) {
 	rdb := newTestRedis(t)
 	svc := New(rdb)
 	ctx := context.Background()
@@ -162,12 +162,19 @@ func TestPipelineCheck_FreqCapRefundsBudget(t *testing.T) {
 	campaignID := int64(-8)
 	svc.InitDailyBudget(ctx, campaignID, 10000)
 
-	// Exhaust freq cap first
-	for i := 0; i < 3; i++ {
-		svc.PipelineCheck(ctx, campaignID, "user-test-5", 10, 2, 24)
+	// First two calls: both OK, budget NOT deducted (check-only)
+	for i := 0; i < 2; i++ {
+		budgetOK, freqOK, err := svc.PipelineCheck(ctx, campaignID, "user-test-5", 10, 2, 24)
+		if err != nil {
+			t.Fatalf("call %d: %v", i+1, err)
+		}
+		if !budgetOK || !freqOK {
+			t.Fatalf("call %d: expected both OK", i+1)
+		}
 	}
 
-	// Third call: freq cap hit, budget should be refunded
+	// Third call: freq cap hit (cap=2), but budget should still be full
+	// because PipelineCheck is now check-only (no deduction).
 	budgetOK, freqOK, err := svc.PipelineCheck(ctx, campaignID, "user-test-5", 10, 2, 24)
 	if err != nil {
 		t.Fatalf("pipeline check: %v", err)
@@ -175,7 +182,49 @@ func TestPipelineCheck_FreqCapRefundsBudget(t *testing.T) {
 	if freqOK {
 		t.Error("expected freq NOT OK after exceeding cap")
 	}
-	if budgetOK {
-		t.Error("expected budget refunded when freq cap hit")
+	// Budget should still be OK because PipelineCheck doesn't deduct
+	if !budgetOK {
+		t.Error("expected budget still OK (PipelineCheck is check-only, no deduction)")
+	}
+
+	// Verify budget is untouched — PipelineCheck never deducts
+	rem, _ := svc.GetDailyBudgetRemaining(ctx, campaignID)
+	if rem != 10000 {
+		t.Errorf("expected budget to remain 10000 (check-only), got %d", rem)
+	}
+}
+
+func TestPipelineCheck_CheckOnlyDoesNotDeduct(t *testing.T) {
+	rdb := newTestRedis(t)
+	svc := New(rdb)
+	ctx := context.Background()
+
+	campaignID := int64(-9)
+	svc.InitDailyBudget(ctx, campaignID, 10000)
+
+	// Multiple PipelineCheck calls should NOT deduct budget
+	for i := 0; i < 5; i++ {
+		budgetOK, _, err := svc.PipelineCheck(ctx, campaignID, "", 100, 0, 0)
+		if err != nil {
+			t.Fatalf("check %d: %v", i, err)
+		}
+		if !budgetOK {
+			t.Fatalf("check %d: budget should be OK", i)
+		}
+	}
+
+	// Budget should still be 10000 (no deduction at bid time)
+	rem, _ := svc.GetDailyBudgetRemaining(ctx, campaignID)
+	if rem != 10000 {
+		t.Errorf("expected budget to remain 10000 after check-only calls, got %d", rem)
+	}
+
+	// Real deduction only happens at win time via CheckAndDeductBudget
+	remaining, err := svc.CheckAndDeductBudget(ctx, campaignID, 100)
+	if err != nil {
+		t.Fatalf("deduct: %v", err)
+	}
+	if remaining != 9900 {
+		t.Errorf("expected 9900 after actual deduction, got %d", remaining)
 	}
 }

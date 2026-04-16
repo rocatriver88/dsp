@@ -24,6 +24,7 @@ func New(rdb *redis.Client) *Service {
 
 // deductBudgetScript is a Lua script that atomically checks and deducts budget.
 // Returns remaining budget if sufficient, or -1 if exhausted (no deduction made).
+// Used ONLY at win/click time (CheckAndDeductBudget), NOT at bid time.
 var deductBudgetScript = redis.NewScript(`
 local key = KEYS[1]
 local amount = tonumber(ARGV[1])
@@ -32,6 +33,20 @@ if current < amount then
   return -1
 end
 return redis.call('DECRBY', key, amount)
+`)
+
+// checkBudgetScript is a Lua script that checks budget WITHOUT deducting.
+// Returns remaining budget if sufficient, or -1 if exhausted.
+// Used at bid time (PipelineCheck) to avoid double-deduction: the real
+// deduction happens at win/click time via deductBudgetScript.
+var checkBudgetScript = redis.NewScript(`
+local key = KEYS[1]
+local amount = tonumber(ARGV[1])
+local current = tonumber(redis.call('GET', key) or '0')
+if current < amount then
+  return -1
+end
+return current
 `)
 
 // CheckAndDeductBudget atomically checks and deducts from daily budget using Lua.
@@ -91,41 +106,55 @@ func (s *Service) CheckFrequency(ctx context.Context, campaignID int64, userID s
 	return true, nil
 }
 
-// PipelineCheck does budget (atomic Lua) + frequency check.
+// checkFreqScript is a Lua script that atomically checks frequency cap
+// and increments only if under cap. Returns 1 if allowed, 0 if at cap.
+// This avoids the race condition where INCR-then-check can over-count.
+var checkFreqScript = redis.NewScript(`
+local key = KEYS[1]
+local cap = tonumber(ARGV[1])
+local ttl = tonumber(ARGV[2])
+local current = tonumber(redis.call('GET', key) or '0')
+if current >= cap then
+  return 0
+end
+redis.call('INCR', key)
+if current == 0 then
+  redis.call('EXPIRE', key, ttl)
+end
+return 1
+`)
+
+// PipelineCheck does budget check (no deduction) + frequency check at bid time.
+//
+// Budget is CHECK-ONLY here — the real deduction happens at win/click time
+// via CheckAndDeductBudget. This prevents the double-deduction bug where
+// bid-time deduction + win-time deduction would consume budget at 2x rate.
+//
+// Frequency cap uses an atomic Lua script that checks-then-increments to
+// avoid the race condition where concurrent INCR-then-check could exceed cap.
 func (s *Service) PipelineCheck(ctx context.Context, campaignID int64, userID string, bidAmountCents int64, freqCap int, freqPeriodHours int) (budgetOK bool, freqOK bool, err error) {
-	// Atomic budget check via Lua
+	// Check-only budget via Lua (no deduction)
 	budgetKey := dailyBudgetKey(campaignID)
-	remaining, err := deductBudgetScript.Run(ctx, s.rdb, []string{budgetKey}, bidAmountCents).Int64()
+	remaining, err := checkBudgetScript.Run(ctx, s.rdb, []string{budgetKey}, bidAmountCents).Int64()
 	if err != nil {
-		observability.RedisErrorsTotal.WithLabelValues("incr").Inc()
-		return false, false, fmt.Errorf("redis budget lua: %w", err)
+		observability.RedisErrorsTotal.WithLabelValues("check").Inc()
+		return false, false, fmt.Errorf("redis budget check lua: %w", err)
 	}
 	budgetOK = remaining >= 0
 
-	// Check frequency
+	// Check frequency with atomic check-then-increment
 	hasFreqCheck := userID != "" && freqCap > 0
 	if !hasFreqCheck {
 		freqOK = true
 	} else {
 		freqKeyStr := freqKey(campaignID, userID)
-		count, ferr := s.rdb.Incr(ctx, freqKeyStr).Result()
+		ttlSeconds := int64(freqPeriodHours) * 3600
+		allowed, ferr := checkFreqScript.Run(ctx, s.rdb, []string{freqKeyStr}, freqCap, ttlSeconds).Int64()
 		if ferr != nil {
-			observability.RedisErrorsTotal.WithLabelValues("incr").Inc()
-			// Refund budget on freq check failure
-			if budgetOK {
-				s.rdb.IncrBy(ctx, budgetKey, bidAmountCents)
-			}
-			return false, false, fmt.Errorf("redis freq: %w", ferr)
+			observability.RedisErrorsTotal.WithLabelValues("freq").Inc()
+			return false, false, fmt.Errorf("redis freq lua: %w", ferr)
 		}
-		if count == 1 {
-			s.rdb.Expire(ctx, freqKeyStr, time.Duration(freqPeriodHours)*time.Hour)
-		}
-		freqOK = count <= int64(freqCap)
-		if !freqOK && budgetOK {
-			// Refund budget if freq cap hit
-			s.rdb.IncrBy(ctx, budgetKey, bidAmountCents)
-			budgetOK = false
-		}
+		freqOK = allowed == 1
 	}
 
 	return budgetOK, freqOK, nil
