@@ -192,6 +192,7 @@ const docTemplate = `{
                         "AdminAuth": []
                     }
                 ],
+                "description": "Opens the circuit breaker (standard CB terminology: open = tripped,\ntraffic blocked). All bidding stops until the breaker is reset.",
                 "consumes": [
                     "application/json"
                 ],
@@ -243,6 +244,7 @@ const docTemplate = `{
                         "AdminAuth": []
                     }
                 ],
+                "description": "Closes the circuit breaker (standard CB terminology: closed = normal,\ntraffic flowing). Bidding resumes.",
                 "produces": [
                     "application/json"
                 ],
@@ -272,6 +274,7 @@ const docTemplate = `{
                         "AdminAuth": []
                     }
                 ],
+                "description": "Returns the current circuit breaker state using standard CB terminology:\n\"closed\" = normal operation (breaker closed, circuit connected, traffic flowing).\n\"open\" = tripped (breaker open, circuit broken, fail-fast, traffic blocked).",
                 "produces": [
                     "application/json"
                 ],
@@ -1732,6 +1735,45 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "type": "file"
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/active-campaigns": {
+            "get": {
+                "security": [
+                    {
+                        "AdminAuth": []
+                    }
+                ],
+                "description": "Returns all campaigns with status \"active\". Used by the bidder\nservice to refresh its in-memory campaign set.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List active campaigns (internal/bidder)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_heartgryphon_dsp_internal_campaign.Campaign"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "error": {
+                                    "type": "string"
+                                }
+                            }
                         }
                     }
                 }

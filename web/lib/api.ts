@@ -4,6 +4,12 @@ import type { components } from './api-types';
 export type Advertiser = Required<components['schemas']['internal_handler.AdvertiserResponse']>;
 export type Campaign = Required<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Campaign']>;
 export type Creative = Required<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Creative']>;
+export type CampaignStats = Required<components['schemas']['github_com_heartgryphon_dsp_internal_reporting.CampaignStats']>;
+export type HourlyStats = Required<components['schemas']['github_com_heartgryphon_dsp_internal_reporting.HourlyStats']>;
+export type GeoStats = Required<components['schemas']['github_com_heartgryphon_dsp_internal_reporting.GeoStats']>;
+export type BidDetail = Required<components['schemas']['github_com_heartgryphon_dsp_internal_reporting.BidDetail']>;
+export type BidSimulation = Required<components['schemas']['github_com_heartgryphon_dsp_internal_reporting.BidSimulation']>;
+export type Transaction = Required<components['schemas']['github_com_heartgryphon_dsp_internal_billing.Transaction']>;
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 
@@ -36,47 +42,6 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(body.error || `API error: ${res.status}`);
   }
   return res.json();
-}
-
-export interface CampaignStats {
-  campaign_id: number;
-  impressions: number;
-  clicks: number;
-  conversions: number;
-  wins: number;
-  bids: number;
-  spend_cents: number;
-  adx_cost_cents: number;
-  profit_cents: number;
-  ctr: number;
-  win_rate: number;
-  cvr: number;
-  cpa: number;
-}
-
-export interface HourlyStats {
-  hour: number;
-  impressions: number;
-  clicks: number;
-  spend_cents: number;
-}
-
-export interface GeoStats {
-  country: string;
-  impressions: number;
-  clicks: number;
-  spend_cents: number;
-}
-
-export interface BidDetail {
-  time: string;
-  request_id: string;
-  event_type: string;
-  bid_price_cents: number;
-  clear_price_cents: number;
-  geo_country: string;
-  device_os: string;
-  loss_reason: string;
 }
 
 export const api = {
@@ -223,19 +188,7 @@ export const api = {
 
   // Bid Simulator
   simulateBid: (campaignId: number, bidCPMCents: number) =>
-    request<{
-      current_bid_cpm_cents: number;
-      simulated_bid_cpm_cents: number;
-      total_bids: number;
-      actual_wins: number;
-      current_win_rate: number;
-      simulated_wins: number;
-      simulated_win_rate: number;
-      simulated_spend_cents: number;
-      median_clear_price_cents: number;
-      max_clear_price_cents: number;
-      data_days: number;
-    }>(`/api/v1/reports/campaign/${campaignId}/simulate?bid_cpm_cents=${bidCPMCents}`),
+    request<BidSimulation>(`/api/v1/reports/campaign/${campaignId}/simulate?bid_cpm_cents=${bidCPMCents}`),
 
   // Billing — self-service routes always act on the authenticated advertiser.
   // The backend resolves the advertiser from the API key (auth context); the
@@ -247,10 +200,7 @@ export const api = {
     ),
 
   getTransactions: (limit = 50, offset = 0) =>
-    request<Array<{
-      id: number; type: string; amount_cents: number;
-      balance_after: number; description: string; created_at: string;
-    }>>(`/api/v1/billing/transactions?limit=${limit}&offset=${offset}`),
+    request<Transaction[]>(`/api/v1/billing/transactions?limit=${limit}&offset=${offset}`),
 
   topUp: (amountCents: number, description?: string) =>
     request<{ id: number; balance_after: number }>("/api/v1/billing/topup", {

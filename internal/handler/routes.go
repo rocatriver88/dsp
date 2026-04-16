@@ -75,7 +75,6 @@ func BuildPublicMux(d *Deps) *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/upload", d.HandleUpload)
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", UploadFileServer()))
 	mux.HandleFunc("POST /api/v1/register", d.HandleRegister)
-	mux.HandleFunc("GET /api/v1/docs", d.HandleAPIDocs)
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"status":"ok","time":"%s"}`, time.Now().UTC().Format(time.RFC3339))
 	})

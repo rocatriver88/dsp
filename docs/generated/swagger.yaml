@@ -498,6 +498,9 @@ paths:
     post:
       consumes:
       - application/json
+      description: |-
+        Opens the circuit breaker (standard CB terminology: open = tripped,
+        traffic blocked). All bidding stops until the breaker is reset.
       parameters:
       - description: Trip reason
         in: body
@@ -527,6 +530,9 @@ paths:
       - admin
   /admin/circuit-reset:
     post:
+      description: |-
+        Closes the circuit breaker (standard CB terminology: closed = normal,
+        traffic flowing). Bidding resumes.
       produces:
       - application/json
       responses:
@@ -544,6 +550,10 @@ paths:
       - admin
   /admin/circuit-status:
     get:
+      description: |-
+        Returns the current circuit breaker state using standard CB terminology:
+        "closed" = normal operation (breaker closed, circuit connected, traffic flowing).
+        "open" = tripped (breaker open, circuit broken, fail-fast, traffic blocked).
       produces:
       - application/json
       responses:
@@ -1461,6 +1471,32 @@ paths:
       summary: Export campaign stats as CSV
       tags:
       - export
+  /internal/active-campaigns:
+    get:
+      description: |-
+        Returns all campaigns with status "active". Used by the bidder
+        service to refresh its in-memory campaign set.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_heartgryphon_dsp_internal_campaign.Campaign'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            properties:
+              error:
+                type: string
+            type: object
+      security:
+      - AdminAuth: []
+      summary: List active campaigns (internal/bidder)
+      tags:
+      - admin
   /register:
     post:
       consumes:

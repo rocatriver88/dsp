@@ -19,7 +19,8 @@ import (
 // the rate-limit middleware (skipped for e2e per the P2 design).
 //
 // The exempt list in handler.WithAuthExemption (internal/handler/middleware.go)
-// is: /health, /api/v1/docs, /uploads/* (prefix), and POST /api/v1/register.
+// is: /health, /uploads/* (prefix), and POST /api/v1/register.
+// V5.2A: /api/v1/docs was removed (hand-built handler deleted).
 // Anything else must be gated by the API-key middleware, so any route in the
 // table below that fails to 401 is either a wrongly-exempt path or a missing
 // middleware wiring in BuildPublicHandler.
@@ -140,6 +141,21 @@ func TestAuthz_AdminRoutes_401WithoutAdminToken(t *testing.T) {
 					c.method, c.path, w.Code, w.Body.String())
 			}
 		})
+	}
+}
+
+// TestAPIDocs_NoLongerRegistered verifies that the /api/v1/docs route was
+// deleted in V5.2A. The hand-built handler at internal/handler/docs.go was a
+// third source of truth that had drifted from the real mux. Canonical docs
+// are now served from docs/generated/swagger.json + openapi3.yaml only.
+func TestAPIDocs_NoLongerRegistered(t *testing.T) {
+	d := mustDeps(t)
+	mux := handler.BuildPublicMux(d)
+	req := httptest.NewRequest("GET", "/api/v1/docs", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("/api/v1/docs expected 404 after V5.2A deletion, got %d", w.Code)
 	}
 }
 

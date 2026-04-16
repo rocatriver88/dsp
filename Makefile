@@ -1,4 +1,4 @@
-.PHONY: api-gen build clean test
+.PHONY: api-gen build clean test docs-check
 
 BIN_DIR := bin
 DOCS_GEN_DIR := docs/generated
@@ -31,3 +31,7 @@ clean:
 # Run all tests (short mode)
 test:
 	go test ./... -short -count=1
+
+# Verify generated OpenAPI + TS types are up to date
+docs-check:
+	bash scripts/docs-check.sh

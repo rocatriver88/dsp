@@ -8,6 +8,8 @@ import (
 
 // HandleCircuitBreak godoc
 // @Summary Trip circuit breaker
+// @Description Opens the circuit breaker (standard CB terminology: open = tripped,
+// @Description traffic blocked). All bidding stops until the breaker is reset.
 // @Tags admin
 // @Security AdminAuth
 // @Accept json
@@ -31,13 +33,15 @@ func (d *Deps) HandleCircuitBreak(w http.ResponseWriter, r *http.Request) {
 
 	d.Guardrail.CB.Trip(r.Context(), req.Reason)
 	WriteJSON(w, http.StatusOK, map[string]string{
-		"status": "tripped",
+		"status": "open", // V5.2A: standard CB — "open" means breaker is open (tripped)
 		"reason": req.Reason,
 	})
 }
 
 // HandleCircuitReset godoc
 // @Summary Reset circuit breaker
+// @Description Closes the circuit breaker (standard CB terminology: closed = normal,
+// @Description traffic flowing). Bidding resumes.
 // @Tags admin
 // @Security AdminAuth
 // @Produce json
@@ -50,11 +54,14 @@ func (d *Deps) HandleCircuitReset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	d.Guardrail.CB.Reset(r.Context())
-	WriteJSON(w, http.StatusOK, map[string]string{"status": "reset"})
+	WriteJSON(w, http.StatusOK, map[string]string{"status": "closed"}) // V5.2A: standard CB — "closed" means breaker is closed (normal)
 }
 
 // HandleCircuitStatus godoc
 // @Summary Get circuit breaker status
+// @Description Returns the current circuit breaker state using standard CB terminology:
+// @Description "closed" = normal operation (breaker closed, circuit connected, traffic flowing).
+// @Description "open" = tripped (breaker open, circuit broken, fail-fast, traffic blocked).
 // @Tags admin
 // @Security AdminAuth
 // @Produce json
@@ -67,13 +74,18 @@ func (d *Deps) HandleCircuitStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	open := d.Guardrail.CB.IsOpen(ctx)
+	biddingAllowed := d.Guardrail.CB.IsOpen(ctx)
 	reason := d.Guardrail.CB.TripReason(ctx)
 	globalSpend := d.Guardrail.GetGlobalSpend(ctx)
 
-	status := "open"
-	if !open {
-		status = "tripped"
+	// V5.2A: Standard circuit-breaker terminology.
+	// CB.IsOpen() returns true when bidding is allowed (the internal naming
+	// predates this fix). In standard CB lexicon:
+	//   "closed" = breaker closed → circuit connected → traffic flowing (normal)
+	//   "open"   = breaker open → circuit broken → traffic blocked (tripped)
+	status := "closed"
+	if !biddingAllowed {
+		status = "open"
 	}
 
 	WriteJSON(w, http.StatusOK, map[string]any{
