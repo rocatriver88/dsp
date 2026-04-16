@@ -328,7 +328,7 @@ func (d *Deps) handleExchangeBid(w http.ResponseWriter, r *http.Request) {
 	exchangeID := r.PathValue("exchange_id")
 	adapter, ok := d.ExchangeRegistry.Get(exchangeID)
 	if !ok {
-		observability.BidRequestsTotal.WithLabelValues(exchangeID, "rejected").Inc()
+		observability.BidRequestsTotal.WithLabelValues("unknown", "rejected").Inc()
 		http.Error(w, fmt.Sprintf(`{"error":"unknown exchange: %s"}`, exchangeID), http.StatusBadRequest)
 		return
 	}

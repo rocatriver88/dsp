@@ -3,9 +3,27 @@ package guardrail
 import (
 	"context"
 	"log"
+	"strings"
 
+	"github.com/heartgryphon/dsp/internal/observability"
 	"github.com/redis/go-redis/v9"
 )
+
+// classifyTripReason maps a free-form trip reason string to one of the
+// bounded label values for dsp_guardrail_trips_total.
+func classifyTripReason(reason string) string {
+	r := strings.ToLower(reason)
+	switch {
+	case strings.Contains(r, "daily") && strings.Contains(r, "budget"):
+		return "daily_budget"
+	case strings.Contains(r, "max") && strings.Contains(r, "cpm"):
+		return "max_cpm"
+	case strings.Contains(r, "manual"):
+		return "manual"
+	default:
+		return "other"
+	}
+}
 
 const circuitBreakerKey = "guardrail:circuit_breaker"
 const circuitBreakerReasonKey = "guardrail:circuit_breaker:reason"
@@ -38,6 +56,7 @@ func (cb *CircuitBreaker) IsOpen(ctx context.Context) bool {
 func (cb *CircuitBreaker) Trip(ctx context.Context, reason string) {
 	cb.rdb.Set(ctx, circuitBreakerKey, "tripped", 0)
 	cb.rdb.Set(ctx, circuitBreakerReasonKey, reason, 0)
+	observability.GuardrailTripsTotal.WithLabelValues(classifyTripReason(reason)).Inc()
 	log.Printf("[CIRCUIT-BREAKER] TRIPPED: %s", reason)
 }
 
