@@ -203,9 +203,11 @@ func (s *Service) StartDailySchedule(ctx context.Context) {
 		loc := config.CSTLocation
 		for {
 			now := time.Now().In(loc)
-			// Schedule for 00:05 CST tomorrow (5min after midnight to ensure
-			// ClickHouse has ingested the last events of the day)
-			next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 5, 0, 0, loc)
+			// Schedule for 00:05 CST tomorrow. Use today's 00:05 + AddDate(0,0,1)
+			// to correctly handle month boundaries and DST transitions, instead of
+			// Day()+1 which relies on Go's date normalization.
+			today0005 := time.Date(now.Year(), now.Month(), now.Day(), 0, 5, 0, 0, loc)
+			next := today0005.AddDate(0, 0, 1)
 			timer := time.NewTimer(next.Sub(now))
 			select {
 			case <-ctx.Done():

@@ -10,6 +10,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/antifraud"
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/campaign"
+	"github.com/heartgryphon/dsp/internal/config"
 	"github.com/heartgryphon/dsp/internal/events"
 	"github.com/heartgryphon/dsp/internal/guardrail"
 	"github.com/heartgryphon/dsp/internal/observability"
@@ -292,17 +293,9 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 	return resp, nil
 }
 
-// cstLocation is Asia/Shanghai (UTC+8), loaded once at package init.
-var cstLocation *time.Location
-
-func init() {
-	var err error
-	cstLocation, err = time.LoadLocation("Asia/Shanghai")
-	if err != nil {
-		// Fallback: fixed offset UTC+8
-		cstLocation = time.FixedZone("CST", 8*60*60)
-	}
-}
+// config.CSTLocation reuses the package-level config.CSTLocation to avoid
+// duplicate timezone loading. Both the engine and budget modules share
+// the same timezone reference.
 
 func matchesTargeting(c *LoadedCampaign, geo, os, ua string, now time.Time) bool {
 	t := c.Targeting
@@ -325,7 +318,7 @@ func matchesTargeting(c *LoadedCampaign, geo, os, ua string, now time.Time) bool
 
 	// Time schedule: check if current hour (CST) is in any schedule entry
 	if len(t.TimeSchedule) > 0 {
-		cstNow := now.In(cstLocation)
+		cstNow := now.In(config.CSTLocation)
 		weekday := int(cstNow.Weekday()) // 0=Sun matches Schedule.Day
 		hour := cstNow.Hour()
 		matched := false

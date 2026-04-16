@@ -38,11 +38,14 @@ local dailyCurrent = tonumber(redis.call('GET', dailyKey) or '0')
 if dailyCurrent < amount then
   return -1
 end
-local totalCurrent = tonumber(redis.call('GET', totalKey) or '0')
-if totalCurrent > 0 and totalCurrent < amount then
-  return -2
-end
-if totalCurrent > 0 then
+-- Distinguish "key exists with value 0" (exhausted) from "key doesn't exist"
+-- (no total constraint). EXISTS=1 + value=0 means campaign reached its total cap.
+local totalExists = redis.call('EXISTS', totalKey)
+if totalExists == 1 then
+  local totalCurrent = tonumber(redis.call('GET', totalKey))
+  if totalCurrent < amount then
+    return -2
+  end
   redis.call('DECRBY', totalKey, amount)
 end
 return redis.call('DECRBY', dailyKey, amount)
@@ -62,9 +65,12 @@ local dailyCurrent = tonumber(redis.call('GET', dailyKey) or '0')
 if dailyCurrent < amount then
   return -1
 end
-local totalCurrent = tonumber(redis.call('GET', totalKey) or '0')
-if totalCurrent > 0 and totalCurrent < amount then
-  return -2
+local totalExists = redis.call('EXISTS', totalKey)
+if totalExists == 1 then
+  local totalCurrent = tonumber(redis.call('GET', totalKey))
+  if totalCurrent < amount then
+    return -2
+  end
 end
 return dailyCurrent
 `)
