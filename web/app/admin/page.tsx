@@ -92,7 +92,8 @@ export default function AdminOverviewPage() {
     }
   }
 
-  const isTripped = circuit?.circuit_breaker === "tripped";
+  // V5.2A: Standard CB terminology — "open" means breaker is open (tripped/failing).
+  const isTripped = circuit?.circuit_breaker === "open";
   const healthOk = health?.status === "ok" || health?.status === "healthy";
 
   return (
