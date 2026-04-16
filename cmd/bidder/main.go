@@ -427,7 +427,7 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 	var remaining int64
 	if !isCPC {
 		// CPM/oCPM: deduct advertiser charge from budget (not ADX cost)
-		priceCents := int64(price / 0.90 * 100) // ADX clear price ÷ 0.9 → advertiser charge in cents
+		priceCents := advertiserChargeCents(price)
 		var budgetErr error
 		remaining, budgetErr = d.BudgetSvc.CheckAndDeductBudget(r.Context(), campaignID, priceCents)
 		if budgetErr != nil {
@@ -466,7 +466,7 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 	if d.StrategySvc != nil {
 		go d.StrategySvc.RecordWin(context.Background(), campaignID)
 		if !isCPC {
-			spendCents := int64(price / 0.90 * 100) // advertiser charge in cents
+			spendCents := advertiserChargeCents(price)
 			go d.StrategySvc.RecordSpend(context.Background(), campaignID, spendCents)
 		}
 	}
@@ -480,7 +480,7 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 			if isCPC {
 				advertiserCharge = 0 // CPC: charged on click, not impression
 			} else {
-				advertiserCharge = price / 0.90 // ADX clear price ÷ 0.9 = advertiser pays (10% platform fee)
+				advertiserCharge = float64(advertiserChargeCents(price)) / 100.0
 			}
 		}
 		var creativeID, advertiserID int64
@@ -658,6 +658,19 @@ func (d *Deps) handleHealth(w http.ResponseWriter, r *http.Request) {
 	campaigns := d.Loader.GetActiveCampaigns()
 	fmt.Fprintf(w, `{"status":"ok","active_campaigns":%d,"time":"%s"}`,
 		len(campaigns), time.Now().UTC().Format(time.RFC3339))
+}
+
+// PlatformMargin is the fraction of the advertiser charge retained by the
+// platform. The exchange clear price / (1 - PlatformMargin) yields the
+// advertiser-facing price — i.e. the ADX cost plus a 10% platform fee.
+const PlatformMargin = 0.10
+
+// advertiserChargeCents converts an exchange clear price (in dollars) to the
+// advertiser charge in cents, adding the platform margin. This is the single
+// source of truth for the `price / 0.90 * 100` formula that appears in the
+// win and strategy paths.
+func advertiserChargeCents(exchangePrice float64) int64 {
+	return int64(exchangePrice / (1 - PlatformMargin) * 100)
 }
 
 // injectClickTracker wraps the ad markup's destination URL with a click tracking redirect.

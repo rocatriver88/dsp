@@ -130,6 +130,62 @@ func TestHandleClick_RejectsArbitraryDest_NoRedirect(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// V5.2C Task 9: advertiserChargeCents helper extraction.
+// ---------------------------------------------------------------------------
+
+func TestAdvertiserChargeCents(t *testing.T) {
+	cases := []struct {
+		name          string
+		exchangePrice float64
+		wantCents     int64
+	}{
+		{
+			name:          "normal clear price 0.05",
+			exchangePrice: 0.05,
+			// 0.05 / 0.90 * 100 = 5.5555... → int64 truncation → 5
+			wantCents: 5,
+		},
+		{
+			name:          "zero price",
+			exchangePrice: 0.0,
+			wantCents:     0,
+		},
+		{
+			name:          "sub-cent truncation",
+			exchangePrice: 0.00123,
+			// 0.00123 / 0.90 * 100 = 0.1366... → int64 → 0
+			wantCents: 0,
+		},
+		{
+			name:          "round dollar",
+			exchangePrice: 1.0,
+			// 1.0 / 0.90 * 100 = 111.111... → int64 → 111
+			wantCents: 111,
+		},
+		{
+			name:          "large price",
+			exchangePrice: 10.0,
+			// 10.0 / 0.90 * 100 = 1111.111... → int64 → 1111
+			wantCents: 1111,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := advertiserChargeCents(tc.exchangePrice)
+			if got != tc.wantCents {
+				t.Errorf("advertiserChargeCents(%f) = %d, want %d", tc.exchangePrice, got, tc.wantCents)
+			}
+		})
+	}
+}
+
+func TestPlatformMarginConstant(t *testing.T) {
+	if PlatformMargin != 0.10 {
+		t.Errorf("PlatformMargin = %f, want 0.10", PlatformMargin)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // V5.2C: /stats moved from public mux to internal mux behind admin auth.
 // Three invariants:
 //   1. /stats on the public mux returns 404
