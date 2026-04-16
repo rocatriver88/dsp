@@ -2,6 +2,8 @@ package ratelimit
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -10,6 +12,13 @@ import (
 
 	"github.com/redis/go-redis/v9"
 )
+
+// hashKey returns a truncated SHA-256 hex digest of key (first 16 hex chars = 64 bits).
+// Used to avoid storing plaintext API keys in Redis key names.
+func hashKey(key string) string {
+	h := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(h[:])[:16]
+}
 
 // Limiter implements Redis fixed-window rate limiting with fail-open behavior.
 type Limiter struct {
@@ -66,10 +75,11 @@ func IPKeyFunc(r *http.Request) string {
 }
 
 // APIKeyFunc extracts the API key for rate limiting authenticated requests.
+// The key is hashed so that Redis dumps never expose plaintext API keys.
 func APIKeyFunc(r *http.Request) string {
 	key := r.Header.Get("X-API-Key")
 	if key == "" {
 		return "ip:" + r.RemoteAddr
 	}
-	return "key:" + key
+	return "key:" + hashKey(key)
 }

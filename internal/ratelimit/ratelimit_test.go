@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -40,8 +41,51 @@ func TestAPIKeyFunc_WithKey(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("X-API-Key", "dsp_abc123")
 	key := APIKeyFunc(req)
-	if key != "key:dsp_abc123" {
-		t.Errorf("expected key:dsp_abc123, got %s", key)
+
+	// Must start with "key:" prefix
+	if !strings.HasPrefix(key, "key:") {
+		t.Fatalf("expected key: prefix, got %s", key)
+	}
+
+	// Must NOT contain the plaintext API key
+	if strings.Contains(key, "dsp_abc123") {
+		t.Fatal("Redis key must not contain plaintext API key")
+	}
+
+	// The hash portion must be exactly 16 hex chars
+	hash := strings.TrimPrefix(key, "key:")
+	if len(hash) != 16 {
+		t.Errorf("expected 16-char hash, got %d chars: %s", len(hash), hash)
+	}
+}
+
+func TestHashKey_Deterministic(t *testing.T) {
+	// Same input must always produce the same hash
+	a := hashKey("dsp_abc123")
+	b := hashKey("dsp_abc123")
+	if a != b {
+		t.Errorf("hashKey not deterministic: %s != %s", a, b)
+	}
+}
+
+func TestHashKey_DifferentKeysProduceDifferentHashes(t *testing.T) {
+	a := hashKey("dsp_abc123")
+	b := hashKey("dsp_xyz789")
+	if a == b {
+		t.Errorf("different API keys produced same hash: %s", a)
+	}
+}
+
+func TestHashKey_Length(t *testing.T) {
+	h := hashKey("anything")
+	if len(h) != 16 {
+		t.Errorf("expected 16 hex chars, got %d: %s", len(h), h)
+	}
+	// Verify all chars are valid hex
+	for _, c := range h {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			t.Errorf("non-hex char in hash: %c", c)
+		}
 	}
 }
 

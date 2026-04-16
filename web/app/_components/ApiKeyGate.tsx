@@ -37,6 +37,15 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
 
   if (apiKey === null) return null;
 
+  // Admin routes bypass the API key gate entirely — AdminTokenGate in
+  // /admin/layout.tsx handles admin auth independently.  This check MUST
+  // come before the !apiKey login screen, otherwise admin-only users
+  // (who have an admin token but no tenant api_key) get stuck on the
+  // tenant login page and can never reach /admin/*.
+  if (isAdmin) {
+    return <>{children}</>;
+  }
+
   if (!apiKey) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
@@ -75,10 +84,6 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
         </div>
       </div>
     );
-  }
-
-  if (isAdmin) {
-    return <>{children}</>;
   }
 
   return (

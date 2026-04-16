@@ -260,11 +260,18 @@ func (d *Deps) HandleRejectCreative(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} object{status=string}
 // @Router /admin/registrations/{id}/reject [post]
 func (d *Deps) HandleRejectRegistration(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid registration id")
+		return
+	}
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
 	if err := d.RegSvc.Reject(r.Context(), id, "admin", req.Reason); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return

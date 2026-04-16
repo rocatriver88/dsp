@@ -54,6 +54,7 @@ func TestValidate_ProductionWithAllSecrets_NoError(t *testing.T) {
 	t.Setenv("API_HMAC_SECRET", "real-production-api-secret-32chars-min")
 	t.Setenv("ADMIN_TOKEN", "test-admin-token")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("REDIS_ADDR", "redis.prod.internal:6379")
 	cfg := Load()
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("production with all secrets set should not error, got: %v", err)

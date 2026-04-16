@@ -14,6 +14,7 @@ const (
 	defaultBidderHMACSecret = "dev-hmac-secret-change-in-production"
 	defaultAPIHMACSecret    = "dev-api-hmac-secret-change-in-production"
 	defaultCORSOrigins      = "http://localhost:4000"
+	defaultRedisAddr        = "localhost:6380"
 )
 
 type Config struct {
@@ -30,6 +31,7 @@ type Config struct {
 	ClickHousePassword string
 	APIPort            string
 	BidderPort         string
+	BidderInternalPort string
 	InternalPort       string
 	CORSAllowedOrigins string
 	BidderPublicURL    string
@@ -52,7 +54,7 @@ func Load() *Config {
 		DBUser:             getEnv("DB_USER", "dsp"),
 		DBPassword:         getEnv("DB_PASSWORD", "dsp_dev_password"),
 		DBName:             getEnv("DB_NAME", "dsp"),
-		RedisAddr:          getEnv("REDIS_ADDR", "localhost:6380"),
+		RedisAddr:          getEnv("REDIS_ADDR", defaultRedisAddr),
 		RedisPassword:      getEnv("REDIS_PASSWORD", ""),
 		KafkaBrokers:       getEnv("KAFKA_BROKERS", "localhost:9094"),
 		ClickHouseAddr:     getEnv("CLICKHOUSE_ADDR", "localhost:9001"),
@@ -60,6 +62,7 @@ func Load() *Config {
 		ClickHousePassword: getEnv("CLICKHOUSE_PASSWORD", ""),
 		APIPort:            getEnv("API_PORT", "8181"),
 		BidderPort:         getEnv("BIDDER_PORT", "8180"),
+		BidderInternalPort: getEnv("BIDDER_INTERNAL_PORT", "8183"),
 		InternalPort:       getEnv("INTERNAL_PORT", "8182"),
 		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", defaultCORSOrigins),
 		BidderPublicURL:    getEnv("BIDDER_PUBLIC_URL", "http://localhost:8180"),
@@ -102,18 +105,22 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("API_HMAC_SECRET must be set in production; refusing to start with the baked-in dev secret")
 	}
 	// HMAC-SHA256 with a trivially short key is security theatre. Enforce
-	// a 32-byte floor so a typo'd deploy (API_HMAC_SECRET=x) fails at
-	// startup rather than silently weakening the SSE token signature.
-	// BidderHMACSecret has the same latent hole but that hardening is
-	// deferred to Phase 2C.
+	// a 32-byte floor so a typo'd deploy fails at startup rather than
+	// silently weakening token signatures.
 	if len(c.APIHMACSecret) < 32 {
 		return fmt.Errorf("API_HMAC_SECRET must be at least 32 bytes for HMAC-SHA256; got %d", len(c.APIHMACSecret))
+	}
+	if len(c.BidderHMACSecret) < 32 {
+		return fmt.Errorf("BIDDER_HMAC_SECRET must be at least 32 bytes for HMAC-SHA256; got %d", len(c.BidderHMACSecret))
 	}
 	if getEnv("ADMIN_TOKEN", "") == "" {
 		return fmt.Errorf("ADMIN_TOKEN must be set in production; there is no default fallback")
 	}
 	if c.CORSAllowedOrigins == defaultCORSOrigins {
 		return fmt.Errorf("CORS_ALLOWED_ORIGINS must be set in production; refusing to start with the dev default %q", defaultCORSOrigins)
+	}
+	if c.RedisAddr == defaultRedisAddr {
+		return fmt.Errorf("REDIS_ADDR must be set in production; rate limiting requires Redis")
 	}
 	return nil
 }

@@ -121,9 +121,9 @@ function AdminTokenGate({ children }: { children: React.ReactNode }) {
           }
         })
         .catch(() => {
-          // Network error — still allow access with stored token
-          // (server might be temporarily unreachable)
-          setToken(stored);
+          // Network error — fail closed.  A server outage (or attacker
+          // DoSing the health endpoint) must NOT grant admin access.
+          localStorage.removeItem("dsp_admin_token");
         })
         .finally(() => setChecking(false));
     } else {

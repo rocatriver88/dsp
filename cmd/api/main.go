@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -86,11 +87,15 @@ func main() {
 	}
 	log.Println("Connected to PostgreSQL")
 
-	// Connect Redis (optional)
+	// Connect Redis — required in production (rate limiting depends on it),
+	// optional in development for convenience.
 	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
 	defer rdb.Close()
 	if err := rdb.Ping(processCtx).Err(); err != nil {
-		log.Printf("Warning: Redis not available (%v), pub/sub notifications disabled", err)
+		if os.Getenv("ENV") == "production" {
+			log.Fatalf("Redis required in production but unavailable: %v", err)
+		}
+		log.Printf("Warning: Redis not available (%v), rate limiting disabled (dev mode)", err)
 		rdb = nil
 	} else {
 		log.Println("Connected to Redis")
@@ -152,12 +157,20 @@ func main() {
 	}
 
 	publicSrv := &http.Server{
-		Addr:    ":" + cfg.APIPort,
-		Handler: handler.BuildPublicHandler(cfg, h),
+		Addr:              ":" + cfg.APIPort,
+		Handler:           handler.BuildPublicHandler(cfg, h),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 	internalSrv := &http.Server{
-		Addr:    ":" + cfg.InternalPort,
-		Handler: handler.BuildInternalHandler(cfg, h),
+		Addr:              ":" + cfg.InternalPort,
+		Handler:           handler.BuildInternalHandler(cfg, h),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start servers

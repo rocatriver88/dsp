@@ -185,6 +185,7 @@ services:
     restart: unless-stopped
     ports:
       - "18180:8180"
+      - "18183:8183"
     environment:
       ENV: development
       DB_HOST: postgres
@@ -199,6 +200,7 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-dsp_dev_password}
       BIDDER_PORT: 8180
+      BIDDER_INTERNAL_PORT: 8183
       BIDDER_PUBLIC_URL: http://localhost:18180
       BIDDER_HMAC_SECRET: ${BIDDER_HMAC_SECRET:-dev-hmac-secret-change-in-production}
       ADMIN_TOKEN: ${ADMIN_TOKEN:-admin-secret}

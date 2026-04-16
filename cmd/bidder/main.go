@@ -129,7 +129,7 @@ func main() {
 	// Daily budget auto-reset at midnight CST (must start after loader).
 	// Bound to workerCtx so SIGTERM stops it cleanly.
 	go func() {
-		loc, _ := time.LoadLocation("Asia/Shanghai")
+		loc := config.CSTLocation
 		for {
 			now := time.Now().In(loc)
 			next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 5, 0, loc)
@@ -170,13 +170,39 @@ func main() {
 	mux := http.NewServeMux()
 	RegisterRoutes(mux, deps)
 
+	internalMux := http.NewServeMux()
+	RegisterInternalRoutes(internalMux, deps)
+
 	addr := ":" + cfg.BidderPort
-	srv := &http.Server{Addr: addr, Handler: withLogging(mux)}
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           withLogging(mux),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
+	internalAddr := ":" + cfg.BidderInternalPort
+	internalSrv := &http.Server{
+		Addr:              internalAddr,
+		Handler:           withLogging(internalMux),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 
 	go func() {
 		log.Printf("DSP Bidder listening on %s", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("bidder server: %v", err)
+		}
+	}()
+	go func() {
+		log.Printf("DSP Bidder (internal) listening on %s", internalAddr)
+		if err := internalSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("bidder internal server: %v", err)
 		}
 	}()
 
@@ -209,6 +235,7 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+	_ = internalSrv.Shutdown(shutdownCtx)
 
 	// Belt and suspenders: these each close their own stopCh in addition
 	// to honoring workerCtx.Done. Idempotent with the workerCancel above.
@@ -393,14 +420,23 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check billing model: CPC campaigns are charged on click, not impression
+	// Check billing model: CPC campaigns are charged on click, not impression.
+	// During loader warm-up, GetCampaign returns nil for campaigns that exist
+	// but haven't loaded yet. Without this guard the nil check falls through
+	// to the CPM path, silently billing the wrong model. Return 503 so the
+	// exchange retries after the loader finishes its initial full-load.
 	c := d.Loader.GetCampaign(campaignID)
+	if c == nil && campaignID > 0 {
+		log.Printf("[WIN-WARMUP] campaign_id=%d not loaded yet, returning 503", campaignID)
+		http.Error(w, `{"error":"bidder warming up, retry"}`, http.StatusServiceUnavailable)
+		return
+	}
 	isCPC := c != nil && c.BillingModel == "cpc"
 
 	var remaining int64
 	if !isCPC {
 		// CPM/oCPM: deduct advertiser charge from budget (not ADX cost)
-		priceCents := int64(price / 0.90 * 100) // ADX clear price ÷ 0.9 → advertiser charge in cents
+		priceCents := advertiserChargeCents(price)
 		var budgetErr error
 		remaining, budgetErr = d.BudgetSvc.CheckAndDeductBudget(r.Context(), campaignID, priceCents)
 		if budgetErr != nil {
@@ -439,7 +475,7 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 	if d.StrategySvc != nil {
 		go d.StrategySvc.RecordWin(context.Background(), campaignID)
 		if !isCPC {
-			spendCents := int64(price / 0.90 * 100) // advertiser charge in cents
+			spendCents := advertiserChargeCents(price)
 			go d.StrategySvc.RecordSpend(context.Background(), campaignID, spendCents)
 		}
 	}
@@ -453,7 +489,7 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 			if isCPC {
 				advertiserCharge = 0 // CPC: charged on click, not impression
 			} else {
-				advertiserCharge = price / 0.90 // ADX clear price ÷ 0.9 = advertiser pays (10% platform fee)
+				advertiserCharge = price / (1 - PlatformMargin)
 			}
 		}
 		var creativeID, advertiserID int64
@@ -534,10 +570,20 @@ func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 
 	campaignID, _ := strconv.ParseInt(campaignIDStr, 10, 64)
 
-	// CPC campaigns: charge budget on click
+	// CPC campaigns: charge budget on click.
+	// During loader warm-up, GetCampaign returns nil for campaigns that
+	// exist but haven't loaded yet. Without this guard the nil check
+	// falls through, skipping CPC budget deduction entirely — the click
+	// is counted as CPM (free) instead of being charged. Return 503 so
+	// the ad network retries after the loader finishes warm-up.
 	if campaignID > 0 {
 		c := d.Loader.GetCampaign(campaignID)
-		if c != nil && c.BillingModel == "cpc" {
+		if c == nil {
+			log.Printf("[CLICK-WARMUP] campaign_id=%d not loaded yet, returning 503", campaignID)
+			http.Error(w, `{"error":"bidder warming up, retry"}`, http.StatusServiceUnavailable)
+			return
+		}
+		if c.BillingModel == "cpc" {
 			clickCents := int64(c.BidCPCCents) // charge per click
 			remaining, err := d.BudgetSvc.CheckAndDeductBudget(r.Context(), campaignID, clickCents)
 			if err != nil {
@@ -631,6 +677,19 @@ func (d *Deps) handleHealth(w http.ResponseWriter, r *http.Request) {
 	campaigns := d.Loader.GetActiveCampaigns()
 	fmt.Fprintf(w, `{"status":"ok","active_campaigns":%d,"time":"%s"}`,
 		len(campaigns), time.Now().UTC().Format(time.RFC3339))
+}
+
+// PlatformMargin is the fraction of the advertiser charge retained by the
+// platform. The exchange clear price / (1 - PlatformMargin) yields the
+// advertiser-facing price — i.e. the ADX cost plus a 10% platform fee.
+const PlatformMargin = 0.10
+
+// advertiserChargeCents converts an exchange clear price (in dollars) to the
+// advertiser charge in cents, adding the platform margin. This is the single
+// source of truth for the `price / 0.90 * 100` formula that appears in the
+// win and strategy paths.
+func advertiserChargeCents(exchangePrice float64) int64 {
+	return int64(exchangePrice / (1 - PlatformMargin) * 100)
 }
 
 // injectClickTracker wraps the ad markup's destination URL with a click tracking redirect.
