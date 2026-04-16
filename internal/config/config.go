@@ -38,6 +38,13 @@ type Config struct {
 	BidderHMACSecret   string
 	APIHMACSecret      string
 
+	// Alerting
+	SlackWebhookURL    string // Slack incoming webhook URL
+	AlertEmailSMTPHost string // SMTP server host for email alerts
+	AlertEmailSMTPPort string // SMTP server port (default "587")
+	AlertEmailFrom     string // sender address for email alerts
+	AlertEmailTo       string // comma-separated recipient addresses
+
 	// Guardrails
 	GlobalDailyBudgetCents int64   // all campaigns combined, 0 = no limit
 	MaxBidCPMCents         int     // single bid ceiling, 0 = no limit
@@ -68,6 +75,12 @@ func Load() *Config {
 		BidderPublicURL:    getEnv("BIDDER_PUBLIC_URL", "http://localhost:8180"),
 		BidderHMACSecret:   getEnv("BIDDER_HMAC_SECRET", defaultBidderHMACSecret),
 		APIHMACSecret:      getEnv("API_HMAC_SECRET", defaultAPIHMACSecret),
+
+		SlackWebhookURL:    getEnv("SLACK_WEBHOOK_URL", ""),
+		AlertEmailSMTPHost: getEnv("ALERT_EMAIL_SMTP_HOST", ""),
+		AlertEmailSMTPPort: getEnv("ALERT_EMAIL_SMTP_PORT", "587"),
+		AlertEmailFrom:     getEnv("ALERT_EMAIL_FROM", ""),
+		AlertEmailTo:       getEnv("ALERT_EMAIL_TO", ""),
 
 		GlobalDailyBudgetCents: parseInt64("GLOBAL_DAILY_BUDGET_CENTS", 0),
 		MaxBidCPMCents:         parseInt("MAX_BID_CPM_CENTS", 0),
@@ -121,6 +134,9 @@ func (c *Config) Validate() error {
 	}
 	if c.RedisAddr == defaultRedisAddr {
 		return fmt.Errorf("REDIS_ADDR must be set in production; rate limiting requires Redis")
+	}
+	if c.SlackWebhookURL == "" && c.AlertEmailSMTPHost == "" {
+		return fmt.Errorf("at least one alert channel (SLACK_WEBHOOK_URL or ALERT_EMAIL_SMTP_HOST) must be configured in production")
 	}
 	return nil
 }
