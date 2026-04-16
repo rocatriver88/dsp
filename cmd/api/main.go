@@ -157,12 +157,20 @@ func main() {
 	}
 
 	publicSrv := &http.Server{
-		Addr:    ":" + cfg.APIPort,
-		Handler: handler.BuildPublicHandler(cfg, h),
+		Addr:              ":" + cfg.APIPort,
+		Handler:           handler.BuildPublicHandler(cfg, h),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 	internalSrv := &http.Server{
-		Addr:    ":" + cfg.InternalPort,
-		Handler: handler.BuildInternalHandler(cfg, h),
+		Addr:              ":" + cfg.InternalPort,
+		Handler:           handler.BuildInternalHandler(cfg, h),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start servers

@@ -41,6 +41,14 @@ func (d *Deps) HandleAnalyticsStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Override the server-level WriteTimeout for SSE: the global 60s timeout
+	// (set in cmd/api/main.go for slowloris protection) would force-close the
+	// stream after one minute. ResponseController.SetWriteDeadline(zero)
+	// disables the per-connection write deadline so the stream stays open
+	// until the client disconnects or the server shuts down. Go 1.20+.
+	rc := http.NewResponseController(w)
+	_ = rc.SetWriteDeadline(time.Time{})
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")

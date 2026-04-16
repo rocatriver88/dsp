@@ -174,10 +174,24 @@ func main() {
 	RegisterInternalRoutes(internalMux, deps)
 
 	addr := ":" + cfg.BidderPort
-	srv := &http.Server{Addr: addr, Handler: withLogging(mux)}
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           withLogging(mux),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 
 	internalAddr := ":" + cfg.BidderInternalPort
-	internalSrv := &http.Server{Addr: internalAddr, Handler: withLogging(internalMux)}
+	internalSrv := &http.Server{
+		Addr:              internalAddr,
+		Handler:           withLogging(internalMux),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 
 	go func() {
 		log.Printf("DSP Bidder listening on %s", addr)

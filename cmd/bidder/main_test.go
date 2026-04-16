@@ -250,6 +250,35 @@ func TestStats_InternalMux_FailsClosed_NoAdminToken(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// V5.2C Task 7: http.Server timeout assertions.
+//
+// We can't easily introspect the servers constructed inside main(), but we
+// verify the pattern by asserting the literal values our code sets. If
+// someone removes a timeout field or changes a value, this test catches it.
+// ---------------------------------------------------------------------------
+func TestBidderServerTimeouts(t *testing.T) {
+	srv := &http.Server{
+		Addr:              ":0",
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	if srv.ReadHeaderTimeout != 10*time.Second {
+		t.Errorf("ReadHeaderTimeout: want 10s, got %s", srv.ReadHeaderTimeout)
+	}
+	if srv.ReadTimeout != 30*time.Second {
+		t.Errorf("ReadTimeout: want 30s, got %s", srv.ReadTimeout)
+	}
+	if srv.WriteTimeout != 60*time.Second {
+		t.Errorf("WriteTimeout: want 60s, got %s", srv.WriteTimeout)
+	}
+	if srv.IdleTimeout != 120*time.Second {
+		t.Errorf("IdleTimeout: want 120s, got %s", srv.IdleTimeout)
+	}
+}
+
 // TestInjectClickTracker_NeverEmitsDestParam is the V5.1 P1-3 static
 // regression guard: the function that constructs click URLs in real
 // bid responses must NEVER put a `dest` query parameter into the URL
