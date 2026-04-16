@@ -21,6 +21,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/events"
 	"github.com/heartgryphon/dsp/internal/exchange"
 	"github.com/heartgryphon/dsp/internal/guardrail"
+	"github.com/heartgryphon/dsp/internal/observability"
 	"github.com/heartgryphon/dsp/internal/reporting"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prebid/openrtb/v20/openrtb2"
@@ -125,6 +126,7 @@ func main() {
 	if err := loader.Start(workerCtx); err != nil {
 		log.Fatalf("campaign loader: %v", err)
 	}
+	observability.CampaignActiveTotal.Set(float64(len(loader.GetActiveCampaigns())))
 
 	// Daily budget auto-reset at midnight CST (must start after loader).
 	// Bound to workerCtx so SIGTERM stops it cleanly.
@@ -260,9 +262,13 @@ func main() {
 
 func (d *Deps) handleBid(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	defer func() {
+		observability.BidLatency.WithLabelValues("direct").Observe(time.Since(start).Seconds())
+	}()
 
 	var req openrtb2.BidRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		observability.BidRequestsTotal.WithLabelValues("direct", "rejected").Inc()
 		http.Error(w, `{"error":"invalid bid request"}`, http.StatusBadRequest)
 		return
 	}
@@ -271,12 +277,14 @@ func (d *Deps) handleBid(w http.ResponseWriter, r *http.Request) {
 	latency := time.Since(start)
 
 	if err != nil {
+		observability.BidRequestsTotal.WithLabelValues("direct", "rejected").Inc()
 		log.Printf("[ERROR] request_id=%s error=%v latency=%s", req.ID, err, latency)
 		w.WriteHeader(http.StatusNoContent) // fail-closed: no bid on error
 		return
 	}
 
 	if resp == nil {
+		observability.BidRequestsTotal.WithLabelValues("direct", "passed").Inc()
 		log.Printf("[NO-BID] request_id=%s latency=%s", req.ID, latency)
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -309,6 +317,7 @@ func (d *Deps) handleBid(w http.ResponseWriter, r *http.Request) {
 			req.ID, bid.CID, bid.Price, latency)
 	}
 
+	observability.BidRequestsTotal.WithLabelValues("direct", "won").Inc()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
@@ -319,21 +328,27 @@ func (d *Deps) handleExchangeBid(w http.ResponseWriter, r *http.Request) {
 	exchangeID := r.PathValue("exchange_id")
 	adapter, ok := d.ExchangeRegistry.Get(exchangeID)
 	if !ok {
+		observability.BidRequestsTotal.WithLabelValues(exchangeID, "rejected").Inc()
 		http.Error(w, fmt.Sprintf(`{"error":"unknown exchange: %s"}`, exchangeID), http.StatusBadRequest)
 		return
 	}
 
 	start := time.Now()
+	defer func() {
+		observability.BidLatency.WithLabelValues(exchangeID).Observe(time.Since(start).Seconds())
+	}()
 
 	// Read raw body and parse via exchange-specific adapter
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1MB limit
 	if err != nil {
+		observability.BidRequestsTotal.WithLabelValues(exchangeID, "rejected").Inc()
 		http.Error(w, `{"error":"read body failed"}`, http.StatusBadRequest)
 		return
 	}
 
 	req, err := adapter.ParseBidRequest(body)
 	if err != nil {
+		observability.BidRequestsTotal.WithLabelValues(exchangeID, "rejected").Inc()
 		http.Error(w, fmt.Sprintf(`{"error":"parse failed: %s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
@@ -342,12 +357,14 @@ func (d *Deps) handleExchangeBid(w http.ResponseWriter, r *http.Request) {
 	latency := time.Since(start)
 
 	if err != nil {
+		observability.BidRequestsTotal.WithLabelValues(exchangeID, "rejected").Inc()
 		log.Printf("[ERROR] exchange=%s request_id=%s error=%v latency=%s", exchangeID, req.ID, err, latency)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if resp == nil {
+		observability.BidRequestsTotal.WithLabelValues(exchangeID, "passed").Inc()
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -376,11 +393,13 @@ func (d *Deps) handleExchangeBid(w http.ResponseWriter, r *http.Request) {
 	// Format response via exchange-specific adapter
 	out, err := adapter.FormatBidResponse(resp)
 	if err != nil {
+		observability.BidRequestsTotal.WithLabelValues(exchangeID, "rejected").Inc()
 		log.Printf("[ERROR] exchange=%s format error: %v", exchangeID, err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
+	observability.BidRequestsTotal.WithLabelValues(exchangeID, "won").Inc()
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(out)
 }
@@ -432,6 +451,10 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isCPC := c != nil && c.BillingModel == "cpc"
+	billingModel := "cpm"
+	if c != nil {
+		billingModel = c.BillingModel
+	}
 
 	var remaining int64
 	if !isCPC {
@@ -450,11 +473,15 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		observability.BudgetDeductedCentsTotal.WithLabelValues(billingModel).Add(float64(priceCents))
+
 		// Track global spend for guardrail
 		if d.Guard != nil {
 			d.Guard.RecordGlobalSpend(r.Context(), priceCents)
 		}
 	}
+
+	observability.WinsTotal.WithLabelValues(billingModel).Inc()
 
 	log.Printf("[WIN] campaign_id=%d clear_price=%.6f billing=%s", campaignID, price, func() string {
 		if isCPC {
@@ -576,6 +603,7 @@ func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 	// falls through, skipping CPC budget deduction entirely — the click
 	// is counted as CPM (free) instead of being charged. Return 503 so
 	// the ad network retries after the loader finishes warm-up.
+	clickBillingModel := "unknown"
 	if campaignID > 0 {
 		c := d.Loader.GetCampaign(campaignID)
 		if c == nil {
@@ -583,6 +611,7 @@ func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"error":"bidder warming up, retry"}`, http.StatusServiceUnavailable)
 			return
 		}
+		clickBillingModel = c.BillingModel
 		if c.BillingModel == "cpc" {
 			clickCents := int64(c.BidCPCCents) // charge per click
 			remaining, err := d.BudgetSvc.CheckAndDeductBudget(r.Context(), campaignID, clickCents)
@@ -596,9 +625,12 @@ func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, `{"error":"budget exhausted"}`, http.StatusConflict)
 				return
 			}
+			observability.BudgetDeductedCentsTotal.WithLabelValues("cpc").Add(float64(clickCents))
 			log.Printf("[CLICK-CPC] campaign_id=%d charged=%d remaining=%d", campaignID, clickCents, remaining)
 		}
 	}
+
+	observability.ClicksTotal.WithLabelValues(clickBillingModel).Inc()
 
 	if campaignID > 0 && d.Producer != nil {
 		var charge float64
@@ -675,6 +707,7 @@ func (d *Deps) handleStats(w http.ResponseWriter, r *http.Request) {
 
 func (d *Deps) handleHealth(w http.ResponseWriter, r *http.Request) {
 	campaigns := d.Loader.GetActiveCampaigns()
+	observability.CampaignActiveTotal.Set(float64(len(campaigns)))
 	fmt.Fprintf(w, `{"status":"ok","active_campaigns":%d,"time":"%s"}`,
 		len(campaigns), time.Now().UTC().Format(time.RFC3339))
 }
