@@ -93,7 +93,58 @@ func TestAPIKeyFunc_WithoutKey(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "1.2.3.4:5678"
 	key := APIKeyFunc(req)
-	if key != "ip:1.2.3.4:5678" {
-		t.Errorf("expected ip:1.2.3.4:5678, got %s", key)
+	// Port must be stripped — same IP different port = same bucket
+	if key != "ip:1.2.3.4" {
+		t.Errorf("expected ip:1.2.3.4, got %s", key)
+	}
+}
+
+func TestIPKeyFunc_StripsPort(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "10.0.0.1:12345"
+	key := IPKeyFunc(req)
+	if key != "ip:10.0.0.1" {
+		t.Errorf("expected ip:10.0.0.1, got %s", key)
+	}
+
+	// Different ports from same IP must produce the same key
+	req2 := httptest.NewRequest("GET", "/", nil)
+	req2.RemoteAddr = "10.0.0.1:54321"
+	key2 := IPKeyFunc(req2)
+	if key != key2 {
+		t.Errorf("same IP different port should produce same key: %s vs %s", key, key2)
+	}
+}
+
+func TestClientIP_XForwardedFor(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "10.0.0.1:1234"
+	req.Header.Set("X-Forwarded-For", "203.0.113.50, 70.41.3.18, 150.172.238.178")
+	key := IPKeyFunc(req)
+	// Should use the first IP from X-Forwarded-For
+	if key != "ip:203.0.113.50" {
+		t.Errorf("expected ip:203.0.113.50, got %s", key)
+	}
+}
+
+func TestClientIP_XRealIP(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "10.0.0.1:1234"
+	req.Header.Set("X-Real-IP", "203.0.113.99")
+	key := IPKeyFunc(req)
+	if key != "ip:203.0.113.99" {
+		t.Errorf("expected ip:203.0.113.99, got %s", key)
+	}
+}
+
+func TestClientIP_XForwardedFor_TakesPrecedence(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "10.0.0.1:1234"
+	req.Header.Set("X-Forwarded-For", "1.1.1.1")
+	req.Header.Set("X-Real-IP", "2.2.2.2")
+	key := IPKeyFunc(req)
+	// X-Forwarded-For takes precedence over X-Real-IP
+	if key != "ip:1.1.1.1" {
+		t.Errorf("expected ip:1.1.1.1, got %s", key)
 	}
 }

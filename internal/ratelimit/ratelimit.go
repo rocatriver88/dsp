@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -71,17 +72,42 @@ func Middleware(limiter *Limiter, keyFunc func(*http.Request) string, limit int,
 	}
 }
 
+// clientIP extracts the client IP from the request, checking proxy headers
+// first (X-Forwarded-For, X-Real-IP) then falling back to RemoteAddr with
+// the port stripped. This ensures rate-limit buckets are stable per client
+// regardless of source port or reverse proxy placement.
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// X-Forwarded-For may be "client, proxy1, proxy2"; take the first.
+		for i := 0; i < len(xff); i++ {
+			if xff[i] == ',' {
+				return xff[:i]
+			}
+		}
+		return xff
+	}
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return xri
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr // fallback: already bare IP (unlikely)
+	}
+	return host
+}
+
 // IPKeyFunc extracts the client IP for rate limiting unauthenticated requests.
 func IPKeyFunc(r *http.Request) string {
-	return "ip:" + r.RemoteAddr
+	return "ip:" + clientIP(r)
 }
 
 // APIKeyFunc extracts the API key for rate limiting authenticated requests.
 // The key is hashed so that Redis dumps never expose plaintext API keys.
+// Falls back to IP-based keying if no API key is present.
 func APIKeyFunc(r *http.Request) string {
 	key := r.Header.Get("X-API-Key")
 	if key == "" {
-		return "ip:" + r.RemoteAddr
+		return "ip:" + clientIP(r)
 	}
 	return "key:" + hashKey(key)
 }
