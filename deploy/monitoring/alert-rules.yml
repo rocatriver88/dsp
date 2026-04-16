@@ -1,0 +1,77 @@
+groups:
+  - name: dsp_budget_alerts
+    rules:
+      - alert: dsp_budget_overspend
+        expr: |
+          (dsp_campaign_daily_spend_cents / dsp_campaign_daily_budget_cents) > 1.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Campaign {{ $labels.campaign_id }} overspending"
+          description: >-
+            Daily spend is {{ $value | humanizePercentage }} of daily budget
+            for campaign {{ $labels.campaign_id }}
+            (advertiser {{ $labels.advertiser_id }}).
+
+  - name: dsp_api_alerts
+    rules:
+      - alert: dsp_high_error_rate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 5xx error rate above 5%"
+          description: >-
+            The 5xx error rate is {{ $value | humanizePercentage }} over the
+            last 5 minutes.
+
+  - name: dsp_reconciliation_alerts
+    rules:
+      - alert: dsp_reconciliation_drift
+        expr: |
+          abs(dsp_reconciliation_redis_total - dsp_reconciliation_clickhouse_total)
+          /
+          dsp_reconciliation_clickhouse_total > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Reconciliation drift > 5% between Redis and ClickHouse"
+          description: >-
+            Hourly reconciliation shows {{ $value | humanizePercentage }}
+            drift between Redis spend counters and ClickHouse actuals.
+
+  - name: dsp_redis_alerts
+    rules:
+      - alert: dsp_redis_errors_high
+        expr: |
+          sum(rate(dsp_redis_errors_total[5m])) * 60 > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis error rate above 10/min"
+          description: >-
+            Redis errors are at {{ $value | humanize }} per minute over
+            the last 5 minutes.
+
+  - name: dsp_guardrail_alerts
+    rules:
+      - alert: dsp_guardrail_tripped
+        expr: |
+          increase(dsp_guardrail_trips_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Guardrail circuit breaker tripped ({{ $labels.reason }})"
+          description: >-
+            The guardrail circuit breaker was tripped in the last 5 minutes.
+            Reason: {{ $labels.reason }}. All bidding is halted until reset.
