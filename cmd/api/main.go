@@ -136,9 +136,23 @@ func main() {
 	autoPauseSvc := autopause.New(store, reportStore, rdb)
 	go autoPauseSvc.Start(workerCtx)
 
+	// Build alert sender: prefer Slack, fall back to email, then Noop.
+	var alertSender alert.Sender
+	switch {
+	case cfg.SlackWebhookURL != "":
+		alertSender = alert.NewSlack(cfg.SlackWebhookURL)
+		log.Println("Alert channel: Slack webhook")
+	case cfg.AlertEmailSMTPHost != "":
+		alertSender = alert.NewEmail(cfg.AlertEmailSMTPHost, cfg.AlertEmailSMTPPort, cfg.AlertEmailFrom, cfg.AlertEmailTo)
+		log.Println("Alert channel: email SMTP")
+	default:
+		alertSender = alert.Noop{}
+		log.Println("Alert channel: noop (no webhook or SMTP configured)")
+	}
+
 	// Start hourly reconciliation
 	if reportStore != nil && rdb != nil {
-		reconSvc := reconciliation.New(rdb, store, reportStore, billingSvc, alert.Noop{})
+		reconSvc := reconciliation.New(rdb, store, reportStore, billingSvc, alertSender)
 		reconSvc.StartHourlySchedule(workerCtx, 1.0) // 1% threshold
 		log.Println("Hourly reconciliation started")
 	}

@@ -466,6 +466,11 @@ func (s *Store) UpdateCreativeStatus(ctx context.Context, creativeID int64, stat
 	return err
 }
 
+// Ping checks whether the underlying Postgres connection pool is healthy.
+func (s *Store) Ping(ctx context.Context) error {
+	return s.db.Ping(ctx)
+}
+
 // ListAllAdvertisers returns all advertisers for admin dashboard.
 func (s *Store) ListAllAdvertisers(ctx context.Context, limit, offset int) ([]*Advertiser, error) {
 	if limit <= 0 {

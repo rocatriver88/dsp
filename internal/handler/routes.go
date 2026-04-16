@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -75,9 +74,12 @@ func BuildPublicMux(d *Deps) *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/upload", d.HandleUpload)
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", UploadFileServer()))
 	mux.HandleFunc("POST /api/v1/register", d.HandleRegister)
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `{"status":"ok","time":"%s"}`, time.Now().UTC().Format(time.RFC3339))
-	})
+	// Health endpoints: /health/live is a liveness probe (always 200),
+	// /health/ready is a readiness probe (probes backends, 200 or 503).
+	// /health is kept as an alias for /health/live for backward compat.
+	mux.HandleFunc("GET /health", d.HandleHealthLive)
+	mux.HandleFunc("GET /health/live", d.HandleHealthLive)
+	mux.HandleFunc("GET /health/ready", d.HandleHealthReady)
 	return mux
 }
 
@@ -179,8 +181,9 @@ func BuildInternalHandler(cfg *config.Config, d *Deps) http.Handler {
 	internalMux.Handle("GET /metrics", promhttp.Handler())
 	internalMux.Handle("/internal/", AdminAuthMiddleware(adminMux))
 	internalMux.Handle("/api/v1/admin/", AdminAuthMiddleware(adminMux))
-	internalMux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, `{"status":"ok","port":"internal","time":"%s"}`, time.Now().UTC().Format(time.RFC3339))
-	})
+	// Health endpoints on the internal port mirror the public ones.
+	internalMux.HandleFunc("GET /health", d.HandleHealthLive)
+	internalMux.HandleFunc("GET /health/live", d.HandleHealthLive)
+	internalMux.HandleFunc("GET /health/ready", d.HandleHealthReady)
 	return WithCORS(cfg, observability.LoggingMiddleware(internalMux))
 }

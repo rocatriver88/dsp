@@ -5,54 +5,122 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// ──────────────────────────────────────────────────────────────────────
+// Business metrics — V5.2B observability plan
+//
+// Naming convention: <subsystem>_<metric>_<unit>  (Prometheus best practice)
+// Every label set is bounded to prevent cardinality explosion.
+// ──────────────────────────────────────────────────────────────────────
+
 var (
-	// Bidder metrics
+	// ── Bidder metrics ────────────────────────────────────────────────
+
+	// BidRequestsTotal counts every bid request processed by the bidder.
+	// Labels:
+	//   exchange — bounded by ExchangeRegistry entries
+	//   result   — {won, lost, passed, rejected}
 	BidRequestsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "dsp_bid_requests_total",
-		Help: "Total bid requests processed",
-	}, []string{"result"}) // result: bid, no_bid, error
+		Help: "Total bid requests processed by the bidder.",
+	}, []string{"exchange", "result"})
 
-	BidLatency = promauto.NewHistogram(prometheus.HistogramOpts{
+	// BidLatency measures per-exchange bid-request processing latency.
+	BidLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "dsp_bid_latency_seconds",
-		Help:    "Bid request processing latency",
+		Help:    "Bid request processing latency in seconds.",
 		Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25},
-	})
+	}, []string{"exchange"})
 
-	WinNoticesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "dsp_win_notices_total",
-		Help: "Total win notices processed",
-	}, []string{"status"}) // status: ok, duplicate, error, rejected
+	// WinsTotal counts win notices by billing model.
+	// Labels: billing_model — {cpm, cpc, ocpm}
+	WinsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "dsp_wins_total",
+		Help: "Total win notices by billing model.",
+	}, []string{"billing_model"})
 
-	// API metrics
-	APIRequestsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "dsp_api_requests_total",
-		Help: "Total API requests",
-	}, []string{"method", "path", "status"})
+	// ClicksTotal counts attributed clicks by billing model.
+	// Labels: billing_model — {cpm, cpc, ocpm}
+	ClicksTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "dsp_clicks_total",
+		Help: "Total attributed clicks by billing model.",
+	}, []string{"billing_model"})
 
-	RateLimitHits = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "dsp_rate_limit_hits_total",
-		Help: "Total rate limit rejections",
-	})
+	// BudgetDeductedCentsTotal tracks real spend (in cents) by billing model.
+	// Labels: billing_model — {cpm, cpc, ocpm}
+	BudgetDeductedCentsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "dsp_budget_deducted_cents_total",
+		Help: "Total budget deducted in cents by billing model.",
+	}, []string{"billing_model"})
 
-	// Campaign metrics
-	ActiveCampaigns = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "dsp_active_campaigns",
-		Help: "Number of active campaigns in bidder cache",
-	})
+	// ── Guardrail / auction outcome metrics ──────────────────────────
 
-	AutoPauseTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "dsp_auto_pause_total",
-		Help: "Total auto-pause actions",
+	// GuardrailTripsTotal counts circuit-breaker activations.
+	// Labels: reason — {daily_budget, max_cpm, manual, other}
+	GuardrailTripsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "dsp_guardrail_trips_total",
+		Help: "Total guardrail (circuit-breaker) activations.",
 	}, []string{"reason"})
 
-	// Consumer metrics
-	KafkaConsumeErrors = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "dsp_kafka_consume_errors_total",
-		Help: "Total Kafka consume errors",
+	// AuctionOutcome records why auctions ended as they did.
+	// Labels: outcome — {no_campaigns, under_bid, fraud_rejected, ok}
+	AuctionOutcome = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "dsp_auction_outcome",
+		Help: "Auction outcome distribution.",
+	}, []string{"outcome"})
+
+	// ── Campaign metrics ─────────────────────────────────────────────
+
+	// CampaignActiveTotal is the current number of active campaigns.
+	CampaignActiveTotal = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "dsp_campaign_active_total",
+		Help: "Number of currently active campaigns.",
+	})
+
+	// ── Infrastructure metrics ───────────────────────────────────────
+
+	// ProducerInflight tracks Kafka producer in-flight depth per topic.
+	// Labels: topic
+	ProducerInflight = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "dsp_producer_inflight",
+		Help: "Kafka producer in-flight message count per topic.",
 	}, []string{"topic"})
 
+	// RedisErrorsTotal counts Redis operation errors by operation type.
+	// Labels: op — {get, set, incr, setnx, pubsub}
+	RedisErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "dsp_redis_errors_total",
+		Help: "Total Redis errors by operation type.",
+	}, []string{"op"})
+
+	// ── Existing operational metrics (kept from V5) ──────────────────
+
+	// APIRequestsTotal counts all API requests.
+	APIRequestsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "dsp_api_requests_total",
+		Help: "Total API requests.",
+	}, []string{"method", "path", "status"})
+
+	// RateLimitHits counts rate-limiter rejections.
+	RateLimitHits = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "dsp_rate_limit_hits_total",
+		Help: "Total rate limit rejections.",
+	})
+
+	// AutoPauseTotal counts auto-pause actions by reason.
+	AutoPauseTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "dsp_auto_pause_total",
+		Help: "Total auto-pause actions.",
+	}, []string{"reason"})
+
+	// KafkaConsumeErrors counts Kafka consume errors by topic.
+	KafkaConsumeErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "dsp_kafka_consume_errors_total",
+		Help: "Total Kafka consume errors.",
+	}, []string{"topic"})
+
+	// DLQPublishTotal counts events published to the dead-letter queue.
 	DLQPublishTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "dsp_dlq_publish_total",
-		Help: "Total events published to dead-letter queue",
+		Help: "Total events published to dead-letter queue.",
 	})
 )

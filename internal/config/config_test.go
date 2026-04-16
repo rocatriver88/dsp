@@ -55,9 +55,42 @@ func TestValidate_ProductionWithAllSecrets_NoError(t *testing.T) {
 	t.Setenv("ADMIN_TOKEN", "test-admin-token")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
 	t.Setenv("REDIS_ADDR", "redis.prod.internal:6379")
+	t.Setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/T00/B00/xxx")
 	cfg := Load()
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("production with all secrets set should not error, got: %v", err)
+	}
+}
+
+func TestValidate_ProductionNoAlertChannel_Errors(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("BIDDER_HMAC_SECRET", "real-production-secret-32chars-min")
+	t.Setenv("API_HMAC_SECRET", "real-production-api-secret-32chars-min")
+	t.Setenv("ADMIN_TOKEN", "test-admin-token")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("REDIS_ADDR", "redis.prod.internal:6379")
+	// No SLACK_WEBHOOK_URL or ALERT_EMAIL_SMTP_HOST
+	cfg := Load()
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected error when no alert channel is configured in production")
+	}
+	if !strings.Contains(err.Error(), "alert channel") {
+		t.Errorf("error should mention alert channel, got: %v", err)
+	}
+}
+
+func TestValidate_ProductionEmailAlertChannel_NoError(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("BIDDER_HMAC_SECRET", "real-production-secret-32chars-min")
+	t.Setenv("API_HMAC_SECRET", "real-production-api-secret-32chars-min")
+	t.Setenv("ADMIN_TOKEN", "test-admin-token")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("REDIS_ADDR", "redis.prod.internal:6379")
+	t.Setenv("ALERT_EMAIL_SMTP_HOST", "smtp.example.com")
+	cfg := Load()
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("production with email alert should not error, got: %v", err)
 	}
 }
 
