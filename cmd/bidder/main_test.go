@@ -335,6 +335,120 @@ func TestBidderServerTimeouts(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// V5.2C Task 10: GetCampaign warm-up guard.
+//
+// During loader warm-up, GetCampaign returns nil for campaigns that exist
+// but haven't loaded yet. The handler must return 503 instead of silently
+// walking the wrong billing path (CPM for CPC campaigns in /win, or
+// skipping CPC budget deduction in /click).
+// ---------------------------------------------------------------------------
+
+func TestHandleWin_WarmupGuard_Returns503(t *testing.T) {
+	// Loader with no campaigns loaded = simulates warm-up state.
+	loader := bidder.NewCampaignLoader(nil, nil)
+
+	// Redis client pointed at a non-existent server. The dedup SetNX
+	// will fail (logged as error, proceeds), reaching the GetCampaign
+	// check which is the code under test.
+	rdb := redis.NewClient(&redis.Options{Addr: "localhost:1"})
+	defer rdb.Close()
+
+	const hmacSecret = "v5-2c-warmup-test-secret"
+	d := &Deps{
+		HMACSecret: hmacSecret,
+		Loader:     loader,
+		RDB:        rdb,
+	}
+
+	campaignIDStr := "42"
+	reqID := fmt.Sprintf("warmup-win-%d", time.Now().UnixNano())
+	token := auth.GenerateToken(hmacSecret, campaignIDStr, reqID)
+
+	target := fmt.Sprintf("/win?campaign_id=%s&price=0.05&request_id=%s&token=%s",
+		campaignIDStr, reqID, token)
+	req := httptest.NewRequest("GET", target, nil)
+	rec := httptest.NewRecorder()
+
+	d.handleWin(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("V5.2C warm-up guard: /win with unloaded campaign should return 503, got %d body=%s",
+			rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "warming up") {
+		t.Errorf("body should mention warming up, got: %s", rec.Body.String())
+	}
+}
+
+func TestHandleClick_WarmupGuard_Returns503(t *testing.T) {
+	loader := bidder.NewCampaignLoader(nil, nil)
+	rdb := redis.NewClient(&redis.Options{Addr: "localhost:1"})
+	defer rdb.Close()
+
+	const hmacSecret = "v5-2c-warmup-test-secret"
+	d := &Deps{
+		HMACSecret: hmacSecret,
+		Loader:     loader,
+		RDB:        rdb,
+	}
+
+	campaignIDStr := "42"
+	reqID := fmt.Sprintf("warmup-click-%d", time.Now().UnixNano())
+	token := auth.GenerateToken(hmacSecret, campaignIDStr, reqID)
+
+	target := fmt.Sprintf("/click?campaign_id=%s&request_id=%s&token=%s",
+		campaignIDStr, reqID, token)
+	req := httptest.NewRequest("GET", target, nil)
+	rec := httptest.NewRecorder()
+
+	d.handleClick(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("V5.2C warm-up guard: /click with unloaded campaign should return 503, got %d body=%s",
+			rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "warming up") {
+		t.Errorf("body should mention warming up, got: %s", rec.Body.String())
+	}
+}
+
+// TestHandleClick_WarmupGuard_CampaignIDZero_NoGuard verifies that
+// campaignID=0 does NOT trigger the warm-up guard (it's not a real
+// campaign, just a malformed or test request).
+func TestHandleClick_WarmupGuard_CampaignIDZero_NoGuard(t *testing.T) {
+	loader := bidder.NewCampaignLoader(nil, nil)
+	rdb := redis.NewClient(&redis.Options{Addr: "localhost:1"})
+	defer rdb.Close()
+
+	const hmacSecret = "v5-2c-warmup-test-secret"
+	d := &Deps{
+		HMACSecret: hmacSecret,
+		Loader:     loader,
+		RDB:        rdb,
+	}
+
+	campaignIDStr := "0"
+	reqID := fmt.Sprintf("warmup-click-zero-%d", time.Now().UnixNano())
+	token := auth.GenerateToken(hmacSecret, campaignIDStr, reqID)
+
+	target := fmt.Sprintf("/click?campaign_id=%s&request_id=%s&token=%s",
+		campaignIDStr, reqID, token)
+	req := httptest.NewRequest("GET", target, nil)
+	rec := httptest.NewRecorder()
+
+	d.handleClick(rec, req)
+
+	// campaignID=0 should NOT trigger the warm-up guard — it should
+	// reach the happy-path response.
+	if rec.Code == http.StatusServiceUnavailable {
+		t.Fatalf("campaignID=0 should not trigger warm-up guard, got 503")
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/click with campaignID=0: want 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 // TestInjectClickTracker_NeverEmitsDestParam is the V5.1 P1-3 static
 // regression guard: the function that constructs click URLs in real
 // bid responses must NEVER put a `dest` query parameter into the URL

@@ -420,8 +420,17 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check billing model: CPC campaigns are charged on click, not impression
+	// Check billing model: CPC campaigns are charged on click, not impression.
+	// During loader warm-up, GetCampaign returns nil for campaigns that exist
+	// but haven't loaded yet. Without this guard the nil check falls through
+	// to the CPM path, silently billing the wrong model. Return 503 so the
+	// exchange retries after the loader finishes its initial full-load.
 	c := d.Loader.GetCampaign(campaignID)
+	if c == nil && campaignID > 0 {
+		log.Printf("[WIN-WARMUP] campaign_id=%d not loaded yet, returning 503", campaignID)
+		http.Error(w, `{"error":"bidder warming up, retry"}`, http.StatusServiceUnavailable)
+		return
+	}
 	isCPC := c != nil && c.BillingModel == "cpc"
 
 	var remaining int64
@@ -561,10 +570,20 @@ func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 
 	campaignID, _ := strconv.ParseInt(campaignIDStr, 10, 64)
 
-	// CPC campaigns: charge budget on click
+	// CPC campaigns: charge budget on click.
+	// During loader warm-up, GetCampaign returns nil for campaigns that
+	// exist but haven't loaded yet. Without this guard the nil check
+	// falls through, skipping CPC budget deduction entirely — the click
+	// is counted as CPM (free) instead of being charged. Return 503 so
+	// the ad network retries after the loader finishes warm-up.
 	if campaignID > 0 {
 		c := d.Loader.GetCampaign(campaignID)
-		if c != nil && c.BillingModel == "cpc" {
+		if c == nil {
+			log.Printf("[CLICK-WARMUP] campaign_id=%d not loaded yet, returning 503", campaignID)
+			http.Error(w, `{"error":"bidder warming up, retry"}`, http.StatusServiceUnavailable)
+			return
+		}
+		if c.BillingModel == "cpc" {
 			clickCents := int64(c.BidCPCCents) // charge per click
 			remaining, err := d.BudgetSvc.CheckAndDeductBudget(r.Context(), campaignID, clickCents)
 			if err != nil {
