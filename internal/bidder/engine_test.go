@@ -186,11 +186,11 @@ func TestMatchCreativeToImp_BannerMatch(t *testing.T) {
 		Banner: &openrtb2.Banner{W: &w300, H: &h250},
 	}
 	creatives := []*campaign.Creative{
-		{ID: 1, Size: "728x90"},
-		{ID: 2, Size: "300x250"},
-		{ID: 3, Size: "320x50"},
+		{ID: 1, Size: "728x90", AdType: "banner"},
+		{ID: 2, Size: "300x250", AdType: "banner"},
+		{ID: 3, Size: "320x50", AdType: "banner"},
 	}
-	got := matchCreativeToImp(creatives, imp)
+	got := matchCreativeToImp(creatives, imp, false)
 	if got == nil || got.ID != 2 {
 		t.Errorf("expected creative 2 (300x250), got %v", got)
 	}
@@ -202,10 +202,10 @@ func TestMatchCreativeToImp_BannerNoMatch(t *testing.T) {
 		Banner: &openrtb2.Banner{W: &w160, H: &h600},
 	}
 	creatives := []*campaign.Creative{
-		{ID: 1, Size: "728x90"},
-		{ID: 2, Size: "300x250"},
+		{ID: 1, Size: "728x90", AdType: "banner"},
+		{ID: 2, Size: "300x250", AdType: "banner"},
 	}
-	got := matchCreativeToImp(creatives, imp)
+	got := matchCreativeToImp(creatives, imp, false)
 	if got != nil {
 		t.Errorf("expected nil (no matching size), got creative %d", got.ID)
 	}
@@ -221,9 +221,9 @@ func TestMatchCreativeToImp_BannerFormatArray(t *testing.T) {
 		},
 	}
 	creatives := []*campaign.Creative{
-		{ID: 1, Size: "300x250"},
+		{ID: 1, Size: "300x250", AdType: "banner"},
 	}
-	got := matchCreativeToImp(creatives, imp)
+	got := matchCreativeToImp(creatives, imp, false)
 	if got == nil || got.ID != 1 {
 		t.Errorf("expected creative 1, got %v", got)
 	}
@@ -234,9 +234,9 @@ func TestMatchCreativeToImp_NonBanner(t *testing.T) {
 		Native: &openrtb2.Native{Request: "{}"},
 	}
 	creatives := []*campaign.Creative{
-		{ID: 1, Size: ""},
+		{ID: 1, Size: "", AdType: "native"},
 	}
-	got := matchCreativeToImp(creatives, imp)
+	got := matchCreativeToImp(creatives, imp, false)
 	if got == nil || got.ID != 1 {
 		t.Errorf("non-banner should accept any creative, got %v", got)
 	}
@@ -247,9 +247,58 @@ func TestMatchCreativeToImp_NoCreatives(t *testing.T) {
 	imp := &openrtb2.Imp{
 		Banner: &openrtb2.Banner{W: &w300, H: &h250},
 	}
-	got := matchCreativeToImp(nil, imp)
+	got := matchCreativeToImp(nil, imp, false)
 	if got != nil {
 		t.Errorf("expected nil for empty creatives, got %v", got)
+	}
+}
+
+func TestIsCreativeSecure_Banner(t *testing.T) {
+	cr := &campaign.Creative{AdType: "banner"}
+	if !isCreativeSecure(cr) {
+		t.Error("banner creatives should be considered secure")
+	}
+}
+
+func TestIsCreativeSecure_NativeHTTPS(t *testing.T) {
+	cr := &campaign.Creative{
+		AdType:         "native",
+		NativeIconURL:  "https://cdn.example.com/icon.png",
+		NativeImageURL: "https://cdn.example.com/image.png",
+	}
+	if !isCreativeSecure(cr) {
+		t.Error("native creative with HTTPS URLs should be secure")
+	}
+}
+
+func TestIsCreativeSecure_NativeHTTP(t *testing.T) {
+	cr := &campaign.Creative{
+		AdType:         "native",
+		NativeIconURL:  "http://cdn.example.com/icon.png",
+		NativeImageURL: "https://cdn.example.com/image.png",
+	}
+	if isCreativeSecure(cr) {
+		t.Error("native creative with HTTP icon URL should NOT be secure")
+	}
+}
+
+func TestMatchCreativeToImp_SecureFilters(t *testing.T) {
+	imp := &openrtb2.Imp{
+		Native: &openrtb2.Native{Request: "{}"},
+	}
+	creatives := []*campaign.Creative{
+		{ID: 1, AdType: "native", NativeIconURL: "http://cdn.example.com/icon.png"},
+		{ID: 2, AdType: "native", NativeIconURL: "https://cdn.example.com/icon.png"},
+	}
+	// Without secure requirement, pick first
+	got := matchCreativeToImp(creatives, imp, false)
+	if got == nil || got.ID != 1 {
+		t.Errorf("without secure, expected creative 1, got %v", got)
+	}
+	// With secure requirement, skip HTTP creative
+	got = matchCreativeToImp(creatives, imp, true)
+	if got == nil || got.ID != 2 {
+		t.Errorf("with secure, expected creative 2 (HTTPS), got %v", got)
 	}
 }
 

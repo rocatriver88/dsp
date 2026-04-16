@@ -68,12 +68,14 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		geoCountry = req.Device.Geo.Country
 	}
 
-	// OpenRTB 2.5: require secure creative if imp.secure=1
+	// OpenRTB 2.5: require secure creative if imp.secure=1 or site is HTTPS
 	requireSecure := false
 	if imp.Secure != nil && *imp.Secure == 1 {
 		requireSecure = true
 	}
-	_ = requireSecure // TODO: filter creatives by secure flag
+	if !requireSecure && req.Site != nil && strings.HasPrefix(req.Site.Page, "https") {
+		requireSecure = true
+	}
 
 	// OpenRTB 2.5: respect bidfloor
 	bidFloor := imp.BidFloor
@@ -146,8 +148,8 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 			continue
 		}
 
-		// Match creative to impression slot size
-		matched := matchCreativeToImp(c.Creatives, &imp)
+		// Match creative to impression slot size + secure flag
+		matched := matchCreativeToImp(c.Creatives, &imp, requireSecure)
 		if matched == nil {
 			continue
 		}
@@ -349,15 +351,21 @@ func matchesTargeting(c *LoadedCampaign, geo, os, ua string, now time.Time) bool
 }
 
 // matchCreativeToImp returns the first creative that matches the impression's
-// size requirements, or nil if none match. For banner impressions it checks
-// Banner.W/H and Banner.Format against creative.Size ("WxH"). For non-banner
-// impressions (video, native), any creative is accepted since size matching
-// doesn't apply.
-func matchCreativeToImp(creatives []*campaign.Creative, imp *openrtb2.Imp) *campaign.Creative {
+// size requirements and secure flag, or nil if none match. For banner
+// impressions it checks Banner.W/H and Banner.Format against creative.Size
+// ("WxH"). For non-banner impressions (video, native), any creative is
+// accepted since size matching doesn't apply.
+//
+// When requireSecure is true, only HTTPS-safe creatives are eligible.
+// Banner creatives are assumed secure; native and interstitial may not be.
+func matchCreativeToImp(creatives []*campaign.Creative, imp *openrtb2.Imp, requireSecure bool) *campaign.Creative {
 	if imp.Banner == nil {
-		// Non-banner: accept any creative (video/native don't use WxH matching)
-		if len(creatives) > 0 {
-			return creatives[0]
+		// Non-banner: accept first secure-eligible creative
+		for _, cr := range creatives {
+			if requireSecure && !isCreativeSecure(cr) {
+				continue
+			}
+			return cr
 		}
 		return nil
 	}
@@ -374,15 +382,21 @@ func matchCreativeToImp(creatives []*campaign.Creative, imp *openrtb2.Imp) *camp
 		}
 	}
 
-	// If the impression specifies no size, accept any creative
+	// If the impression specifies no size, accept first secure-eligible creative
 	if len(acceptable) == 0 {
-		if len(creatives) > 0 {
-			return creatives[0]
+		for _, cr := range creatives {
+			if requireSecure && !isCreativeSecure(cr) {
+				continue
+			}
+			return cr
 		}
 		return nil
 	}
 
 	for _, cr := range creatives {
+		if requireSecure && !isCreativeSecure(cr) {
+			continue
+		}
 		cw, ch, ok := parseCreativeSize(cr.Size)
 		if !ok {
 			continue // unparseable size, skip
@@ -394,6 +408,31 @@ func matchCreativeToImp(creatives []*campaign.Creative, imp *openrtb2.Imp) *camp
 		}
 	}
 	return nil
+}
+
+// isCreativeSecure returns true if the creative is safe to serve on HTTPS pages.
+// Banner creatives are assumed secure (they typically use inline markup).
+// Native and interstitial creatives may reference external HTTP resources.
+func isCreativeSecure(cr *campaign.Creative) bool {
+	switch cr.AdType {
+	case campaign.AdTypeBanner:
+		return true // banner markup is inline, assumed secure
+	case campaign.AdTypeNative:
+		// Native creatives reference external image URLs; check they're HTTPS
+		if cr.NativeIconURL != "" && !strings.HasPrefix(cr.NativeIconURL, "https") {
+			return false
+		}
+		if cr.NativeImageURL != "" && !strings.HasPrefix(cr.NativeImageURL, "https") {
+			return false
+		}
+		return true
+	default:
+		// Interstitial/splash: check destination URL and markup for HTTPS
+		if cr.DestinationURL != "" && !strings.HasPrefix(cr.DestinationURL, "https") {
+			return false
+		}
+		return true
+	}
 }
 
 // parseCreativeSize parses a "WxH" string (e.g. "300x250") into width and height.
