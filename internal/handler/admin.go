@@ -129,46 +129,55 @@ func (d *Deps) HandleApproveRegistration(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+// SystemHealthResponse is the JSON shape returned by GET /admin/health.
+type SystemHealthResponse struct {
+	Status               string `json:"status"`
+	ActiveCampaigns      int    `json:"active_campaigns"`
+	PendingRegistrations int    `json:"pending_registrations"`
+	Redis                string `json:"redis"`
+	ClickHouse           string `json:"clickhouse"`
+}
+
 // HandleSystemHealth godoc
 // @Summary Get system health
 // @Tags admin
 // @Security AdminAuth
 // @Produce json
-// @Success 200 {object} object{status=string,active_campaigns=integer,time=string}
+// @Success 200 {object} handler.SystemHealthResponse
 // @Router /admin/health [get]
 func (d *Deps) HandleSystemHealth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	health := map[string]any{
-		"status": "ok",
+	resp := SystemHealthResponse{
+		Status: "ok",
 	}
 
 	// Count advertisers
 	campaigns, _ := d.Store.ListActiveCampaigns(ctx)
-	health["active_campaigns"] = len(campaigns)
+	resp.ActiveCampaigns = len(campaigns)
 
 	// Count pending registrations
 	pending, _ := d.RegSvc.ListPending(ctx)
-	health["pending_registrations"] = len(pending)
+	resp.PendingRegistrations = len(pending)
 
 	// Redis status
 	if d.Redis != nil {
 		if err := d.Redis.Ping(ctx).Err(); err != nil {
-			health["redis"] = "error"
+			resp.Redis = "error"
 		} else {
-			health["redis"] = "ok"
+			resp.Redis = "ok"
 		}
 	} else {
-		health["redis"] = "unavailable"
+		resp.Redis = "unavailable"
 	}
 
 	// ClickHouse status
 	if d.ReportStore != nil {
-		health["clickhouse"] = "ok"
+		resp.ClickHouse = "ok"
 	} else {
-		health["clickhouse"] = "unavailable"
+		resp.ClickHouse = "unavailable"
 	}
 
-	WriteJSON(w, http.StatusOK, health)
+	WriteJSON(w, http.StatusOK, resp)
 }
 
 // HandleListCreativesForReview godoc

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/heartgryphon/dsp/internal/observability"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -40,6 +41,7 @@ func (l *Limiter) Allow(ctx context.Context, key string, limit int, window time.
 	redisKey := "ratelimit:" + key
 	count, err := l.rdb.Incr(ctx, redisKey).Result()
 	if err != nil {
+		observability.RedisErrorsTotal.WithLabelValues("incr").Inc()
 		log.Printf("[RATELIMIT] Redis error (fail-open): %v", err)
 		return true
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/events"
 	"github.com/heartgryphon/dsp/internal/guardrail"
+	"github.com/heartgryphon/dsp/internal/observability"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
@@ -98,6 +99,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 	if e.fraud != nil {
 		result := e.fraud.Check(ctx, req.Device.IP, req.Device.UA, userID)
 		if !result.Allowed {
+			observability.AuctionOutcome.WithLabelValues("fraud_rejected").Inc()
 			return nil, nil // silently no-bid on fraud
 		}
 	}
@@ -175,6 +177,11 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 	}
 
 	if best == nil {
+		if len(candidates) == 0 {
+			observability.AuctionOutcome.WithLabelValues("no_campaigns").Inc()
+		} else {
+			observability.AuctionOutcome.WithLabelValues("under_bid").Inc()
+		}
 		return nil, nil
 	}
 
@@ -236,6 +243,8 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		}},
 		Cur: "CNY",
 	}
+
+	observability.AuctionOutcome.WithLabelValues("ok").Inc()
 
 	// Emit bid event to Kafka. Round 2 review I-New-1: this is the
 	// highest-volume producer call in the entire system (one per

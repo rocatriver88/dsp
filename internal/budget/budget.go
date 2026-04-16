@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/config"
+	"github.com/heartgryphon/dsp/internal/observability"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -39,6 +40,7 @@ func (s *Service) CheckAndDeductBudget(ctx context.Context, campaignID int64, am
 	key := dailyBudgetKey(campaignID)
 	result, err := deductBudgetScript.Run(ctx, s.rdb, []string{key}, amountCents).Int64()
 	if err != nil {
+		observability.RedisErrorsTotal.WithLabelValues("incr").Inc()
 		return -1, fmt.Errorf("redis budget lua: %w", err)
 	}
 	return result, nil
@@ -60,6 +62,9 @@ func (s *Service) GetDailyBudgetRemaining(ctx context.Context, campaignID int64)
 	if err == redis.Nil {
 		return 0, nil
 	}
+	if err != nil {
+		observability.RedisErrorsTotal.WithLabelValues("get").Inc()
+	}
 	return val, err
 }
 
@@ -71,6 +76,7 @@ func (s *Service) CheckFrequency(ctx context.Context, campaignID int64, userID s
 	key := freqKey(campaignID, userID)
 	count, err := s.rdb.Incr(ctx, key).Result()
 	if err != nil {
+		observability.RedisErrorsTotal.WithLabelValues("incr").Inc()
 		return false, fmt.Errorf("redis incr: %w", err)
 	}
 
@@ -91,6 +97,7 @@ func (s *Service) PipelineCheck(ctx context.Context, campaignID int64, userID st
 	budgetKey := dailyBudgetKey(campaignID)
 	remaining, err := deductBudgetScript.Run(ctx, s.rdb, []string{budgetKey}, bidAmountCents).Int64()
 	if err != nil {
+		observability.RedisErrorsTotal.WithLabelValues("incr").Inc()
 		return false, false, fmt.Errorf("redis budget lua: %w", err)
 	}
 	budgetOK = remaining >= 0
@@ -103,6 +110,7 @@ func (s *Service) PipelineCheck(ctx context.Context, campaignID int64, userID st
 		freqKeyStr := freqKey(campaignID, userID)
 		count, ferr := s.rdb.Incr(ctx, freqKeyStr).Result()
 		if ferr != nil {
+			observability.RedisErrorsTotal.WithLabelValues("incr").Inc()
 			// Refund budget on freq check failure
 			if budgetOK {
 				s.rdb.IncrBy(ctx, budgetKey, bidAmountCents)

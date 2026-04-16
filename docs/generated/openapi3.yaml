@@ -191,14 +191,7 @@ paths:
           content:
             application/json:
               schema:
-                properties:
-                  circuit_breaker:
-                    type: string
-                  global_spend_today_cents:
-                    type: integer
-                  reason:
-                    type: string
-                type: object
+                $ref: "#/components/schemas/internal_handler.CircuitStatusResponse"
       security:
         - AdminAuth: []
       summary: Get circuit breaker status
@@ -279,14 +272,7 @@ paths:
           content:
             application/json:
               schema:
-                properties:
-                  active_campaigns:
-                    type: integer
-                  status:
-                    type: string
-                  time:
-                    type: string
-                type: object
+                $ref: "#/components/schemas/internal_handler.SystemHealthResponse"
       security:
         - AdminAuth: []
       summary: Get system health
@@ -1941,5 +1927,27 @@ components:
         expires_at:
           type: string
         token:
+          type: string
+      type: object
+    internal_handler.CircuitStatusResponse:
+      properties:
+        circuit_breaker:
+          type: string
+        global_spend_today_cents:
+          type: integer
+        reason:
+          type: string
+      type: object
+    internal_handler.SystemHealthResponse:
+      properties:
+        active_campaigns:
+          type: integer
+        clickhouse:
+          type: string
+        pending_registrations:
+          type: integer
+        redis:
+          type: string
+        status:
           type: string
       type: object
