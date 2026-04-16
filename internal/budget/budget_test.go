@@ -16,7 +16,9 @@ func newTestRedis(t *testing.T) *redis.Client {
 	t.Cleanup(func() {
 		ctx := context.Background()
 		keys, _ := rdb.Keys(ctx, "budget:daily:test-*").Result()
+		totalKeys, _ := rdb.Keys(ctx, "budget:total:*").Result()
 		freqKeys, _ := rdb.Keys(ctx, "freq:test-*").Result()
+		keys = append(keys, totalKeys...)
 		keys = append(keys, freqKeys...)
 		if len(keys) > 0 {
 			rdb.Del(ctx, keys...)
@@ -191,6 +193,111 @@ func TestPipelineCheck_FreqCapDoesNotDeductBudget(t *testing.T) {
 	rem, _ := svc.GetDailyBudgetRemaining(ctx, campaignID)
 	if rem != 10000 {
 		t.Errorf("expected budget to remain 10000 (check-only), got %d", rem)
+	}
+}
+
+func TestTotalBudget_DeductFromBoth(t *testing.T) {
+	rdb := newTestRedis(t)
+	svc := New(rdb)
+	ctx := context.Background()
+
+	campaignID := int64(-10)
+	svc.InitDailyBudget(ctx, campaignID, 5000)
+	svc.InitTotalBudget(ctx, campaignID, 20000)
+
+	// Deduct should reduce both daily and total
+	remaining, err := svc.CheckAndDeductBudget(ctx, campaignID, 100)
+	if err != nil {
+		t.Fatalf("deduct: %v", err)
+	}
+	if remaining != 4900 {
+		t.Errorf("expected daily remaining 4900, got %d", remaining)
+	}
+	totalRem, _ := svc.GetTotalBudgetRemaining(ctx, campaignID)
+	if totalRem != 19900 {
+		t.Errorf("expected total remaining 19900, got %d", totalRem)
+	}
+}
+
+func TestTotalBudget_ExhaustedBlocksDeduction(t *testing.T) {
+	rdb := newTestRedis(t)
+	svc := New(rdb)
+	ctx := context.Background()
+
+	campaignID := int64(-11)
+	svc.InitDailyBudget(ctx, campaignID, 5000)
+	svc.InitTotalBudget(ctx, campaignID, 50) // total is very low
+
+	// Deduct should fail because total budget is insufficient
+	remaining, err := svc.CheckAndDeductBudget(ctx, campaignID, 100)
+	if err != nil {
+		t.Fatalf("deduct: %v", err)
+	}
+	if remaining != -2 {
+		t.Errorf("expected -2 (total exhausted), got %d", remaining)
+	}
+
+	// Verify neither was deducted
+	dailyRem, _ := svc.GetDailyBudgetRemaining(ctx, campaignID)
+	if dailyRem != 5000 {
+		t.Errorf("expected daily to stay at 5000, got %d", dailyRem)
+	}
+	totalRem, _ := svc.GetTotalBudgetRemaining(ctx, campaignID)
+	if totalRem != 50 {
+		t.Errorf("expected total to stay at 50, got %d", totalRem)
+	}
+}
+
+func TestTotalBudget_NoTotalKeyAllowsDeduction(t *testing.T) {
+	rdb := newTestRedis(t)
+	svc := New(rdb)
+	ctx := context.Background()
+
+	campaignID := int64(-12)
+	svc.InitDailyBudget(ctx, campaignID, 5000)
+	// Don't init total — should still work (backwards compatible)
+
+	remaining, err := svc.CheckAndDeductBudget(ctx, campaignID, 100)
+	if err != nil {
+		t.Fatalf("deduct: %v", err)
+	}
+	if remaining != 4900 {
+		t.Errorf("expected 4900, got %d", remaining)
+	}
+}
+
+func TestPipelineCheck_TotalBudgetExhausted(t *testing.T) {
+	rdb := newTestRedis(t)
+	svc := New(rdb)
+	ctx := context.Background()
+
+	campaignID := int64(-13)
+	svc.InitDailyBudget(ctx, campaignID, 5000)
+	svc.InitTotalBudget(ctx, campaignID, 50)
+
+	// PipelineCheck should return budgetOK=false because total < amount
+	budgetOK, _, err := svc.PipelineCheck(ctx, campaignID, "", 100, 0, 0)
+	if err != nil {
+		t.Fatalf("pipeline check: %v", err)
+	}
+	if budgetOK {
+		t.Error("expected budget NOT OK when total budget insufficient")
+	}
+}
+
+func TestInitTotalBudget_SetNX(t *testing.T) {
+	rdb := newTestRedis(t)
+	svc := New(rdb)
+	ctx := context.Background()
+
+	campaignID := int64(-14)
+	svc.InitTotalBudget(ctx, campaignID, 10000)
+
+	// Second init should NOT overwrite (SetNX)
+	svc.InitTotalBudget(ctx, campaignID, 99999)
+	rem, _ := svc.GetTotalBudgetRemaining(ctx, campaignID)
+	if rem != 10000 {
+		t.Errorf("expected 10000 (SetNX should not overwrite), got %d", rem)
 	}
 }
 

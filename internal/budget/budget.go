@@ -19,43 +19,65 @@ func New(rdb *redis.Client) *Service {
 	return &Service{rdb: rdb}
 }
 
-// Budget keys: budget:daily:{campaign_id}:{date}
+// Budget keys: budget:daily:{campaign_id}:{date}  (daily remaining, TTL 25h)
+//              budget:total:{campaign_id}          (total remaining, no TTL)
 // Freq keys:   freq:{campaign_id}:{user_id}
 
-// deductBudgetScript is a Lua script that atomically checks and deducts budget.
-// Returns remaining budget if sufficient, or -1 if exhausted (no deduction made).
+// deductBudgetScript atomically checks and deducts from BOTH daily and total
+// budget counters. If either is insufficient, neither is deducted.
+// KEYS[1] = daily budget key, KEYS[2] = total budget key
+// ARGV[1] = amount to deduct
+// Returns: remaining daily budget if both sufficient, -1 if daily exhausted,
+// -2 if total exhausted.
 // Used ONLY at win/click time (CheckAndDeductBudget), NOT at bid time.
 var deductBudgetScript = redis.NewScript(`
-local key = KEYS[1]
+local dailyKey = KEYS[1]
+local totalKey = KEYS[2]
 local amount = tonumber(ARGV[1])
-local current = tonumber(redis.call('GET', key) or '0')
-if current < amount then
+local dailyCurrent = tonumber(redis.call('GET', dailyKey) or '0')
+if dailyCurrent < amount then
   return -1
 end
-return redis.call('DECRBY', key, amount)
+local totalCurrent = tonumber(redis.call('GET', totalKey) or '0')
+if totalCurrent > 0 and totalCurrent < amount then
+  return -2
+end
+if totalCurrent > 0 then
+  redis.call('DECRBY', totalKey, amount)
+end
+return redis.call('DECRBY', dailyKey, amount)
 `)
 
-// checkBudgetScript is a Lua script that checks budget WITHOUT deducting.
-// Returns remaining budget if sufficient, or -1 if exhausted.
-// Used at bid time (PipelineCheck) to avoid double-deduction: the real
-// deduction happens at win/click time via deductBudgetScript.
+// checkBudgetScript checks BOTH daily and total budget WITHOUT deducting.
+// KEYS[1] = daily budget key, KEYS[2] = total budget key
+// ARGV[1] = amount needed
+// Returns: remaining daily budget if both sufficient, -1 if daily exhausted,
+// -2 if total exhausted.
+// Used at bid time (PipelineCheck) to avoid double-deduction.
 var checkBudgetScript = redis.NewScript(`
-local key = KEYS[1]
+local dailyKey = KEYS[1]
+local totalKey = KEYS[2]
 local amount = tonumber(ARGV[1])
-local current = tonumber(redis.call('GET', key) or '0')
-if current < amount then
+local dailyCurrent = tonumber(redis.call('GET', dailyKey) or '0')
+if dailyCurrent < amount then
   return -1
 end
-return current
+local totalCurrent = tonumber(redis.call('GET', totalKey) or '0')
+if totalCurrent > 0 and totalCurrent < amount then
+  return -2
+end
+return dailyCurrent
 `)
 
-// CheckAndDeductBudget atomically checks and deducts from daily budget using Lua.
-// Returns remaining budget in cents, or -1 if exhausted.
+// CheckAndDeductBudget atomically checks and deducts from both daily and total
+// budget using Lua. Returns remaining daily budget in cents, or -1 if daily
+// exhausted, or -2 if total exhausted.
 func (s *Service) CheckAndDeductBudget(ctx context.Context, campaignID int64, amountCents int64) (int64, error) {
-	key := dailyBudgetKey(campaignID)
-	result, err := deductBudgetScript.Run(ctx, s.rdb, []string{key}, amountCents).Int64()
+	dailyKey := dailyBudgetKey(campaignID)
+	totalKey := totalBudgetKey(campaignID)
+	result, err := deductBudgetScript.Run(ctx, s.rdb, []string{dailyKey, totalKey}, amountCents).Int64()
 	if err != nil {
-		observability.RedisErrorsTotal.WithLabelValues("incr").Inc()
+		observability.RedisErrorsTotal.WithLabelValues("deduct").Inc()
 		return -1, fmt.Errorf("redis budget lua: %w", err)
 	}
 	return result, nil
@@ -73,6 +95,31 @@ func (s *Service) InitDailyBudget(ctx context.Context, campaignID int64, budgetC
 // GetDailyBudgetRemaining returns remaining daily budget in cents.
 func (s *Service) GetDailyBudgetRemaining(ctx context.Context, campaignID int64) (int64, error) {
 	key := dailyBudgetKey(campaignID)
+	val, err := s.rdb.Get(ctx, key).Int64()
+	if err == redis.Nil {
+		return 0, nil
+	}
+	if err != nil {
+		observability.RedisErrorsTotal.WithLabelValues("get").Inc()
+	}
+	return val, err
+}
+
+// InitTotalBudget sets the total (lifetime) budget for a campaign in Redis.
+// Called when a campaign is loaded/started. Uses SetNX so it doesn't reset
+// a counter that's already been partially spent.
+func (s *Service) InitTotalBudget(ctx context.Context, campaignID int64, budgetCents int64) error {
+	if budgetCents <= 0 {
+		return nil // no total budget constraint
+	}
+	key := totalBudgetKey(campaignID)
+	// SetNX: only set if not already present, so reloads don't reset spent budget
+	return s.rdb.SetNX(ctx, key, budgetCents, 0).Err()
+}
+
+// GetTotalBudgetRemaining returns remaining total (lifetime) budget in cents.
+func (s *Service) GetTotalBudgetRemaining(ctx context.Context, campaignID int64) (int64, error) {
+	key := totalBudgetKey(campaignID)
 	val, err := s.rdb.Get(ctx, key).Int64()
 	if err == redis.Nil {
 		return 0, nil
@@ -133,9 +180,10 @@ return 1
 // Frequency cap uses an atomic Lua script that checks-then-increments to
 // avoid the race condition where concurrent INCR-then-check could exceed cap.
 func (s *Service) PipelineCheck(ctx context.Context, campaignID int64, userID string, bidAmountCents int64, freqCap int, freqPeriodHours int) (budgetOK bool, freqOK bool, err error) {
-	// Check-only budget via Lua (no deduction)
-	budgetKey := dailyBudgetKey(campaignID)
-	remaining, err := checkBudgetScript.Run(ctx, s.rdb, []string{budgetKey}, bidAmountCents).Int64()
+	// Check-only budget via Lua (no deduction) — checks both daily and total
+	dailyKey := dailyBudgetKey(campaignID)
+	totalKey := totalBudgetKey(campaignID)
+	remaining, err := checkBudgetScript.Run(ctx, s.rdb, []string{dailyKey, totalKey}, bidAmountCents).Int64()
 	if err != nil {
 		observability.RedisErrorsTotal.WithLabelValues("check").Inc()
 		return false, false, fmt.Errorf("redis budget check lua: %w", err)
@@ -163,6 +211,10 @@ func (s *Service) PipelineCheck(ctx context.Context, campaignID int64, userID st
 func dailyBudgetKey(campaignID int64) string {
 	date := time.Now().In(config.CSTLocation).Format("2006-01-02")
 	return fmt.Sprintf("budget:daily:%d:%s", campaignID, date)
+}
+
+func totalBudgetKey(campaignID int64) string {
+	return fmt.Sprintf("budget:total:%d", campaignID)
 }
 
 func freqKey(campaignID int64, userID string) string {
