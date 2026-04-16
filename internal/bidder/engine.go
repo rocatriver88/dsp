@@ -142,7 +142,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 			continue
 		}
 
-		if !matchesTargeting(c, geoCountry, deviceOS) {
+		if !matchesTargeting(c, geoCountry, deviceOS, req.Device.UA, now) {
 			continue
 		}
 
@@ -290,7 +290,19 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 	return resp, nil
 }
 
-func matchesTargeting(c *LoadedCampaign, geo, os string) bool {
+// cstLocation is Asia/Shanghai (UTC+8), loaded once at package init.
+var cstLocation *time.Location
+
+func init() {
+	var err error
+	cstLocation, err = time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		// Fallback: fixed offset UTC+8
+		cstLocation = time.FixedZone("CST", 8*60*60)
+	}
+}
+
+func matchesTargeting(c *LoadedCampaign, geo, os, ua string, now time.Time) bool {
 	t := c.Targeting
 
 	if len(t.Geo) > 0 && geo != "" {
@@ -307,6 +319,30 @@ func matchesTargeting(c *LoadedCampaign, geo, os string) bool {
 
 	if len(t.Device) > 0 {
 		// Device targeting checked at impression level if needed
+	}
+
+	// Time schedule: check if current hour (CST) is in any schedule entry
+	if len(t.TimeSchedule) > 0 {
+		cstNow := now.In(cstLocation)
+		weekday := int(cstNow.Weekday()) // 0=Sun matches Schedule.Day
+		hour := cstNow.Hour()
+		matched := false
+		for _, sched := range t.TimeSchedule {
+			if sched.Day == weekday && containsInt(sched.Hours, hour) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	// Browser targeting: check if UA contains any of the target browsers
+	if len(t.Browser) > 0 && ua != "" {
+		if !containsAnySubstring(ua, t.Browser) {
+			return false
+		}
 	}
 
 	return true
@@ -392,6 +428,27 @@ func campaignDateActive(c *LoadedCampaign, now time.Time) bool {
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+func containsInt(slice []int, item int) bool {
+	for _, v := range slice {
+		if v == item {
+			return true
+		}
+	}
+	return false
+}
+
+// containsAnySubstring returns true if haystack contains any of the needles
+// as a case-insensitive substring. Used for browser UA matching.
+func containsAnySubstring(haystack string, needles []string) bool {
+	lower := strings.ToLower(haystack)
+	for _, n := range needles {
+		if strings.Contains(lower, strings.ToLower(n)) {
 			return true
 		}
 	}

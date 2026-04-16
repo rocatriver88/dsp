@@ -75,37 +75,86 @@ func TestBillingModelRanking_CPCWinsOverCPM(t *testing.T) {
 }
 
 func TestMatchesTargeting_GeoMatch(t *testing.T) {
+	now := time.Now()
 	c := &LoadedCampaign{Targeting: campaign.Targeting{Geo: []string{"CN", "US"}}}
-	if !matchesTargeting(c, "CN", "") {
+	if !matchesTargeting(c, "CN", "", "", now) {
 		t.Error("CN should match")
 	}
-	if matchesTargeting(c, "JP", "") {
+	if matchesTargeting(c, "JP", "", "", now) {
 		t.Error("JP should not match")
 	}
 }
 
 func TestMatchesTargeting_OSMatch(t *testing.T) {
+	now := time.Now()
 	c := &LoadedCampaign{Targeting: campaign.Targeting{OS: []string{"iOS", "Android"}}}
-	if !matchesTargeting(c, "", "iOS") {
+	if !matchesTargeting(c, "", "iOS", "", now) {
 		t.Error("iOS should match")
 	}
-	if matchesTargeting(c, "", "Windows") {
+	if matchesTargeting(c, "", "Windows", "", now) {
 		t.Error("Windows should not match")
 	}
 }
 
 func TestMatchesTargeting_NoTargeting(t *testing.T) {
+	now := time.Now()
 	c := &LoadedCampaign{Targeting: campaign.Targeting{}}
-	if !matchesTargeting(c, "CN", "iOS") {
+	if !matchesTargeting(c, "CN", "iOS", "", now) {
 		t.Error("empty targeting should match all")
 	}
 }
 
 func TestMatchesTargeting_EmptyRequestGeo(t *testing.T) {
+	now := time.Now()
 	c := &LoadedCampaign{Targeting: campaign.Targeting{Geo: []string{"CN"}}}
 	// Empty geo in request should still match (targeting can't filter unknown geo)
-	if !matchesTargeting(c, "", "iOS") {
+	if !matchesTargeting(c, "", "iOS", "", now) {
 		t.Error("empty request geo should pass through")
+	}
+}
+
+func TestMatchesTargeting_TimeSchedule(t *testing.T) {
+	// Create a time in CST and build a schedule that matches it
+	cst := time.FixedZone("CST", 8*60*60)
+	now := time.Date(2026, 4, 16, 10, 30, 0, 0, cst) // Thursday 10:30 CST -> weekday=4
+	c := &LoadedCampaign{Targeting: campaign.Targeting{
+		TimeSchedule: []campaign.Schedule{
+			{Day: 4, Hours: []int{9, 10, 11}}, // Thursday 9-11
+		},
+	}}
+	if !matchesTargeting(c, "", "", "", now) {
+		t.Error("should match: Thursday 10:30 CST is in schedule")
+	}
+
+	// Different hour: 15:00 not in schedule
+	nowOff := time.Date(2026, 4, 16, 15, 0, 0, 0, cst)
+	if matchesTargeting(c, "", "", "", nowOff) {
+		t.Error("should NOT match: Thursday 15:00 CST is not in schedule")
+	}
+
+	// Different day: Friday
+	nowFri := time.Date(2026, 4, 17, 10, 0, 0, 0, cst)
+	if matchesTargeting(c, "", "", "", nowFri) {
+		t.Error("should NOT match: Friday 10:00 not in Thursday schedule")
+	}
+}
+
+func TestMatchesTargeting_Browser(t *testing.T) {
+	now := time.Now()
+	c := &LoadedCampaign{Targeting: campaign.Targeting{
+		Browser: []string{"Chrome", "Firefox"},
+	}}
+	chromeUA := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	if !matchesTargeting(c, "", "", chromeUA, now) {
+		t.Error("Chrome UA should match")
+	}
+	safariUA := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+	if matchesTargeting(c, "", "", safariUA, now) {
+		t.Error("Safari UA should NOT match Chrome/Firefox targeting")
+	}
+	// Empty UA should pass through (can't filter unknown browser)
+	if !matchesTargeting(c, "", "", "", now) {
+		t.Error("empty UA should pass through")
 	}
 }
 
