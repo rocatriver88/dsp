@@ -91,15 +91,18 @@ func TestCheckFrequency_OverCap(t *testing.T) {
 	svc := New(rdb)
 	ctx := context.Background()
 
-	// Hit 3 times with cap of 2
-	svc.CheckFrequency(ctx, -4, "user-test-2", 2, 24)
-	svc.CheckFrequency(ctx, -4, "user-test-2", 2, 24)
-	ok, err := svc.CheckFrequency(ctx, -4, "user-test-2", 2, 24)
+	// Hit cap=2: first two calls succeed, third is blocked
+	ok1, _ := svc.CheckFrequency(ctx, -4, "user-test-2", 2, 24)
+	ok2, _ := svc.CheckFrequency(ctx, -4, "user-test-2", 2, 24)
+	ok3, err := svc.CheckFrequency(ctx, -4, "user-test-2", 2, 24)
 	if err != nil {
 		t.Fatalf("freq check: %v", err)
 	}
-	if ok {
-		t.Error("expected over cap after 3 hits with cap=2")
+	if !ok1 || !ok2 {
+		t.Error("expected first two calls under cap")
+	}
+	if ok3 {
+		t.Error("expected over cap on third hit with cap=2 (atomic check-then-incr)")
 	}
 }
 

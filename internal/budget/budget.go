@@ -130,27 +130,24 @@ func (s *Service) GetTotalBudgetRemaining(ctx context.Context, campaignID int64)
 	return val, err
 }
 
-// CheckFrequency checks if user has reached frequency cap. Returns true if under cap.
+// CheckFrequency atomically checks if user is under frequency cap, incrementing
+// only if allowed. Returns true if under cap.
+//
+// Uses checkFreqScript (Lua) to atomically check-then-increment, fixing the
+// race condition where the old INCR-then-check pattern could exceed the cap
+// under concurrent requests for the same user+campaign.
 func (s *Service) CheckFrequency(ctx context.Context, campaignID int64, userID string, maxCount int, periodHours int) (bool, error) {
 	if userID == "" {
 		return true, nil // no user ID (GDPR), skip freq check
 	}
 	key := freqKey(campaignID, userID)
-	count, err := s.rdb.Incr(ctx, key).Result()
+	ttlSeconds := int64(periodHours) * 3600
+	allowed, err := checkFreqScript.Run(ctx, s.rdb, []string{key}, maxCount, ttlSeconds).Int64()
 	if err != nil {
-		observability.RedisErrorsTotal.WithLabelValues("incr").Inc()
-		return false, fmt.Errorf("redis incr: %w", err)
+		observability.RedisErrorsTotal.WithLabelValues("freq").Inc()
+		return false, fmt.Errorf("redis freq lua: %w", err)
 	}
-
-	// Set TTL on first increment
-	if count == 1 {
-		s.rdb.Expire(ctx, key, time.Duration(periodHours)*time.Hour)
-	}
-
-	if count > int64(maxCount) {
-		return false, nil // over cap
-	}
-	return true, nil
+	return allowed == 1, nil
 }
 
 // checkFreqScript is a Lua script that atomically checks frequency cap
