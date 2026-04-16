@@ -3,10 +3,14 @@ package bidder
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/antifraud"
 	"github.com/heartgryphon/dsp/internal/budget"
+	"github.com/heartgryphon/dsp/internal/campaign"
+	"github.com/heartgryphon/dsp/internal/config"
 	"github.com/heartgryphon/dsp/internal/events"
 	"github.com/heartgryphon/dsp/internal/guardrail"
 	"github.com/heartgryphon/dsp/internal/observability"
@@ -65,12 +69,14 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		geoCountry = req.Device.Geo.Country
 	}
 
-	// OpenRTB 2.5: require secure creative if imp.secure=1
+	// OpenRTB 2.5: require secure creative if imp.secure=1 or site is HTTPS
 	requireSecure := false
 	if imp.Secure != nil && *imp.Secure == 1 {
 		requireSecure = true
 	}
-	_ = requireSecure // TODO: filter creatives by secure flag
+	if !requireSecure && req.Site != nil && strings.HasPrefix(req.Site.Page, "https") {
+		requireSecure = true
+	}
 
 	// OpenRTB 2.5: respect bidfloor
 	bidFloor := imp.BidFloor
@@ -129,13 +135,23 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 
 	// Find matching campaigns from in-memory cache
 	candidates := e.loader.GetActiveCampaigns()
+	now := time.Now()
 	var best *LoadedCampaign
+	var bestCreative *campaign.Creative
 	var bestBidCPM int
 	for _, c := range candidates {
-		if !matchesTargeting(c, geoCountry, deviceOS) {
+		// Defense in depth: loader cache may be stale for up to 30s
+		if !campaignDateActive(c, now) {
 			continue
 		}
-		if len(c.Creatives) == 0 {
+
+		if !matchesTargeting(c, geoCountry, deviceOS, req.Device.UA, now) {
+			continue
+		}
+
+		// Match creative to impression slot size + secure flag
+		matched := matchCreativeToImp(c.Creatives, &imp, requireSecure)
+		if matched == nil {
 			continue
 		}
 
@@ -172,6 +188,7 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 
 		if best == nil || bidCPM > bestBidCPM {
 			best = c
+			bestCreative = matched
 			bestBidCPM = bidCPM
 		}
 	}
@@ -221,8 +238,8 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		go e.strategy.RecordBid(context.Background(), bestID)
 	}
 
-	// Pick first creative
-	creative := best.Creatives[0]
+	// Use the creative matched to the impression slot
+	creative := bestCreative
 	// Markup: bid to ADX at 90% of adjusted bid (platform keeps 10%)
 	bidPrice := float64(bestBidCPM) * 0.90 / 100.0 / 1000.0 // CPM cents × 0.90 → dollars per impression
 	bidID := fmt.Sprintf("bid-%d-%d", best.ID, time.Now().UnixNano())
@@ -276,7 +293,11 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 	return resp, nil
 }
 
-func matchesTargeting(c *LoadedCampaign, geo, os string) bool {
+// config.CSTLocation reuses the package-level config.CSTLocation to avoid
+// duplicate timezone loading. Both the engine and budget modules share
+// the same timezone reference.
+
+func matchesTargeting(c *LoadedCampaign, geo, os, ua string, now time.Time) bool {
 	t := c.Targeting
 
 	if len(t.Geo) > 0 && geo != "" {
@@ -295,12 +316,171 @@ func matchesTargeting(c *LoadedCampaign, geo, os string) bool {
 		// Device targeting checked at impression level if needed
 	}
 
+	// Time schedule: check if current hour (CST) is in any schedule entry
+	if len(t.TimeSchedule) > 0 {
+		cstNow := now.In(config.CSTLocation)
+		weekday := int(cstNow.Weekday()) // 0=Sun matches Schedule.Day
+		hour := cstNow.Hour()
+		matched := false
+		for _, sched := range t.TimeSchedule {
+			if sched.Day == weekday && containsInt(sched.Hours, hour) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	// Browser targeting: check if UA contains any of the target browsers
+	if len(t.Browser) > 0 && ua != "" {
+		if !containsAnySubstring(ua, t.Browser) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// matchCreativeToImp returns the first creative that matches the impression's
+// size requirements and secure flag, or nil if none match. For banner
+// impressions it checks Banner.W/H and Banner.Format against creative.Size
+// ("WxH"). For non-banner impressions (video, native), any creative is
+// accepted since size matching doesn't apply.
+//
+// When requireSecure is true, only HTTPS-safe creatives are eligible.
+// Banner creatives are assumed secure; native and interstitial may not be.
+func matchCreativeToImp(creatives []*campaign.Creative, imp *openrtb2.Imp, requireSecure bool) *campaign.Creative {
+	if imp.Banner == nil {
+		// Non-banner: accept first secure-eligible creative
+		for _, cr := range creatives {
+			if requireSecure && !isCreativeSecure(cr) {
+				continue
+			}
+			return cr
+		}
+		return nil
+	}
+
+	// Collect acceptable sizes from the impression
+	type size struct{ w, h int64 }
+	var acceptable []size
+	if imp.Banner.W != nil && imp.Banner.H != nil {
+		acceptable = append(acceptable, size{*imp.Banner.W, *imp.Banner.H})
+	}
+	for _, f := range imp.Banner.Format {
+		if f.W != 0 && f.H != 0 {
+			acceptable = append(acceptable, size{f.W, f.H})
+		}
+	}
+
+	// If the impression specifies no size, accept first secure-eligible creative
+	if len(acceptable) == 0 {
+		for _, cr := range creatives {
+			if requireSecure && !isCreativeSecure(cr) {
+				continue
+			}
+			return cr
+		}
+		return nil
+	}
+
+	for _, cr := range creatives {
+		if requireSecure && !isCreativeSecure(cr) {
+			continue
+		}
+		cw, ch, ok := parseCreativeSize(cr.Size)
+		if !ok {
+			continue // unparseable size, skip
+		}
+		for _, s := range acceptable {
+			if cw == s.w && ch == s.h {
+				return cr
+			}
+		}
+	}
+	return nil
+}
+
+// isCreativeSecure returns true if the creative is safe to serve on HTTPS pages.
+// Banner creatives are assumed secure (they typically use inline markup).
+// Native and interstitial creatives may reference external HTTP resources.
+func isCreativeSecure(cr *campaign.Creative) bool {
+	switch cr.AdType {
+	case campaign.AdTypeBanner:
+		return true // banner markup is inline, assumed secure
+	case campaign.AdTypeNative:
+		// Native creatives reference external image URLs; check they're HTTPS
+		if cr.NativeIconURL != "" && !strings.HasPrefix(cr.NativeIconURL, "https") {
+			return false
+		}
+		if cr.NativeImageURL != "" && !strings.HasPrefix(cr.NativeImageURL, "https") {
+			return false
+		}
+		return true
+	default:
+		// Interstitial/splash: check destination URL and markup for HTTPS
+		if cr.DestinationURL != "" && !strings.HasPrefix(cr.DestinationURL, "https") {
+			return false
+		}
+		return true
+	}
+}
+
+// parseCreativeSize parses a "WxH" string (e.g. "300x250") into width and height.
+func parseCreativeSize(s string) (w, h int64, ok bool) {
+	parts := strings.SplitN(s, "x", 2)
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	w, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return 0, 0, false
+	}
+	h, err = strconv.ParseInt(parts[1], 10, 64)
+	if err != nil {
+		return 0, 0, false
+	}
+	return w, h, true
+}
+
+// campaignDateActive returns true if the campaign's date window includes the given time.
+// A nil StartDate/EndDate means no bound in that direction.
+func campaignDateActive(c *LoadedCampaign, now time.Time) bool {
+	if c.StartDate != nil && now.Before(*c.StartDate) {
+		return false
+	}
+	if c.EndDate != nil && now.After(*c.EndDate) {
+		return false
+	}
 	return true
 }
 
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+func containsInt(slice []int, item int) bool {
+	for _, v := range slice {
+		if v == item {
+			return true
+		}
+	}
+	return false
+}
+
+// containsAnySubstring returns true if haystack contains any of the needles
+// as a case-insensitive substring. Used for browser UA matching.
+func containsAnySubstring(haystack string, needles []string) bool {
+	lower := strings.ToLower(haystack)
+	for _, n := range needles {
+		if strings.Contains(lower, strings.ToLower(n)) {
 			return true
 		}
 	}

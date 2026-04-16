@@ -111,8 +111,9 @@ func TestBudget_ConcurrentAtomicity(t *testing.T) {
 		successes.Load(), failures.Load(), got)
 }
 
-// Scenario 11 — PipelineCheck rolls budget back when freq cap is hit.
-func TestBudget_PipelineFreqRollback(t *testing.T) {
+// Scenario 11 — PipelineCheck is check-only at bid time; budget never deducted.
+// Freq cap uses atomic check-then-increment (no over-counting).
+func TestBudget_PipelineCheckOnly(t *testing.T) {
 	h := qaharness.New(t)
 	campID := int64(900004)
 	svc := budget.New(h.RDB)
@@ -122,17 +123,18 @@ func TestBudget_PipelineFreqRollback(t *testing.T) {
 
 	user := "qa-user-1"
 
-	// 1st call: both OK; budget becomes 9950
+	// 1st call: both OK; budget stays at 10000 (check-only, no deduction)
 	bOK, fOK, err := svc.PipelineCheck(h.Ctx, campID, user, 50, 2, 24)
 	if err != nil || !bOK || !fOK {
 		t.Fatalf("1st: err=%v bOK=%v fOK=%v", err, bOK, fOK)
 	}
-	// 2nd call: both OK; budget becomes 9900
+	// 2nd call: both OK; budget stays at 10000
 	bOK, fOK, err = svc.PipelineCheck(h.Ctx, campID, user, 50, 2, 24)
 	if err != nil || !bOK || !fOK {
 		t.Fatalf("2nd: err=%v bOK=%v fOK=%v", err, bOK, fOK)
 	}
-	// 3rd call: freq cap hit, budget must roll back.
+	// 3rd call: freq cap hit (atomic check-then-increment: cap=2, already at 2).
+	// Budget is still OK because PipelineCheck is check-only.
 	bOK, fOK, err = svc.PipelineCheck(h.Ctx, campID, user, 50, 2, 24)
 	if err != nil {
 		t.Fatal(err)
@@ -140,12 +142,13 @@ func TestBudget_PipelineFreqRollback(t *testing.T) {
 	if fOK {
 		t.Error("expected freq cap to block 3rd call")
 	}
-	// Budget MUST still be 9900 (not 9850) — proves the rollback in PipelineCheck.
-	if got := h.GetBudgetRemaining(campID); got != 9900 {
-		t.Errorf("budget should remain at 9900 after freq rollback, got %d", got)
+	// Budget MUST still be 10000 — PipelineCheck never deducts.
+	if got := h.GetBudgetRemaining(campID); got != 10_000 {
+		t.Errorf("budget should remain at 10000 (check-only), got %d", got)
 	}
-	// Freq counter should have been incremented three times regardless.
-	if got := h.GetFreqCount(campID, user); got != 3 {
-		t.Errorf("freq count should be 3, got %d", got)
+	// Freq counter should be exactly 2 (atomic check-then-increment: 3rd call
+	// saw count=2 >= cap=2, so it did NOT increment).
+	if got := h.GetFreqCount(campID, user); got != 2 {
+		t.Errorf("freq count should be 2 (atomic check-then-incr), got %d", got)
 	}
 }

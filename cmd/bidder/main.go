@@ -82,7 +82,7 @@ func main() {
 	budgetSvc := budget.New(rdb)
 	strategySvc := bidder.NewBidStrategy(rdb)
 	fraudFilter := antifraud.NewFilter(rdb)
-	loader := bidder.NewCampaignLoader(db, rdb)
+	loader := bidder.NewCampaignLoader(db, rdb, bidder.WithBudgetService(budgetSvc))
 
 	// Connect ClickHouse for stats cache (optional — falls back to defaults)
 	var reportStore *reporting.Store

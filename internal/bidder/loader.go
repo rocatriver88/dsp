@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -24,6 +25,7 @@ type CampaignLoader struct {
 	db              *pgxpool.Pool
 	rdb             *redis.Client
 	store           *campaign.Store
+	budgetSvc       *budget.Service // optional; if set, total budget is initialized on load
 	mu              sync.RWMutex
 	campaigns       map[int64]*LoadedCampaign
 	stopCh          chan struct{}
@@ -41,6 +43,13 @@ func WithRefreshInterval(d time.Duration) LoaderOption {
 	return func(cl *CampaignLoader) { cl.refreshInterval = d }
 }
 
+// WithBudgetService enables total budget initialization on campaign load.
+// When set, the loader calls budgetSvc.InitTotalBudget for every campaign
+// after fullLoad and on incremental pub/sub "activated"/"updated" events.
+func WithBudgetService(svc *budget.Service) LoaderOption {
+	return func(cl *CampaignLoader) { cl.budgetSvc = svc }
+}
+
 // LoadedCampaign is a campaign ready for bidding with parsed targeting.
 type LoadedCampaign struct {
 	ID                 int64
@@ -53,6 +62,7 @@ type LoadedCampaign struct {
 	BudgetTotalCents   int64
 	BudgetDailyCents   int64
 	StartDate          *time.Time
+	EndDate            *time.Time
 	Targeting          campaign.Targeting
 	Creatives          []*campaign.Creative
 }
@@ -197,6 +207,7 @@ func (cl *CampaignLoader) fullLoad(ctx context.Context) error {
 			BudgetTotalCents:   c.BudgetTotalCents,
 			BudgetDailyCents:   c.BudgetDailyCents,
 			StartDate:          c.StartDate,
+			EndDate:            c.EndDate,
 			Targeting:          targeting,
 			Creatives:          creativesMap[c.ID],
 		}
@@ -205,6 +216,18 @@ func (cl *CampaignLoader) fullLoad(ctx context.Context) error {
 	cl.mu.Lock()
 	cl.campaigns = newMap
 	cl.mu.Unlock()
+
+	// Initialize total budget counters in Redis for all loaded campaigns.
+	// Uses SetNX so reloads don't reset partially spent counters.
+	if cl.budgetSvc != nil {
+		for _, lc := range newMap {
+			if lc.BudgetTotalCents > 0 {
+				if err := cl.budgetSvc.InitTotalBudget(ctx, lc.ID, lc.BudgetTotalCents); err != nil {
+					log.Printf("[LOADER] init total budget for campaign %d: %v", lc.ID, err)
+				}
+			}
+		}
+	}
 
 	return nil
 }
@@ -230,8 +253,10 @@ func (cl *CampaignLoader) toCampaignWithCreatives(ctx context.Context, c *campai
 		BidCPMCents:        c.BidCPMCents,
 		BidCPCCents:        c.BidCPCCents,
 		OCPMTargetCPACents: c.OCPMTargetCPACents,
+		BudgetTotalCents:   c.BudgetTotalCents,
 		BudgetDailyCents:   c.BudgetDailyCents,
 		StartDate:          c.StartDate,
+		EndDate:            c.EndDate,
 		Targeting:          targeting,
 		Creatives:          creatives,
 	}, nil
@@ -297,6 +322,12 @@ func (cl *CampaignLoader) listenPubSub(ctx context.Context, sub *redis.PubSub) {
 					cl.mu.Lock()
 					cl.campaigns[c.ID] = loaded
 					cl.mu.Unlock()
+					// Initialize total budget on activation/update
+					if cl.budgetSvc != nil && loaded.BudgetTotalCents > 0 {
+						if err := cl.budgetSvc.InitTotalBudget(ctx, loaded.ID, loaded.BudgetTotalCents); err != nil {
+							log.Printf("[LOADER] init total budget for campaign %d: %v", loaded.ID, err)
+						}
+					}
 				}
 			case "paused", "completed", "deleted":
 				cl.mu.Lock()

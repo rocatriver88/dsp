@@ -213,6 +213,8 @@ func (s *Store) ListActiveCampaigns(ctx context.Context) ([]*Campaign, error) {
 		        c.start_date, c.end_date, c.targeting, c.pause_reason, c.paused_at, c.created_at, c.updated_at
 		 FROM campaigns c
 		 WHERE c.status = 'active'
+		   AND (c.start_date IS NULL OR c.start_date <= NOW())
+		   AND (c.end_date IS NULL OR c.end_date >= NOW())
 		 ORDER BY c.bid_cpm_cents DESC`,
 	)
 	if err != nil {
