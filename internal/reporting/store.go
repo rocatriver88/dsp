@@ -45,6 +45,35 @@ func (s *Store) InsertEvent(ctx context.Context, evt BidEvent) error {
 	)
 }
 
+// InsertBatch inserts multiple events into bid_log in a single batch.
+// ClickHouse is optimized for batch inserts; this dramatically reduces
+// insert overhead compared to one-at-a-time InsertEvent calls.
+func (s *Store) InsertBatch(ctx context.Context, events []BidEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+	batch, err := s.conn.PrepareBatch(ctx,
+		`INSERT INTO bid_log (event_date, event_time, campaign_id, creative_id, advertiser_id,
+		  exchange_id, request_id, geo_country, device_os, device_id, bid_price_cents, clear_price_cents,
+		  charge_cents, event_type, loss_reason)`)
+	if err != nil {
+		return fmt.Errorf("prepare batch: %w", err)
+	}
+	for _, evt := range events {
+		if err := batch.Append(
+			evt.EventTime, evt.EventTime,
+			evt.CampaignID, evt.CreativeID, evt.AdvertiserID,
+			evt.ExchangeID, evt.RequestID,
+			evt.GeoCountry, evt.DeviceOS, evt.DeviceID,
+			evt.BidPriceCents, evt.ClearPriceCents, evt.ChargeCents,
+			evt.EventType, evt.LossReason,
+		); err != nil {
+			return fmt.Errorf("append to batch: %w", err)
+		}
+	}
+	return batch.Send()
+}
+
 // BidEvent represents a row in bid_log.
 type BidEvent struct {
 	EventTime       time.Time
