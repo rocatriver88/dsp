@@ -104,12 +104,13 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("API_HMAC_SECRET must be set in production; refusing to start with the baked-in dev secret")
 	}
 	// HMAC-SHA256 with a trivially short key is security theatre. Enforce
-	// a 32-byte floor so a typo'd deploy (API_HMAC_SECRET=x) fails at
-	// startup rather than silently weakening the SSE token signature.
-	// BidderHMACSecret has the same latent hole but that hardening is
-	// deferred to Phase 2C.
+	// a 32-byte floor so a typo'd deploy fails at startup rather than
+	// silently weakening token signatures.
 	if len(c.APIHMACSecret) < 32 {
 		return fmt.Errorf("API_HMAC_SECRET must be at least 32 bytes for HMAC-SHA256; got %d", len(c.APIHMACSecret))
+	}
+	if len(c.BidderHMACSecret) < 32 {
+		return fmt.Errorf("BIDDER_HMAC_SECRET must be at least 32 bytes for HMAC-SHA256; got %d", len(c.BidderHMACSecret))
 	}
 	if getEnv("ADMIN_TOKEN", "") == "" {
 		return fmt.Errorf("ADMIN_TOKEN must be set in production; there is no default fallback")
