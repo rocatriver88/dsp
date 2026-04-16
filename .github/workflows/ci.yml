@@ -99,3 +99,27 @@ jobs:
       - name: Build
         working-directory: web
         run: npm run build
+
+  docs-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install swag
+        run: go install github.com/swaggo/swag/cmd/swag@latest
+
+      - name: Install npm deps
+        working-directory: web
+        run: npm ci
+
+      - name: Check generated contract is up to date
+        run: make docs-check
