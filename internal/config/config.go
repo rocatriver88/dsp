@@ -30,6 +30,7 @@ type Config struct {
 	ClickHousePassword string
 	APIPort            string
 	BidderPort         string
+	BidderInternalPort string
 	InternalPort       string
 	CORSAllowedOrigins string
 	BidderPublicURL    string
@@ -60,6 +61,7 @@ func Load() *Config {
 		ClickHousePassword: getEnv("CLICKHOUSE_PASSWORD", ""),
 		APIPort:            getEnv("API_PORT", "8181"),
 		BidderPort:         getEnv("BIDDER_PORT", "8180"),
+		BidderInternalPort: getEnv("BIDDER_INTERNAL_PORT", "8183"),
 		InternalPort:       getEnv("INTERNAL_PORT", "8182"),
 		CORSAllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", defaultCORSOrigins),
 		BidderPublicURL:    getEnv("BIDDER_PUBLIC_URL", "http://localhost:8180"),

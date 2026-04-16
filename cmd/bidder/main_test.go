@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/auth"
+	"github.com/heartgryphon/dsp/internal/bidder"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -125,6 +126,127 @@ func TestHandleClick_RejectsArbitraryDest_NoRedirect(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"status":"clicked"`) {
 		t.Errorf("/click body: expected status=clicked, got %s", rec.Body.String())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// V5.2C: /stats moved from public mux to internal mux behind admin auth.
+// Three invariants:
+//   1. /stats on the public mux returns 404
+//   2. /internal/stats on the internal mux without X-Admin-Token returns 401
+//   3. /internal/stats on the internal mux with valid token returns 200 + JSON
+// ---------------------------------------------------------------------------
+
+// TestStats_PublicMux_Returns404 verifies that /stats is no longer registered
+// on the public bidder mux after the V5.2C migration.
+func TestStats_PublicMux_Returns404(t *testing.T) {
+	d := &Deps{
+		// No collaborators needed — we're testing route registration, not
+		// handler behavior. The public mux no longer registers /stats at all.
+	}
+	mux := http.NewServeMux()
+	RegisterRoutes(mux, d)
+
+	req := httptest.NewRequest("GET", "/stats", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("V5.2C regression: GET /stats on public mux should be 404, got %d body=%s",
+			rec.Code, rec.Body.String())
+	}
+}
+
+// TestStats_InternalMux_RequiresAdminToken verifies that /internal/stats
+// returns 401 when no X-Admin-Token header is provided.
+func TestStats_InternalMux_RequiresAdminToken(t *testing.T) {
+	const testToken = "v5-2c-test-admin-token"
+	t.Setenv("ADMIN_TOKEN", testToken)
+
+	d := &Deps{
+		// Loader/BudgetSvc not needed — the request is rejected before
+		// reaching the handler.
+	}
+	mux := http.NewServeMux()
+	RegisterInternalRoutes(mux, d)
+
+	// No token at all
+	req := httptest.NewRequest("GET", "/internal/stats", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("V5.2C regression: GET /internal/stats without token should be 401, got %d body=%s",
+			rec.Code, rec.Body.String())
+	}
+
+	// Wrong token
+	req = httptest.NewRequest("GET", "/internal/stats", nil)
+	req.Header.Set("X-Admin-Token", "wrong-token")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("V5.2C regression: GET /internal/stats with wrong token should be 401, got %d body=%s",
+			rec.Code, rec.Body.String())
+	}
+}
+
+// TestStats_InternalMux_SuccessWithToken verifies that /internal/stats
+// returns 200 and valid JSON when the correct X-Admin-Token is provided.
+func TestStats_InternalMux_SuccessWithToken(t *testing.T) {
+	const testToken = "v5-2c-test-admin-token"
+	t.Setenv("ADMIN_TOKEN", testToken)
+
+	// Construct a CampaignLoader that was never started — GetActiveCampaigns
+	// returns an empty slice, which is a valid (empty) stats response.
+	loader := bidder.NewCampaignLoader(nil, nil)
+	d := &Deps{
+		Loader: loader,
+		// BudgetSvc: nil — handleStats only calls it inside the loop over
+		// active campaigns, and with no campaigns the loop doesn't execute.
+	}
+	mux := http.NewServeMux()
+	RegisterInternalRoutes(mux, d)
+
+	req := httptest.NewRequest("GET", "/internal/stats", nil)
+	req.Header.Set("X-Admin-Token", testToken)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /internal/stats with valid token: want 200, got %d body=%s",
+			rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type: want application/json, got %q", ct)
+	}
+	// With no active campaigns the response is an empty JSON array.
+	body := strings.TrimSpace(rec.Body.String())
+	if body != "[]" {
+		t.Errorf("body: want [], got %q", body)
+	}
+}
+
+// TestStats_InternalMux_FailsClosed_NoAdminToken verifies that when
+// ADMIN_TOKEN is not configured (empty), the endpoint returns 401 even
+// if the client sends an empty X-Admin-Token header (defense in depth
+// against matching "" == "").
+func TestStats_InternalMux_FailsClosed_NoAdminToken(t *testing.T) {
+	t.Setenv("ADMIN_TOKEN", "")
+
+	d := &Deps{}
+	mux := http.NewServeMux()
+	RegisterInternalRoutes(mux, d)
+
+	req := httptest.NewRequest("GET", "/internal/stats", nil)
+	req.Header.Set("X-Admin-Token", "")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("V5.2C regression: empty ADMIN_TOKEN + empty header should be 401, got %d body=%s",
+			rec.Code, rec.Body.String())
 	}
 }
 

@@ -170,13 +170,25 @@ func main() {
 	mux := http.NewServeMux()
 	RegisterRoutes(mux, deps)
 
+	internalMux := http.NewServeMux()
+	RegisterInternalRoutes(internalMux, deps)
+
 	addr := ":" + cfg.BidderPort
 	srv := &http.Server{Addr: addr, Handler: withLogging(mux)}
+
+	internalAddr := ":" + cfg.BidderInternalPort
+	internalSrv := &http.Server{Addr: internalAddr, Handler: withLogging(internalMux)}
 
 	go func() {
 		log.Printf("DSP Bidder listening on %s", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("bidder server: %v", err)
+		}
+	}()
+	go func() {
+		log.Printf("DSP Bidder (internal) listening on %s", internalAddr)
+		if err := internalSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("bidder internal server: %v", err)
 		}
 	}()
 
@@ -209,6 +221,7 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+	_ = internalSrv.Shutdown(shutdownCtx)
 
 	// Belt and suspenders: these each close their own stopCh in addition
 	// to honoring workerCtx.Done. Idempotent with the workerCancel above.
