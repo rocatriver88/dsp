@@ -129,7 +129,7 @@ func main() {
 	// Daily budget auto-reset at midnight CST (must start after loader).
 	// Bound to workerCtx so SIGTERM stops it cleanly.
 	go func() {
-		loc, _ := time.LoadLocation("Asia/Shanghai")
+		loc := config.CSTLocation
 		for {
 			now := time.Now().In(loc)
 			next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 5, 0, loc)
