@@ -108,6 +108,38 @@ func TestMatchesTargeting_EmptyRequestGeo(t *testing.T) {
 	}
 }
 
+func TestCampaignDateActive_PastEndDate(t *testing.T) {
+	past := time.Now().Add(-1 * time.Hour)
+	c := &LoadedCampaign{EndDate: &past}
+	if campaignDateActive(c, time.Now()) {
+		t.Error("campaign with past EndDate should be filtered out")
+	}
+}
+
+func TestCampaignDateActive_FutureStartDate(t *testing.T) {
+	future := time.Now().Add(1 * time.Hour)
+	c := &LoadedCampaign{StartDate: &future}
+	if campaignDateActive(c, time.Now()) {
+		t.Error("campaign with future StartDate should be filtered out")
+	}
+}
+
+func TestCampaignDateActive_WithinWindow(t *testing.T) {
+	start := time.Now().Add(-1 * time.Hour)
+	end := time.Now().Add(1 * time.Hour)
+	c := &LoadedCampaign{StartDate: &start, EndDate: &end}
+	if !campaignDateActive(c, time.Now()) {
+		t.Error("campaign within date window should be active")
+	}
+}
+
+func TestCampaignDateActive_NilDates(t *testing.T) {
+	c := &LoadedCampaign{}
+	if !campaignDateActive(c, time.Now()) {
+		t.Error("campaign with nil dates should always be active")
+	}
+}
+
 func TestLoadedCampaign_FieldsCopied(t *testing.T) {
 	// Verify that all billing model fields are properly set
 	now := time.Now()

@@ -129,9 +129,15 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 
 	// Find matching campaigns from in-memory cache
 	candidates := e.loader.GetActiveCampaigns()
+	now := time.Now()
 	var best *LoadedCampaign
 	var bestBidCPM int
 	for _, c := range candidates {
+		// Defense in depth: loader cache may be stale for up to 30s
+		if !campaignDateActive(c, now) {
+			continue
+		}
+
 		if !matchesTargeting(c, geoCountry, deviceOS) {
 			continue
 		}
@@ -295,6 +301,18 @@ func matchesTargeting(c *LoadedCampaign, geo, os string) bool {
 		// Device targeting checked at impression level if needed
 	}
 
+	return true
+}
+
+// campaignDateActive returns true if the campaign's date window includes the given time.
+// A nil StartDate/EndDate means no bound in that direction.
+func campaignDateActive(c *LoadedCampaign, now time.Time) bool {
+	if c.StartDate != nil && now.Before(*c.StartDate) {
+		return false
+	}
+	if c.EndDate != nil && now.After(*c.EndDate) {
+		return false
+	}
 	return true
 }
 

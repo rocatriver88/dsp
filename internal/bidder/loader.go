@@ -53,6 +53,7 @@ type LoadedCampaign struct {
 	BudgetTotalCents   int64
 	BudgetDailyCents   int64
 	StartDate          *time.Time
+	EndDate            *time.Time
 	Targeting          campaign.Targeting
 	Creatives          []*campaign.Creative
 }
@@ -197,6 +198,7 @@ func (cl *CampaignLoader) fullLoad(ctx context.Context) error {
 			BudgetTotalCents:   c.BudgetTotalCents,
 			BudgetDailyCents:   c.BudgetDailyCents,
 			StartDate:          c.StartDate,
+			EndDate:            c.EndDate,
 			Targeting:          targeting,
 			Creatives:          creativesMap[c.ID],
 		}
@@ -232,6 +234,7 @@ func (cl *CampaignLoader) toCampaignWithCreatives(ctx context.Context, c *campai
 		OCPMTargetCPACents: c.OCPMTargetCPACents,
 		BudgetDailyCents:   c.BudgetDailyCents,
 		StartDate:          c.StartDate,
+		EndDate:            c.EndDate,
 		Targeting:          targeting,
 		Creatives:          creatives,
 	}, nil
