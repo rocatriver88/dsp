@@ -316,6 +316,11 @@ func (s *Store) SimulateBid(ctx context.Context, campaignID uint64, simulatedCPM
 	return &result, nil
 }
 
+// Ping checks whether the underlying ClickHouse connection is healthy.
+func (s *Store) Ping(ctx context.Context) error {
+	return s.conn.Ping(ctx)
+}
+
 func (s *Store) Close() error {
 	return s.conn.Close()
 }
