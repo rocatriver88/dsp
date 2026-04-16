@@ -283,7 +283,7 @@ func (s *ContinuousSimulator) generateDailyReport() {
 	if circuitStatus, err := s.client.GetCircuitStatus(); err == nil {
 		steps = append(steps, StepResult{
 			Name:   "Circuit Breaker Status",
-			Passed: circuitStatus.Status == "open",
+			Passed: circuitStatus.Status == "closed",
 			Detail: fmt.Sprintf("Status: %s, Global spend: %d cents",
 				circuitStatus.Status, circuitStatus.GlobalSpend),
 			Error: circuitStatus.Reason,
