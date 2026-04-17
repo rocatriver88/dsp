@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logout } from "@/lib/api";
 
 // Icon chars are picked to NOT duplicate the first character of the label:
 // 概览 → 总 (overview/summary), 账户 → 户 (account holder).
@@ -62,7 +63,7 @@ export default function Sidebar() {
         </div>
         <div className="px-5 py-4 border-t border-gray-800">
           <button
-            onClick={() => { localStorage.removeItem("dsp_api_key"); window.location.reload(); }}
+            onClick={() => { logout(); }}
             className="flex items-center gap-2 text-sm hover:text-white transition-colors w-full"
             style={{ color: "var(--sidebar-text)" }}>
             {/* Icon 出 avoids duplicating the first char of 退出登录 */}

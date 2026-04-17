@@ -13,7 +13,109 @@ export type Transaction = Required<components['schemas']['github_com_heartgrypho
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 
-// API Key: read from env or localStorage (set on first visit via key input UI)
+// --- Token management ---
+
+// Access + refresh tokens stored in localStorage for persistence across tabs/reloads.
+// Exported so admin-api.ts can share the same token store.
+let _accessToken: string | null = null;
+let _refreshToken: string | null = null;
+
+if (typeof window !== "undefined") {
+  _accessToken = localStorage.getItem("dsp_access_token");
+  _refreshToken = localStorage.getItem("dsp_refresh_token");
+}
+
+export function getAccessToken(): string | null {
+  return _accessToken;
+}
+
+export function getRefreshToken(): string | null {
+  return _refreshToken;
+}
+
+function setTokens(access: string, refresh: string) {
+  _accessToken = access;
+  _refreshToken = refresh;
+  if (typeof window !== "undefined") {
+    localStorage.setItem("dsp_access_token", access);
+    localStorage.setItem("dsp_refresh_token", refresh);
+  }
+}
+
+function clearTokens() {
+  _accessToken = null;
+  _refreshToken = null;
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("dsp_access_token");
+    localStorage.removeItem("dsp_refresh_token");
+  }
+}
+
+/** Login with email + password. Stores access + refresh tokens on success. */
+export async function login(email: string, password: string): Promise<{
+  access_token: string;
+  refresh_token: string;
+  user: { id: number; email: string; name: string; role: string; advertiser_id: number | null };
+}> {
+  const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Login failed: ${res.status}`);
+  }
+  const data = await res.json();
+  setTokens(data.access_token, data.refresh_token);
+  return data;
+}
+
+/** Clear tokens and redirect to the login page. */
+export function logout() {
+  clearTokens();
+  // Also clear legacy API key if present
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("dsp_api_key");
+    window.location.href = "/";
+  }
+}
+
+/** Attempt to refresh the access token using the stored refresh token. Returns true on success. */
+export async function refreshAccessToken(): Promise<boolean> {
+  if (!_refreshToken) return false;
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: _refreshToken }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    _accessToken = data.access_token;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("dsp_access_token", data.access_token);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Returns auth headers: Bearer token if available, API Key fallback for backward compat. */
+export function getAuthHeaders(): Record<string, string> {
+  if (_accessToken) {
+    return { Authorization: `Bearer ${_accessToken}` };
+  }
+  // Legacy API Key fallback for programmatic/migration compatibility
+  const apiKey = getAPIKey();
+  if (apiKey) {
+    return { "X-API-Key": apiKey };
+  }
+  return {};
+}
+
+// API Key: read from env or localStorage (legacy support)
 function getAPIKey(): string {
   if (typeof window !== "undefined") {
     return localStorage.getItem("dsp_api_key") || "";
@@ -21,19 +123,49 @@ function getAPIKey(): string {
   return process.env.NEXT_PUBLIC_API_KEY || "";
 }
 
+// Flag to prevent concurrent refresh attempts
+let _refreshing: Promise<boolean> | null = null;
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const apiKey = getAPIKey();
+  const authHeaders = getAuthHeaders();
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...(apiKey ? { "X-API-Key": apiKey } : {}),
+      ...authHeaders,
       ...options?.headers,
     },
   });
   if (!res.ok) {
-    // 401: clear invalid API key and reload to show login screen
+    // 401: try token refresh if we have a refresh token
     if (res.status === 401 && typeof window !== "undefined") {
+      if (_refreshToken) {
+        // Deduplicate concurrent refresh attempts
+        if (!_refreshing) {
+          _refreshing = refreshAccessToken().finally(() => { _refreshing = null; });
+        }
+        const refreshed = await _refreshing;
+        if (refreshed) {
+          // Retry the original request with the new access token
+          const retryHeaders = getAuthHeaders();
+          const retryRes = await fetch(`${API_BASE}${path}`, {
+            ...options,
+            headers: {
+              "Content-Type": "application/json",
+              ...retryHeaders,
+              ...options?.headers,
+            },
+          });
+          if (retryRes.ok) {
+            return retryRes.json();
+          }
+          // Retry also failed — fall through to logout
+        }
+        // Refresh failed — logout
+        logout();
+        throw new Error("Authentication failed");
+      }
+      // No refresh token — clear legacy API key and reload
       localStorage.removeItem("dsp_api_key");
       window.location.reload();
       throw new Error("Authentication failed");
@@ -42,6 +174,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(body.error || `API error: ${res.status}`);
   }
   return res.json();
+}
+
+/** Check if user is currently authenticated (has access token or API key). */
+export function isAuthenticated(): boolean {
+  return !!_accessToken || !!getAPIKey();
 }
 
 export const api = {
@@ -136,12 +273,12 @@ export const api = {
 
   // Upload
   uploadFile: async (file: File): Promise<{ url: string; filename: string }> => {
-    const apiKey = getAPIKey();
+    const authHeaders = getAuthHeaders();
     const formData = new FormData();
     formData.append("file", file);
     const res = await fetch(`${API_BASE}/api/v1/upload`, {
       method: "POST",
-      headers: { ...(apiKey ? { "X-API-Key": apiKey } : {}) },
+      headers: { ...authHeaders },
       body: formData,
     });
     if (!res.ok) {
@@ -207,4 +344,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ amount_cents: amountCents, description: description || "" }),
     }),
+
+  // Auth
+  getMe: () =>
+    request<{
+      id: number;
+      email: string;
+      name: string;
+      role: string;
+      advertiser_id: number | null;
+      status: string;
+      last_login_at: string | null;
+      created_at: string;
+    }>("/api/v1/auth/me"),
 };
