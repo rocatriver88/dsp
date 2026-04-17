@@ -3,9 +3,12 @@ package audit
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"net/http"
 	"time"
 
+	"github.com/heartgryphon/dsp/internal/auth"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -42,7 +45,24 @@ type Entry struct {
 	ResourceType string         `json:"resource_type"`
 	ResourceID   int64          `json:"resource_id"`
 	Details      map[string]any `json:"details,omitempty"`
+	UserID       *int64         `json:"user_id,omitempty"`
 	CreatedAt    time.Time      `json:"created_at"`
+}
+
+// ActorFromRequest derives the audit actor string and optional user ID from
+// the request context. Returns:
+//   - JWT admin/advertiser path: "user:<id>", &userID
+//   - API Key path: "apikey:<advertiser_id>", nil
+//   - X-Admin-Token (service) path: "service:admin-token", nil
+func ActorFromRequest(r *http.Request) (string, *int64) {
+	if u := auth.UserFromContext(r.Context()); u != nil {
+		uid := u.ID
+		return fmt.Sprintf("user:%d", u.ID), &uid
+	}
+	if adv := auth.AdvertiserFromContext(r.Context()); adv != nil {
+		return fmt.Sprintf("apikey:%d", adv.ID), nil
+	}
+	return "service:admin-token", nil
 }
 
 type Logger struct {
@@ -56,9 +76,9 @@ func NewLogger(db *pgxpool.Pool) *Logger {
 func (l *Logger) Record(ctx context.Context, e Entry) {
 	detailsJSON, _ := json.Marshal(e.Details)
 	_, err := l.db.Exec(ctx,
-		`INSERT INTO audit_log (advertiser_id, actor, action, resource_type, resource_id, details)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		e.AdvertiserID, e.Actor, e.Action, e.ResourceType, e.ResourceID, detailsJSON,
+		`INSERT INTO audit_log (advertiser_id, actor, action, resource_type, resource_id, details, user_id)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		e.AdvertiserID, e.Actor, e.Action, e.ResourceType, e.ResourceID, detailsJSON, e.UserID,
 	)
 	if err != nil {
 		log.Printf("[AUDIT] Failed to record %s: %v", e.Action, err)
@@ -71,7 +91,7 @@ func (l *Logger) Query(ctx context.Context, advertiserID int64, limit, offset in
 		limit = 50
 	}
 	rows, err := l.db.Query(ctx,
-		`SELECT id, advertiser_id, actor, action, resource_type, resource_id, details, created_at
+		`SELECT id, advertiser_id, actor, action, resource_type, resource_id, details, user_id, created_at
 		 FROM audit_log WHERE advertiser_id = $1
 		 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 		advertiserID, limit, offset,
@@ -86,7 +106,7 @@ func (l *Logger) Query(ctx context.Context, advertiserID int64, limit, offset in
 		var e Entry
 		var detailsJSON []byte
 		if err := rows.Scan(&e.ID, &e.AdvertiserID, &e.Actor, &e.Action,
-			&e.ResourceType, &e.ResourceID, &detailsJSON, &e.CreatedAt); err != nil {
+			&e.ResourceType, &e.ResourceID, &detailsJSON, &e.UserID, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		if detailsJSON != nil {
@@ -102,7 +122,7 @@ func (l *Logger) QueryAll(ctx context.Context, limit, offset int) ([]Entry, erro
 		limit = 50
 	}
 	rows, err := l.db.Query(ctx,
-		`SELECT id, advertiser_id, actor, action, resource_type, resource_id, details, created_at
+		`SELECT id, advertiser_id, actor, action, resource_type, resource_id, details, user_id, created_at
 		 FROM audit_log ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
 		limit, offset,
 	)
@@ -116,7 +136,7 @@ func (l *Logger) QueryAll(ctx context.Context, limit, offset int) ([]Entry, erro
 		var e Entry
 		var detailsJSON []byte
 		if err := rows.Scan(&e.ID, &e.AdvertiserID, &e.Actor, &e.Action,
-			&e.ResourceType, &e.ResourceID, &detailsJSON, &e.CreatedAt); err != nil {
+			&e.ResourceType, &e.ResourceID, &detailsJSON, &e.UserID, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		if detailsJSON != nil {

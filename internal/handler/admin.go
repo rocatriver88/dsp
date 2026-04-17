@@ -117,7 +117,8 @@ func (d *Deps) HandleListRegistrations(w http.ResponseWriter, r *http.Request) {
 // @Router /admin/registrations/{id}/approve [post]
 func (d *Deps) HandleApproveRegistration(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	advID, apiKey, err := d.RegSvc.Approve(r.Context(), id, "admin")
+	actor, _ := audit.ActorFromRequest(r)
+	advID, apiKey, err := d.RegSvc.Approve(r.Context(), id, actor)
 	if err != nil {
 		WriteError(w, http.StatusConflict, err.Error())
 		return
@@ -291,7 +292,8 @@ func (d *Deps) HandleRejectRegistration(w http.ResponseWriter, r *http.Request) 
 		WriteError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	if err := d.RegSvc.Reject(r.Context(), id, "admin", req.Reason); err != nil {
+	actor, _ := audit.ActorFromRequest(r)
+	if err := d.RegSvc.Reject(r.Context(), id, actor, req.Reason); err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -356,12 +358,14 @@ func (d *Deps) HandleAdminTopUp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if d.AuditLog != nil {
+		actor, userID := audit.ActorFromRequest(r)
 		d.AuditLog.Record(r.Context(), audit.Entry{
 			AdvertiserID: req.AdvertiserID,
-			Actor:        "admin",
+			Actor:        actor,
 			Action:       audit.ActionTopUp,
 			ResourceType: "advertiser",
 			ResourceID:   req.AdvertiserID,
+			UserID:       userID,
 			Details: map[string]any{
 				"amount_cents": req.AmountCents,
 				"description":  req.Description,
@@ -391,7 +395,8 @@ func (d *Deps) HandleCreateInviteCode(w http.ResponseWriter, r *http.Request) {
 		req.MaxUses = 1
 	}
 
-	code, err := d.RegSvc.CreateInviteCode(r.Context(), "admin", req.MaxUses, req.ExpiresAt)
+	actor, _ := audit.ActorFromRequest(r)
+	code, err := d.RegSvc.CreateInviteCode(r.Context(), actor, req.MaxUses, req.ExpiresAt)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
 		return
