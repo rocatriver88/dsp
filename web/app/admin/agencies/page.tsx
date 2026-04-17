@@ -187,23 +187,23 @@ export default function AgenciesPage() {
             <table className="w-full text-sm" aria-label="待审核注册">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
-                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>公司名称</th>
-                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>邮箱</th>
-                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>邀请码</th>
-                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>申请时间</th>
-                  <th className="py-2 px-4" style={{ borderBottom: "1px solid var(--border)" }} />
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>公司名称</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>邮箱</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>邀请码</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>申请时间</th>
+                  <th className="py-3 px-4" />
                 </tr>
               </thead>
               <tbody>
                 {registrations.map((reg) => (
-                  <tr key={reg.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td className="py-2 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{reg.company_name}</td>
-                    <td className="py-2 px-4" style={{ color: "var(--text-secondary)" }}>{reg.contact_email}</td>
-                    <td className="py-2 px-4 font-mono text-xs" style={{ color: "var(--text-muted)" }}>{reg.invite_code}</td>
-                    <td className="py-2 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
+                  <tr key={reg.id} className="transition-colors" style={{ borderTop: "1px solid var(--border-subtle)" }} onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }} onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "transparent"; }}>
+                    <td className="py-3 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{reg.company_name}</td>
+                    <td className="py-3 px-4" style={{ color: "var(--text-secondary)" }}>{reg.contact_email}</td>
+                    <td className="py-3 px-4 font-mono text-xs" style={{ color: "var(--text-muted)" }}>{reg.invite_code}</td>
+                    <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {new Date(reg.created_at).toLocaleString("zh-CN")}
                     </td>
-                    <td className="py-2 px-4">
+                    <td className="py-3 px-4">
                       <div className="flex items-center gap-2 justify-end">
                         <button
                           onClick={() => handleApprove(reg)}
@@ -249,30 +249,30 @@ export default function AgenciesPage() {
             <table className="w-full text-sm" aria-label="广告主列表">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
-                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>ID</th>
-                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>公司</th>
-                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>邮箱</th>
-                  <th className="text-right py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>余额 (CNY)</th>
-                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>注册时间</th>
-                  <th className="py-2 px-4" style={{ borderBottom: "1px solid var(--border)" }} />
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>ID</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>公司</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>邮箱</th>
+                  <th className="text-right py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>余额 (CNY)</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>注册时间</th>
+                  <th className="py-3 px-4" />
                 </tr>
               </thead>
               <tbody>
                 {advertisers.map((adv) => (
-                  <tr key={adv.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td className="py-2 px-4 tabular-nums text-xs" style={{ color: "var(--text-muted)" }}>{adv.id}</td>
-                    <td className="py-2 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{adv.company_name}</td>
-                    <td className="py-2 px-4 text-xs" style={{ color: "var(--text-secondary)" }}>{adv.contact_email}</td>
-                    <td className="py-2 px-4 text-right tabular-nums" style={{ color: "var(--text-primary)" }}>
+                  <tr key={adv.id} className="transition-colors" style={{ borderTop: "1px solid var(--border-subtle)" }} onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }} onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "transparent"; }}>
+                    <td className="py-3 px-4 tabular-nums text-xs" style={{ color: "var(--text-muted)" }}>{adv.id}</td>
+                    <td className="py-3 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{adv.company_name}</td>
+                    <td className="py-3 px-4 text-xs" style={{ color: "var(--text-secondary)" }}>{adv.contact_email}</td>
+                    <td className="py-3 px-4 text-right tabular-nums" style={{ color: "var(--text-primary)" }}>
                       {topUpSuccess === adv.id && (
                         <span className="mr-2 text-xs" style={{ color: "#22C55E" }}>✓ 已充值</span>
                       )}
                       ¥{(adv.balance_cents / 100).toLocaleString()}
                     </td>
-                    <td className="py-2 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
+                    <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {new Date(adv.created_at).toLocaleDateString("zh-CN")}
                     </td>
-                    <td className="py-2 px-4">
+                    <td className="py-3 px-4">
                       <button
                         onClick={() => { setTopUpTarget(adv); setTopUpSuccess(null); }}
                         className="px-3 py-1.5 text-xs font-medium rounded transition-colors"

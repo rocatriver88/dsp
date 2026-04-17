@@ -260,24 +260,24 @@ export default function UsersPage() {
           <table className="w-full text-sm" aria-label="用户列表">
             <thead style={{ background: "var(--bg-card-elevated)" }}>
               <tr>
-                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>姓名</th>
-                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>邮箱</th>
-                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>角色</th>
-                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>状态</th>
-                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>广告主 ID</th>
-                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>最后登录</th>
-                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>创建时间</th>
-                <th className="py-2 px-4" style={{ borderBottom: "1px solid var(--border)" }} />
+                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>姓名</th>
+                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>邮箱</th>
+                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>角色</th>
+                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>状态</th>
+                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>广告主 ID</th>
+                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>最后登录</th>
+                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>创建时间</th>
+                <th className="py-3 px-4" />
               </tr>
             </thead>
             <tbody>
               {users.map((u) => {
                 const status = statusStyles[u.status] || { text: u.status, bg: "var(--bg-card-elevated)", color: "var(--text-primary)" };
                 return (
-                  <tr key={u.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td className="py-2 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{u.name}</td>
-                    <td className="py-2 px-4 text-xs" style={{ color: "var(--text-secondary)" }}>{u.email}</td>
-                    <td className="py-2 px-4">
+                  <tr key={u.id} className="transition-colors" style={{ borderTop: "1px solid var(--border-subtle)" }} onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }} onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "transparent"; }}>
+                    <td className="py-3 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{u.name}</td>
+                    <td className="py-3 px-4 text-xs" style={{ color: "var(--text-secondary)" }}>{u.email}</td>
+                    <td className="py-3 px-4">
                       <span
                         className="px-2 py-0.5 text-xs font-medium rounded-full"
                         style={
@@ -289,7 +289,7 @@ export default function UsersPage() {
                         {roleLabels[u.role] || u.role}
                       </span>
                     </td>
-                    <td className="py-2 px-4">
+                    <td className="py-3 px-4">
                       <span
                         className="px-2 py-0.5 text-xs font-medium rounded-full"
                         style={{ background: status.bg, color: status.color }}
@@ -297,18 +297,18 @@ export default function UsersPage() {
                         {status.text}
                       </span>
                     </td>
-                    <td className="py-2 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
+                    <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {u.advertiser_id ?? "-"}
                     </td>
-                    <td className="py-2 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
+                    <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {u.last_login_at
                         ? new Date(u.last_login_at).toLocaleString("zh-CN")
                         : "从未登录"}
                     </td>
-                    <td className="py-2 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
+                    <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {new Date(u.created_at).toLocaleDateString("zh-CN")}
                     </td>
-                    <td className="py-2 px-4">
+                    <td className="py-3 px-4">
                       <button
                         onClick={() => handleToggleStatus(u)}
                         disabled={actionLoading === u.id}

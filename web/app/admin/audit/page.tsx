@@ -116,17 +116,17 @@ export default function AuditPage() {
             <table className="w-full text-sm" aria-label="审计日志">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
-                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>时间</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>操作</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>操作人</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>广告主 ID</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>资源</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>详情</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>时间</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>操作</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>操作人</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>广告主 ID</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>资源</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>详情</th>
                 </tr>
               </thead>
               <tbody>
                 {entries.map((entry) => (
-                  <tr key={entry.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <tr key={entry.id} className="transition-colors" style={{ borderTop: "1px solid var(--border-subtle)" }} onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }} onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "transparent"; }}>
                     <td className="py-3 px-4 text-xs tabular-nums whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
                       {new Date(entry.created_at).toLocaleString("zh-CN")}
                     </td>

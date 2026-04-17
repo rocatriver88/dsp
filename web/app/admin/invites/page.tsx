@@ -110,19 +110,19 @@ export default function InvitesPage() {
             <table className="w-full text-sm" aria-label="邀请码列表">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
-                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>邀请码</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>状态</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>使用量</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>创建人</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>创建时间</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>过期时间</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>邀请码</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>状态</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>使用量</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>创建人</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>创建时间</th>
+                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>过期时间</th>
                 </tr>
               </thead>
               <tbody>
                 {codes.map((c) => {
                   const exhausted = c.used_count >= c.max_uses;
                   return (
-                    <tr key={c.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                    <tr key={c.id} className="transition-colors" style={{ borderTop: "1px solid var(--border-subtle)" }} onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }} onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "transparent"; }}>
                       <td className="py-3 px-4">
                         <span className="font-mono text-sm" style={{ color: "var(--text-primary)" }}>{c.code}</span>
                       </td>
