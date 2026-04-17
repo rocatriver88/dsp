@@ -43,47 +43,49 @@ export default function InvitesPage() {
 
   return (
     <div className="p-8 max-w-6xl">
-      <h2 className="text-2xl font-semibold mb-6">邀请码管理</h2>
+      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>邀请码管理</h2>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded bg-red-50 text-red-700 text-sm flex items-center justify-between">
+        <div className="mb-4 px-4 py-3 rounded text-sm flex items-center justify-between" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>
           <span>{error}</span>
           <button onClick={load} className="text-xs underline ml-4">重试</button>
         </div>
       )}
 
       {/* Create Section */}
-      <div className="bg-white rounded-lg p-6 mb-6">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">生成邀请码</h3>
+      <div className="rounded-[14px] p-6 mb-6" style={{ background: "var(--bg-card)" }}>
+        <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>生成邀请码</h3>
 
         <div className="flex items-end gap-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">最大使用次数</label>
+            <label className="block text-xs mb-1" style={{ color: "var(--text-secondary)" }}>最大使用次数</label>
             <input
               type="number"
               min={1}
               value={maxUses}
               onChange={(e) => setMaxUses(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className="w-24 text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+              className="w-24 text-sm rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500"
+              style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
             />
           </div>
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="px-4 py-2 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 text-sm font-medium rounded text-white disabled:cursor-not-allowed transition-colors disabled:opacity-50"
+            style={{ background: generating ? "var(--border)" : "var(--primary)" }}
           >
             {generating ? "生成中..." : "生成邀请码"}
           </button>
         </div>
 
         {genError && (
-          <p className="text-sm text-red-600 mt-3">{genError}</p>
+          <p className="text-sm mt-3" style={{ color: "#EF4444" }}>{genError}</p>
         )}
 
         {newCode && (
-          <div className="mt-4 px-4 py-3 rounded bg-green-50 border border-green-200">
-            <p className="text-xs text-green-700 mb-1">新邀请码已生成</p>
-            <p className="font-mono text-lg font-semibold text-green-800 tracking-widest">
+          <div className="mt-4 px-4 py-3 rounded" style={{ background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)" }}>
+            <p className="text-xs mb-1" style={{ color: "#22C55E" }}>新邀请码已生成</p>
+            <p className="font-mono text-lg font-semibold tracking-widest" style={{ color: "#22C55E" }}>
               {newCode.code}
             </p>
           </div>
@@ -92,60 +94,61 @@ export default function InvitesPage() {
 
       {/* Codes Table */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">所有邀请码</h3>
+        <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>所有邀请码</h3>
         {loading ? (
-          <div className="bg-white rounded-lg p-6 animate-pulse space-y-3">
+          <div className="rounded-[14px] p-6 animate-pulse space-y-3" style={{ background: "var(--bg-card)" }}>
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-10 bg-gray-100 rounded" />
+              <div key={i} className="h-10 rounded" style={{ background: "var(--bg-card-elevated)" }} />
             ))}
           </div>
         ) : codes.length === 0 ? (
-          <div className="bg-white rounded-lg p-12 text-center">
-            <p className="text-sm text-gray-500">暂无邀请码，点击上方按钮生成</p>
+          <div className="rounded-[14px] p-12 text-center" style={{ background: "var(--bg-card)" }}>
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>暂无邀请码，点击上方按钮生成</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg overflow-hidden">
+          <div className="rounded-[14px] overflow-hidden" style={{ background: "var(--bg-card)" }}>
             <table className="w-full text-sm" aria-label="邀请码列表">
-              <thead className="bg-gray-50">
+              <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">邀请码</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">状态</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">使用量</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">创建人</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">创建时间</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">过期时间</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>邀请码</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>状态</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>使用量</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>创建人</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>创建时间</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>过期时间</th>
                 </tr>
               </thead>
               <tbody>
                 {codes.map((c) => {
                   const exhausted = c.used_count >= c.max_uses;
                   return (
-                    <tr key={c.id} className="border-b last:border-0 border-gray-100">
+                    <tr key={c.id} style={{ borderBottom: "1px solid var(--border)" }}>
                       <td className="py-3 px-4">
-                        <span className="font-mono text-sm text-gray-900">{c.code}</span>
+                        <span className="font-mono text-sm" style={{ color: "var(--text-primary)" }}>{c.code}</span>
                       </td>
                       <td className="py-3 px-4">
                         <span
-                          className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${
+                          className="inline-block px-2 py-0.5 text-xs font-medium rounded-full"
+                          style={
                             exhausted
-                              ? "bg-gray-100 text-gray-500"
-                              : "bg-green-50 text-green-700"
-                          }`}
+                              ? { background: "var(--bg-card-elevated)", color: "var(--text-muted)" }
+                              : { background: "rgba(34,197,94,0.15)", color: "#22C55E" }
+                          }
                         >
                           {exhausted ? "已用完" : "可用"}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                      <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                         {c.used_count} / {c.max_uses}
                       </td>
-                      <td className="py-3 px-4 text-xs text-gray-500">
-                        {c.created_by || "—"}
+                      <td className="py-3 px-4 text-xs" style={{ color: "var(--text-muted)" }}>
+                        {c.created_by || "\u2014"}
                       </td>
-                      <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                      <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                         {new Date(c.created_at).toLocaleString("zh-CN")}
                       </td>
-                      <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
-                        {c.expires_at ? new Date(c.expires_at).toLocaleString("zh-CN") : "—"}
+                      <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
+                        {c.expires_at ? new Date(c.expires_at).toLocaleString("zh-CN") : "\u2014"}
                       </td>
                     </tr>
                   );
