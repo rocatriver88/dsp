@@ -99,10 +99,7 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
             );
           })}
         </div>
-        <div className="px-5 py-4 space-y-2" style={{ borderTop: "1px solid var(--border)" }}>
-          <Link href="/" className="flex items-center gap-2 text-sm transition-colors w-full inline-link" style={{ color: "var(--sidebar-text)" }}>
-            ← 广告主后台
-          </Link>
+        <div className="px-5 py-4" style={{ borderTop: "1px solid var(--border)" }}>
           <button
             onClick={onLogout}
             className="flex items-center gap-2 text-sm transition-colors w-full"
