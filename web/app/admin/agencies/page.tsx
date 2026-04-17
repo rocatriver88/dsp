@@ -37,19 +37,20 @@ function TopUpModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.6)" }}
       role="dialog"
       aria-modal="true"
       aria-label="充值"
     >
-      <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-lg">
-        <h3 className="text-base font-semibold mb-1">充值</h3>
-        <p className="text-xs text-gray-500 mb-4">
+      <div className="rounded-[14px] p-6 w-full max-w-sm shadow-lg" style={{ background: "var(--bg-card-elevated)" }}>
+        <h3 className="text-base font-semibold mb-1" style={{ color: "var(--text-primary)" }}>充值</h3>
+        <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>
           {advertiser.company_name} · 当前余额 ¥{(advertiser.balance_cents / 100).toLocaleString()}
         </p>
 
         <div className="mb-3">
-          <label className="block text-xs font-medium text-gray-500 mb-1">充值金额（元）</label>
+          <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>充值金额（元）</label>
           <input
             type="number"
             min="0"
@@ -57,34 +58,38 @@ function TopUpModal({
             onChange={(e) => setAmount(e.target.value)}
             placeholder="例: 1000"
             autoFocus
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-geist tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 rounded-md text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-purple-500"
+            style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
           />
         </div>
 
         <div className="mb-4">
-          <label className="block text-xs font-medium text-gray-500 mb-1">备注（可选）</label>
+          <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>备注（可选）</label>
           <input
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="例: 4月预算"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
           />
         </div>
 
-        {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+        {error && <p className="text-sm mb-3" style={{ color: "#EF4444" }}>{error}</p>}
 
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded transition-colors"
+            style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
           >
             取消
           </button>
           <button
             onClick={handleConfirm}
             disabled={loading || !amount}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded text-white disabled:cursor-not-allowed transition-colors disabled:opacity-50"
+            style={{ background: loading || !amount ? "var(--border)" : "var(--primary)" }}
           >
             {loading ? "处理中..." : "确认充值"}
           </button>
@@ -154,17 +159,17 @@ export default function AgenciesPage() {
 
   return (
     <div className="p-8 max-w-6xl">
-      <h2 className="text-2xl font-semibold mb-6">代理商管理</h2>
+      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>代理商管理</h2>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded bg-red-50 text-red-700 text-sm flex items-center justify-between">
+        <div className="mb-4 px-4 py-3 rounded text-sm flex items-center justify-between" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>
           <span>{error}</span>
           <button onClick={load} className="text-xs underline ml-4">重试</button>
         </div>
       )}
 
       {actionError && (
-        <div className="mb-4 px-4 py-3 rounded bg-red-50 text-red-700 text-sm">
+        <div className="mb-4 px-4 py-3 rounded text-sm" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>
           {actionError}
         </div>
       )}
@@ -172,30 +177,30 @@ export default function AgenciesPage() {
       {/* Pending Registrations */}
       {!loading && registrations.length > 0 && (
         <section className="mb-8">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">
+          <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>
             待审核注册
-            <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-50 text-yellow-700">
+            <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full" style={{ background: "rgba(234,179,8,0.15)", color: "#EAB308" }}>
               {registrations.length}
             </span>
           </h3>
-          <div className="bg-white rounded-lg overflow-hidden">
+          <div className="rounded-[14px] overflow-hidden" style={{ background: "var(--bg-card)" }}>
             <table className="w-full text-sm" aria-label="待审核注册">
-              <thead className="bg-gray-50">
+              <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
-                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">公司名称</th>
-                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">邮箱</th>
-                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">邀请码</th>
-                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">申请时间</th>
-                  <th className="py-2 px-4 border-b border-gray-100" />
+                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>公司名称</th>
+                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>邮箱</th>
+                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>邀请码</th>
+                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>申请时间</th>
+                  <th className="py-2 px-4" style={{ borderBottom: "1px solid var(--border)" }} />
                 </tr>
               </thead>
               <tbody>
                 {registrations.map((reg) => (
-                  <tr key={reg.id} className="border-b last:border-0 border-gray-100">
-                    <td className="py-2 px-4 font-medium text-gray-900">{reg.company_name}</td>
-                    <td className="py-2 px-4 text-gray-600">{reg.contact_email}</td>
-                    <td className="py-2 px-4 font-mono text-xs text-gray-500">{reg.invite_code}</td>
-                    <td className="py-2 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                  <tr key={reg.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                    <td className="py-2 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{reg.company_name}</td>
+                    <td className="py-2 px-4" style={{ color: "var(--text-secondary)" }}>{reg.contact_email}</td>
+                    <td className="py-2 px-4 font-mono text-xs" style={{ color: "var(--text-muted)" }}>{reg.invite_code}</td>
+                    <td className="py-2 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {new Date(reg.created_at).toLocaleString("zh-CN")}
                     </td>
                     <td className="py-2 px-4">
@@ -203,14 +208,16 @@ export default function AgenciesPage() {
                         <button
                           onClick={() => handleApprove(reg)}
                           disabled={actionLoading === reg.id}
-                          className="px-3 py-1.5 text-xs font-medium rounded bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50 transition-colors"
+                          className="px-3 py-1.5 text-xs font-medium rounded disabled:opacity-50 transition-colors"
+                          style={{ background: "rgba(34,197,94,0.15)", color: "#22C55E" }}
                         >
                           批准
                         </button>
                         <button
                           onClick={() => handleReject(reg)}
                           disabled={actionLoading === reg.id}
-                          className="px-3 py-1.5 text-xs font-medium rounded bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                          className="px-3 py-1.5 text-xs font-medium rounded disabled:opacity-50 transition-colors"
+                          style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}
                         >
                           拒绝
                         </button>
@@ -226,49 +233,50 @@ export default function AgenciesPage() {
 
       {/* Advertiser List */}
       <section>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">广告主列表</h3>
+        <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>广告主列表</h3>
         {loading ? (
-          <div className="bg-white rounded-lg p-6 animate-pulse space-y-3">
+          <div className="rounded-[14px] p-6 animate-pulse space-y-3" style={{ background: "var(--bg-card)" }}>
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-10 bg-gray-100 rounded" />
+              <div key={i} className="h-10 rounded" style={{ background: "var(--bg-card-elevated)" }} />
             ))}
           </div>
         ) : advertisers.length === 0 ? (
-          <div className="bg-white rounded-lg p-12 text-center">
-            <p className="text-sm text-gray-500">暂无广告主</p>
+          <div className="rounded-[14px] p-12 text-center" style={{ background: "var(--bg-card)" }}>
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>暂无广告主</p>
           </div>
         ) : (
-          <div className="bg-white rounded-lg overflow-hidden">
+          <div className="rounded-[14px] overflow-hidden" style={{ background: "var(--bg-card)" }}>
             <table className="w-full text-sm" aria-label="广告主列表">
-              <thead className="bg-gray-50">
+              <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
-                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">ID</th>
-                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">公司</th>
-                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">邮箱</th>
-                  <th className="text-right py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">余额 (CNY)</th>
-                  <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">注册时间</th>
-                  <th className="py-2 px-4 border-b border-gray-100" />
+                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>ID</th>
+                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>公司</th>
+                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>邮箱</th>
+                  <th className="text-right py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>余额 (CNY)</th>
+                  <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>注册时间</th>
+                  <th className="py-2 px-4" style={{ borderBottom: "1px solid var(--border)" }} />
                 </tr>
               </thead>
               <tbody>
                 {advertisers.map((adv) => (
-                  <tr key={adv.id} className="border-b last:border-0 border-gray-100">
-                    <td className="py-2 px-4 text-gray-500 font-geist tabular-nums text-xs">{adv.id}</td>
-                    <td className="py-2 px-4 font-medium text-gray-900">{adv.company_name}</td>
-                    <td className="py-2 px-4 text-gray-600 text-xs">{adv.contact_email}</td>
-                    <td className="py-2 px-4 text-right font-geist tabular-nums">
+                  <tr key={adv.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                    <td className="py-2 px-4 tabular-nums text-xs" style={{ color: "var(--text-muted)" }}>{adv.id}</td>
+                    <td className="py-2 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{adv.company_name}</td>
+                    <td className="py-2 px-4 text-xs" style={{ color: "var(--text-secondary)" }}>{adv.contact_email}</td>
+                    <td className="py-2 px-4 text-right tabular-nums" style={{ color: "var(--text-primary)" }}>
                       {topUpSuccess === adv.id && (
-                        <span className="mr-2 text-xs text-green-600">✓ 已充值</span>
+                        <span className="mr-2 text-xs" style={{ color: "#22C55E" }}>✓ 已充值</span>
                       )}
                       ¥{(adv.balance_cents / 100).toLocaleString()}
                     </td>
-                    <td className="py-2 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                    <td className="py-2 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {new Date(adv.created_at).toLocaleDateString("zh-CN")}
                     </td>
                     <td className="py-2 px-4">
                       <button
                         onClick={() => { setTopUpTarget(adv); setTopUpSuccess(null); }}
-                        className="px-3 py-1.5 text-xs font-medium rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                        className="px-3 py-1.5 text-xs font-medium rounded transition-colors"
+                        style={{ background: "var(--primary-muted)", color: "var(--primary)" }}
                       >
                         充值
                       </button>
