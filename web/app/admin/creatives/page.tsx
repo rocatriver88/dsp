@@ -15,26 +15,28 @@ function CreativeCard({
   actionLoading: boolean;
 }) {
   return (
-    <div className="bg-white rounded-lg p-5">
+    <div className="rounded-[14px] p-5" style={{ background: "var(--bg-card)" }}>
       <div className="flex items-start justify-between gap-4 mb-3">
         <div>
-          <p className="text-sm font-semibold text-gray-900">{creative.name}</p>
+          <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{creative.name}</p>
           <div className="flex items-center gap-3 mt-1">
-            <span className="text-xs text-gray-500">Campaign #{creative.campaign_id}</span>
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>Campaign #{creative.campaign_id}</span>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => onApprove(creative.id)}
             disabled={actionLoading}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded disabled:opacity-50 transition-colors"
+            style={{ background: "rgba(34,197,94,0.15)", color: "#22C55E" }}
           >
             批准
           </button>
           <button
             onClick={() => onReject(creative.id)}
             disabled={actionLoading}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded disabled:opacity-50 transition-colors"
+            style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}
           >
             拒绝
           </button>
@@ -43,24 +45,24 @@ function CreativeCard({
 
       <div className="flex items-center gap-4 mb-3">
         <div>
-          <p className="text-xs text-gray-400">类型</p>
-          <p className="text-xs font-medium text-gray-700 mt-0.5">{creative.ad_type}</p>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>类型</p>
+          <p className="text-xs font-medium mt-0.5" style={{ color: "var(--text-primary)" }}>{creative.ad_type}</p>
         </div>
         {creative.size && (
           <div>
-            <p className="text-xs text-gray-400">尺寸</p>
-            <p className="text-xs font-medium text-gray-700 mt-0.5">{creative.size}</p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>尺寸</p>
+            <p className="text-xs font-medium mt-0.5" style={{ color: "var(--text-primary)" }}>{creative.size}</p>
           </div>
         )}
         {creative.format && (
           <div>
-            <p className="text-xs text-gray-400">格式</p>
-            <p className="text-xs font-medium text-gray-700 mt-0.5">{creative.format}</p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>格式</p>
+            <p className="text-xs font-medium mt-0.5" style={{ color: "var(--text-primary)" }}>{creative.format}</p>
           </div>
         )}
         <div>
-          <p className="text-xs text-gray-400">提交时间</p>
-          <p className="text-xs font-medium text-gray-700 mt-0.5 font-geist tabular-nums">
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>提交时间</p>
+          <p className="text-xs font-medium mt-0.5 tabular-nums" style={{ color: "var(--text-primary)" }}>
             {new Date(creative.created_at).toLocaleString("zh-CN")}
           </p>
         </div>
@@ -68,8 +70,8 @@ function CreativeCard({
 
       {creative.ad_markup && (
         <div>
-          <p className="text-xs text-gray-400 mb-1">广告代码预览</p>
-          <pre className="text-xs bg-gray-50 rounded p-3 overflow-x-auto max-h-32 text-gray-700 font-mono whitespace-pre-wrap break-all">
+          <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>广告代码预览</p>
+          <pre className="text-xs rounded p-3 overflow-x-auto max-h-32 font-mono whitespace-pre-wrap break-all" style={{ background: "var(--bg-card-elevated)", color: "var(--text-primary)" }}>
             {creative.ad_markup.slice(0, 500)}{creative.ad_markup.length > 500 ? "…" : ""}
           </pre>
         </div>
@@ -77,12 +79,13 @@ function CreativeCard({
 
       {creative.destination_url && (
         <div className="mt-2">
-          <p className="text-xs text-gray-400">落地页</p>
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>落地页</p>
           <a
             href={creative.destination_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-blue-600 hover:underline break-all"
+            className="text-xs hover:underline break-all"
+            style={{ color: "var(--primary)" }}
           >
             {creative.destination_url}
           </a>
@@ -144,23 +147,23 @@ export default function CreativesPage() {
   return (
     <div className="p-8 max-w-6xl">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold">素材审核</h2>
+        <h2 className="text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>素材审核</h2>
         {!loading && creatives.length > 0 && (
-          <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-yellow-50 text-yellow-700">
+          <span className="px-2.5 py-1 text-xs font-medium rounded-full" style={{ background: "rgba(234,179,8,0.15)", color: "#EAB308" }}>
             {creatives.length} 待审核
           </span>
         )}
       </div>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded bg-red-50 text-red-700 text-sm flex items-center justify-between">
+        <div className="mb-4 px-4 py-3 rounded text-sm flex items-center justify-between" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>
           <span>{error}</span>
           <button onClick={load} className="text-xs underline ml-4">重试</button>
         </div>
       )}
 
       {actionError && (
-        <div className="mb-4 px-4 py-3 rounded bg-red-50 text-red-700 text-sm">
+        <div className="mb-4 px-4 py-3 rounded text-sm" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>
           {actionError}
         </div>
       )}
@@ -168,16 +171,16 @@ export default function CreativesPage() {
       {loading ? (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="bg-white rounded-lg p-5 animate-pulse">
-              <div className="h-4 bg-gray-100 rounded w-1/3 mb-3" />
-              <div className="h-3 bg-gray-100 rounded w-1/2 mb-4" />
-              <div className="h-20 bg-gray-100 rounded" />
+            <div key={i} className="rounded-[14px] p-5 animate-pulse" style={{ background: "var(--bg-card)" }}>
+              <div className="h-4 rounded w-1/3 mb-3" style={{ background: "var(--bg-card-elevated)" }} />
+              <div className="h-3 rounded w-1/2 mb-4" style={{ background: "var(--bg-card-elevated)" }} />
+              <div className="h-20 rounded" style={{ background: "var(--bg-card-elevated)" }} />
             </div>
           ))}
         </div>
       ) : creatives.length === 0 ? (
-        <div className="bg-white rounded-lg p-16 text-center">
-          <p className="text-sm text-gray-500">暂无待审核素材</p>
+        <div className="rounded-[14px] p-16 text-center" style={{ background: "var(--bg-card)" }}>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>暂无待审核素材</p>
         </div>
       ) : (
         <div className="space-y-3">
