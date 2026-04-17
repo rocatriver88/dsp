@@ -1,4 +1,5 @@
 import type { components } from './api-types';
+import { getAuthHeaders, getAccessToken, logout } from './api';
 
 // Types from generated OpenAPI spec (Required<> ensures fields are non-optional, matching runtime behavior)
 export type AdminAdvertiser = Required<components['schemas']['internal_handler.AdvertiserResponse']>;
@@ -9,26 +10,23 @@ export type Registration = Required<components['schemas']['github_com_heartgryph
 
 const ADMIN_API_BASE = process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8182";
 
-function getAdminToken(): string {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("dsp_admin_token") || "";
-  }
-  return "";
-}
-
 async function adminRequest<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getAdminToken();
+  const authHeaders = getAuthHeaders();
   const res = await fetch(`${ADMIN_API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { "X-Admin-Token": token } : {}),
+      ...authHeaders,
       ...options?.headers,
     },
   });
   if (!res.ok) {
+    // 401: if we have an access token, it may have expired or been revoked.
+    // Redirect to login rather than reload — the admin layout handles auth.
     if (res.status === 401 && typeof window !== "undefined") {
-      localStorage.removeItem("dsp_admin_token");
+      if (getAccessToken()) {
+        logout();
+      }
       throw new Error("Authentication failed");
     }
     const body = await res.json().catch(() => ({}));
