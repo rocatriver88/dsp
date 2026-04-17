@@ -2,9 +2,10 @@
 
 export function LoadingSkeleton({ rows = 3 }: { rows?: number }) {
   return (
-    <div className="animate-pulse space-y-3">
+    <div className="space-y-3">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="h-10 bg-gray-100 rounded" />
+        <div key={i} className="h-10 rounded-lg animate-pulse"
+          style={{ background: "var(--bg-card)" }} />
       ))}
     </div>
   );
@@ -14,7 +15,8 @@ export function LoadingCards({ count = 4 }: { count?: number }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="animate-pulse bg-gray-100 rounded-lg h-24" />
+        <div key={i} className="rounded-[14px] h-28 animate-pulse"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }} />
       ))}
     </div>
   );
@@ -22,13 +24,13 @@ export function LoadingCards({ count = 4 }: { count?: number }) {
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="text-center py-12">
-      <p className="text-sm text-red-600 mb-3">{message}</p>
+    <div className="text-center py-12 rounded-[14px]"
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+      <p className="text-sm mb-3" style={{ color: "var(--error)" }}>{message}</p>
       {onRetry && (
-        <button
-          onClick={onRetry}
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-        >
+        <button onClick={onRetry}
+          className="px-4 py-2 text-sm font-semibold text-white rounded-lg transition-colors"
+          style={{ background: "var(--primary)" }}>
           重试
         </button>
       )}
@@ -44,18 +46,21 @@ export function EmptyState({ heading, message, actionLabel, actionHref, onAction
   onAction?: () => void;
 }) {
   return (
-    <div className="rounded-lg bg-white p-12 text-center">
-      {heading && <p className="text-base font-medium mb-2">{heading}</p>}
-      <p className="text-sm text-gray-500 mb-1">{message}</p>
+    <div className="rounded-[14px] p-12 text-center"
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+      {heading && <p className="text-base font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{heading}</p>}
+      <p className="text-sm mb-1" style={{ color: "var(--text-secondary)" }}>{message}</p>
       {actionLabel && actionHref && (
         <a href={actionHref}
-          className="inline-block mt-4 px-6 py-2.5 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700">
+          className="inline-block mt-4 px-6 py-2.5 text-sm font-semibold text-white rounded-lg"
+          style={{ background: "var(--primary)" }}>
           {actionLabel}
         </a>
       )}
       {actionLabel && onAction && !actionHref && (
         <button onClick={onAction}
-          className="mt-4 px-6 py-2.5 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700">
+          className="mt-4 px-6 py-2.5 text-sm font-semibold text-white rounded-lg"
+          style={{ background: "var(--primary)" }}>
           {actionLabel}
         </button>
       )}
