@@ -40,73 +40,80 @@ function CreateUserModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.6)" }}
       role="dialog"
       aria-modal="true"
       aria-label="创建用户"
     >
-      <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-lg">
-        <h3 className="text-base font-semibold mb-4">创建用户</h3>
+      <div className="rounded-[14px] p-6 w-full max-w-sm shadow-lg" style={{ background: "var(--bg-card-elevated)" }}>
+        <h3 className="text-base font-semibold mb-4" style={{ color: "var(--text-primary)" }}>创建用户</h3>
 
         <div className="mb-3">
-          <label className="block text-xs font-medium text-gray-500 mb-1">公司名称 / 姓名</label>
+          <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>公司名称 / 姓名</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="例: 某某科技"
             autoFocus
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
           />
         </div>
 
         <div className="mb-3">
-          <label className="block text-xs font-medium text-gray-500 mb-1">邮箱</label>
+          <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>邮箱</label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="user@example.com"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
           />
         </div>
 
         <div className="mb-3">
-          <label className="block text-xs font-medium text-gray-500 mb-1">初始密码</label>
+          <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>初始密码</label>
           <input
             type="text"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="至少 8 个字符"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
           />
         </div>
 
         <div className="mb-4">
-          <label className="block text-xs font-medium text-gray-500 mb-1">角色</label>
+          <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>角色</label>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            className="w-full px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
           >
             <option value="advertiser">广告主 (advertiser)</option>
             <option value="platform_admin">管理员 (platform_admin)</option>
           </select>
         </div>
 
-        {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+        {error && <p className="text-sm mb-3" style={{ color: "#EF4444" }}>{error}</p>}
 
         <div className="flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded transition-colors"
+            style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
           >
             取消
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading || !name || !email || !password}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded text-white disabled:cursor-not-allowed transition-colors disabled:opacity-50"
+            style={{ background: loading || !name || !email || !password ? "var(--border)" : "var(--primary)" }}
           >
             {loading ? "创建中..." : "创建"}
           </button>
@@ -128,21 +135,23 @@ function ApiKeyModal({ apiKey, onClose }: { apiKey: string; onClose: () => void 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.6)" }}
       role="dialog"
       aria-modal="true"
       aria-label="API Key"
     >
-      <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-lg">
-        <h3 className="text-base font-semibold mb-2">用户创建成功</h3>
-        <p className="text-xs text-gray-500 mb-4">
+      <div className="rounded-[14px] p-6 w-full max-w-sm shadow-lg" style={{ background: "var(--bg-card-elevated)" }}>
+        <h3 className="text-base font-semibold mb-2" style={{ color: "var(--text-primary)" }}>用户创建成功</h3>
+        <p className="text-xs mb-4" style={{ color: "var(--text-secondary)" }}>
           以下 API Key 仅显示一次，请妥善保存
         </p>
-        <div className="bg-gray-50 rounded-md p-3 mb-4 flex items-center gap-2">
-          <code className="text-xs font-mono text-gray-800 break-all flex-1">{apiKey}</code>
+        <div className="rounded-md p-3 mb-4 flex items-center gap-2" style={{ background: "var(--bg-card)" }}>
+          <code className="text-xs font-mono break-all flex-1" style={{ color: "var(--text-primary)" }}>{apiKey}</code>
           <button
             onClick={handleCopy}
-            className="px-2 py-1 text-xs rounded bg-blue-50 text-blue-700 hover:bg-blue-100 flex-shrink-0 transition-colors"
+            className="px-2 py-1 text-xs rounded flex-shrink-0 transition-colors"
+            style={{ background: "var(--primary-muted)", color: "var(--primary)" }}
           >
             {copied ? "已复制" : "复制"}
           </button>
@@ -150,7 +159,8 @@ function ApiKeyModal({ apiKey, onClose }: { apiKey: string; onClose: () => void 
         <div className="flex justify-end">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            className="px-3 py-1.5 text-xs font-medium rounded text-white transition-colors"
+            style={{ background: "var(--primary)" }}
           >
             确定
           </button>
@@ -165,9 +175,9 @@ const roleLabels: Record<string, string> = {
   advertiser: "广告主",
 };
 
-const statusLabels: Record<string, { text: string; className: string }> = {
-  active: { text: "正常", className: "bg-green-50 text-green-700" },
-  suspended: { text: "已停用", className: "bg-red-50 text-red-700" },
+const statusStyles: Record<string, { text: string; bg: string; color: string }> = {
+  active: { text: "正常", bg: "rgba(34,197,94,0.15)", color: "#22C55E" },
+  suspended: { text: "已停用", bg: "rgba(239,68,68,0.15)", color: "#EF4444" },
 };
 
 export default function UsersPage() {
@@ -212,92 +222,102 @@ export default function UsersPage() {
   return (
     <div className="p-8 max-w-6xl">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold">用户管理</h2>
+        <h2 className="text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>用户管理</h2>
         <button
           onClick={() => setShowCreate(true)}
-          className="px-4 py-2 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 text-sm font-medium text-white rounded-md transition-colors"
+          style={{ background: "var(--primary)" }}
         >
           创建用户
         </button>
       </div>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded bg-red-50 text-red-700 text-sm flex items-center justify-between">
+        <div className="mb-4 px-4 py-3 rounded text-sm flex items-center justify-between" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>
           <span>{error}</span>
           <button onClick={load} className="text-xs underline ml-4">重试</button>
         </div>
       )}
 
       {actionError && (
-        <div className="mb-4 px-4 py-3 rounded bg-red-50 text-red-700 text-sm">
+        <div className="mb-4 px-4 py-3 rounded text-sm" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>
           {actionError}
         </div>
       )}
 
       {loading ? (
-        <div className="bg-white rounded-lg p-6 animate-pulse space-y-3">
+        <div className="rounded-[14px] p-6 animate-pulse space-y-3" style={{ background: "var(--bg-card)" }}>
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-10 bg-gray-100 rounded" />
+            <div key={i} className="h-10 rounded" style={{ background: "var(--bg-card-elevated)" }} />
           ))}
         </div>
       ) : users.length === 0 ? (
-        <div className="bg-white rounded-lg p-12 text-center">
-          <p className="text-sm text-gray-500">暂无用户</p>
+        <div className="rounded-[14px] p-12 text-center" style={{ background: "var(--bg-card)" }}>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>暂无用户</p>
         </div>
       ) : (
-        <div className="bg-white rounded-lg overflow-hidden">
+        <div className="rounded-[14px] overflow-hidden" style={{ background: "var(--bg-card)" }}>
           <table className="w-full text-sm" aria-label="用户列表">
-            <thead className="bg-gray-50">
+            <thead style={{ background: "var(--bg-card-elevated)" }}>
               <tr>
-                <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">姓名</th>
-                <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">邮箱</th>
-                <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">角色</th>
-                <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">状态</th>
-                <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">广告主 ID</th>
-                <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">最后登录</th>
-                <th className="text-left py-2 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">创建时间</th>
-                <th className="py-2 px-4 border-b border-gray-100" />
+                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>姓名</th>
+                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>邮箱</th>
+                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>角色</th>
+                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>状态</th>
+                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>广告主 ID</th>
+                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>最后登录</th>
+                <th className="text-left py-2 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>创建时间</th>
+                <th className="py-2 px-4" style={{ borderBottom: "1px solid var(--border)" }} />
               </tr>
             </thead>
             <tbody>
               {users.map((u) => {
-                const status = statusLabels[u.status] || { text: u.status, className: "bg-gray-50 text-gray-700" };
+                const status = statusStyles[u.status] || { text: u.status, bg: "var(--bg-card-elevated)", color: "var(--text-primary)" };
                 return (
-                  <tr key={u.id} className="border-b last:border-0 border-gray-100">
-                    <td className="py-2 px-4 font-medium text-gray-900">{u.name}</td>
-                    <td className="py-2 px-4 text-gray-600 text-xs">{u.email}</td>
+                  <tr key={u.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                    <td className="py-2 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{u.name}</td>
+                    <td className="py-2 px-4 text-xs" style={{ color: "var(--text-secondary)" }}>{u.email}</td>
                     <td className="py-2 px-4">
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                        u.role === "platform_admin" ? "bg-purple-50 text-purple-700" : "bg-blue-50 text-blue-700"
-                      }`}>
+                      <span
+                        className="px-2 py-0.5 text-xs font-medium rounded-full"
+                        style={
+                          u.role === "platform_admin"
+                            ? { background: "rgba(139,92,246,0.15)", color: "#8B5CF6" }
+                            : { background: "rgba(59,130,246,0.15)", color: "#3B82F6" }
+                        }
+                      >
                         {roleLabels[u.role] || u.role}
                       </span>
                     </td>
                     <td className="py-2 px-4">
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${status.className}`}>
+                      <span
+                        className="px-2 py-0.5 text-xs font-medium rounded-full"
+                        style={{ background: status.bg, color: status.color }}
+                      >
                         {status.text}
                       </span>
                     </td>
-                    <td className="py-2 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                    <td className="py-2 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {u.advertiser_id ?? "-"}
                     </td>
-                    <td className="py-2 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                    <td className="py-2 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {u.last_login_at
                         ? new Date(u.last_login_at).toLocaleString("zh-CN")
                         : "从未登录"}
                     </td>
-                    <td className="py-2 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                    <td className="py-2 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {new Date(u.created_at).toLocaleDateString("zh-CN")}
                     </td>
                     <td className="py-2 px-4">
                       <button
                         onClick={() => handleToggleStatus(u)}
                         disabled={actionLoading === u.id}
-                        className={`px-3 py-1.5 text-xs font-medium rounded transition-colors disabled:opacity-50 ${
+                        className="px-3 py-1.5 text-xs font-medium rounded transition-colors disabled:opacity-50"
+                        style={
                           u.status === "active"
-                            ? "bg-red-50 text-red-700 hover:bg-red-100"
-                            : "bg-green-50 text-green-700 hover:bg-green-100"
-                        }`}
+                            ? { background: "rgba(239,68,68,0.15)", color: "#EF4444" }
+                            : { background: "rgba(34,197,94,0.15)", color: "#22C55E" }
+                        }
                       >
                         {u.status === "active" ? "停用" : "启用"}
                       </button>
