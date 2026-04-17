@@ -75,6 +75,14 @@ func BuildPublicMux(d *Deps) *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/upload", d.HandleUpload)
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", UploadFileServer()))
 	mux.HandleFunc("POST /api/v1/register", d.HandleRegister)
+	// Auth endpoints: login and refresh are auth-exempt (see WithAuthExemption).
+	// me and change-password require JWT (go through TenantAuthMiddleware or
+	// the user context is set by JWT middleware for admin users hitting these
+	// on the public port).
+	mux.HandleFunc("POST /api/v1/auth/login", d.HandleLogin)
+	mux.HandleFunc("POST /api/v1/auth/refresh", d.HandleRefresh)
+	mux.HandleFunc("GET /api/v1/auth/me", d.HandleMe)
+	mux.HandleFunc("POST /api/v1/auth/change-password", d.HandleChangePassword)
 	// Health endpoints: /health/live is a liveness probe (always 200),
 	// /health/ready is a readiness probe (probes backends, 200 or 503).
 	// /health is kept as an alias for /health/live for backward compat.
@@ -107,6 +115,10 @@ func BuildAdminMux(d *Deps) *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/admin/invite-codes", d.HandleCreateInviteCode)
 	mux.HandleFunc("GET /api/v1/admin/invite-codes", d.HandleListInviteCodes)
 	mux.HandleFunc("GET /api/v1/admin/audit-log", d.HandleAuditLog)
+	// User management (admin only)
+	mux.HandleFunc("POST /api/v1/admin/users", d.HandleCreateUser)
+	mux.HandleFunc("GET /api/v1/admin/users", d.HandleListUsers)
+	mux.HandleFunc("PUT /api/v1/admin/users/{id}", d.HandleUpdateUser)
 	return mux
 }
 

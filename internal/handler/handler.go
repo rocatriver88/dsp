@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/heartgryphon/dsp/internal/auth"
 	"github.com/heartgryphon/dsp/internal/audit"
 	"github.com/heartgryphon/dsp/internal/billing"
 	"github.com/heartgryphon/dsp/internal/budget"
@@ -14,6 +15,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/guardrail"
 	"github.com/heartgryphon/dsp/internal/registration"
 	"github.com/heartgryphon/dsp/internal/reporting"
+	"github.com/heartgryphon/dsp/internal/user"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -28,6 +30,9 @@ type Deps struct {
 	Guardrail   *guardrail.Guardrail // nil if guardrails disabled
 	AuditLog    *audit.Logger        // nil if audit disabled
 	SSETokenSecret []byte            // signs analytics SSE tokens (V5.1 P1-1)
+	UserStore      *user.Store       // user CRUD for auth handlers
+	JWTSecret      []byte            // signs JWT access/refresh tokens
+	loginGuard     *auth.LoginGuard  // brute-force protection (set via SetLoginGuard)
 }
 
 func WriteJSON(w http.ResponseWriter, status int, data any) {

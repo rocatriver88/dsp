@@ -66,6 +66,25 @@ func ValidateJWT(tokenStr string, secret []byte) (*Claims, error) {
 	return claims, nil
 }
 
+// ValidateRefreshToken parses and validates a refresh token, returning its RegisteredClaims.
+// Refresh tokens carry only standard claims (subject = user ID), not custom Claims.
+func ValidateRefreshToken(tokenStr string, secret []byte) (*jwt.RegisteredClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenStr, &jwt.RegisteredClaims{}, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return secret, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid refresh token")
+	}
+	return claims, nil
+}
+
 // issueJWT is the internal helper that both IssueAccessToken and tests use.
 func issueJWT(secret []byte, userID int64, email, role string, aid int64, ttl time.Duration) (string, error) {
 	claims := &Claims{
