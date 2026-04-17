@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/auth"
@@ -145,7 +146,8 @@ func BuildPublicHandler(cfg *config.Config, d *Deps) http.Handler {
 		return adv.ID, adv.CompanyName, adv.ContactEmail, nil
 	}
 	limiter := ratelimit.New(d.Redis)
-	authed := auth.APIKeyMiddleware(apiKeyLookup)(publicMux)
+	jwtSecret := []byte(cfg.JWTSecret)
+	authed := auth.TenantAuthMiddleware(jwtSecret, apiKeyLookup)(publicMux)
 	rateLimited := ratelimit.Middleware(limiter, ratelimit.APIKeyFunc, 100, time.Minute)(authed)
 	withExemption := WithAuthExemption(rateLimited, publicMux)
 
@@ -174,13 +176,22 @@ func BuildPublicHandler(cfg *config.Config, d *Deps) http.Handler {
 }
 
 // BuildInternalHandler returns the full internal (admin) handler chain:
-// CORS -> Logging -> {admin auth for /internal/ and /api/v1/admin/} + /metrics + /health.
+// CORS -> Logging -> {split auth: ServiceAuth for /internal/*, HumanAdminAuth for /api/v1/admin/*} + /metrics + /health.
+//
+// The split ensures:
+//   - /internal/* (service-to-service): X-Admin-Token ONLY, no JWT
+//   - /api/v1/admin/* (human admin): JWT (platform_admin) or X-Admin-Token
 func BuildInternalHandler(cfg *config.Config, d *Deps) http.Handler {
 	adminMux := BuildAdminMux(d)
+	adminToken := os.Getenv("ADMIN_TOKEN")
+	jwtSecret := []byte(cfg.JWTSecret)
+
 	internalMux := http.NewServeMux()
 	internalMux.Handle("GET /metrics", promhttp.Handler())
-	internalMux.Handle("/internal/", AdminAuthMiddleware(adminMux))
-	internalMux.Handle("/api/v1/admin/", AdminAuthMiddleware(adminMux))
+	// Service-to-service routes: X-Admin-Token only, no JWT
+	internalMux.Handle("/internal/", auth.ServiceAuthMiddleware(adminToken)(adminMux))
+	// Human admin routes: JWT (platform_admin) or X-Admin-Token for backward compat
+	internalMux.Handle("/api/v1/admin/", auth.HumanAdminAuthMiddleware(jwtSecret, adminToken)(adminMux))
 	// Health endpoints on the internal port mirror the public ones.
 	internalMux.HandleFunc("GET /health", d.HandleHealthLive)
 	internalMux.HandleFunc("GET /health/live", d.HandleHealthLive)
