@@ -8,7 +8,32 @@ import (
 
 type contextKey string
 
-const advertiserKey contextKey = "advertiser"
+const (
+	advertiserKey contextKey = "advertiser"
+	userKey       contextKey = "user"
+)
+
+// User is the authenticated user info stored in request context.
+// Set by JWT middleware when a valid JWT is present.
+// UserFromContext returns nil for API Key-only requests.
+type User struct {
+	ID           int64
+	Email        string
+	Role         string
+	AdvertiserID int64 // 0 for platform_admin
+}
+
+// WithUser injects a User into the context.
+func WithUser(ctx context.Context, u *User) context.Context {
+	return context.WithValue(ctx, userKey, u)
+}
+
+// UserFromContext extracts the authenticated user from the request context.
+// Returns nil if no user is set (API Key auth or unauthenticated request).
+func UserFromContext(ctx context.Context) *User {
+	u, _ := ctx.Value(userKey).(*User)
+	return u
+}
 
 // Advertiser is the minimal advertiser info stored in request context.
 type Advertiser struct {
@@ -30,6 +55,11 @@ func AdvertiserIDFromContext(ctx context.Context) int64 {
 		return adv.ID
 	}
 	return 0
+}
+
+// WithAdvertiser injects an Advertiser into the context.
+func WithAdvertiser(ctx context.Context, adv *Advertiser) context.Context {
+	return context.WithValue(ctx, advertiserKey, adv)
 }
 
 // WithAdvertiserForTest injects a minimal Advertiser into the context for tests.

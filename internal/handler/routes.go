@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/auth"
@@ -74,6 +75,14 @@ func BuildPublicMux(d *Deps) *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/upload", d.HandleUpload)
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", UploadFileServer()))
 	mux.HandleFunc("POST /api/v1/register", d.HandleRegister)
+	// Auth endpoints: login and refresh are auth-exempt (see WithAuthExemption).
+	// me and change-password require JWT (go through TenantAuthMiddleware or
+	// the user context is set by JWT middleware for admin users hitting these
+	// on the public port).
+	mux.HandleFunc("POST /api/v1/auth/login", d.HandleLogin)
+	mux.HandleFunc("POST /api/v1/auth/refresh", d.HandleRefresh)
+	mux.HandleFunc("GET /api/v1/auth/me", d.HandleMe)
+	mux.HandleFunc("POST /api/v1/auth/change-password", d.HandleChangePassword)
 	// Health endpoints: /health/live is a liveness probe (always 200),
 	// /health/ready is a readiness probe (probes backends, 200 or 503).
 	// /health is kept as an alias for /health/live for backward compat.
@@ -106,6 +115,10 @@ func BuildAdminMux(d *Deps) *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/admin/invite-codes", d.HandleCreateInviteCode)
 	mux.HandleFunc("GET /api/v1/admin/invite-codes", d.HandleListInviteCodes)
 	mux.HandleFunc("GET /api/v1/admin/audit-log", d.HandleAuditLog)
+	// User management (admin only)
+	mux.HandleFunc("POST /api/v1/admin/users", d.HandleCreateUser)
+	mux.HandleFunc("GET /api/v1/admin/users", d.HandleListUsers)
+	mux.HandleFunc("PUT /api/v1/admin/users/{id}", d.HandleUpdateUser)
 	return mux
 }
 
@@ -145,7 +158,8 @@ func BuildPublicHandler(cfg *config.Config, d *Deps) http.Handler {
 		return adv.ID, adv.CompanyName, adv.ContactEmail, nil
 	}
 	limiter := ratelimit.New(d.Redis)
-	authed := auth.APIKeyMiddleware(apiKeyLookup)(publicMux)
+	jwtSecret := []byte(cfg.JWTSecret)
+	authed := auth.TenantAuthMiddleware(jwtSecret, apiKeyLookup)(publicMux)
 	rateLimited := ratelimit.Middleware(limiter, ratelimit.APIKeyFunc, 100, time.Minute)(authed)
 	withExemption := WithAuthExemption(rateLimited, publicMux)
 
@@ -174,13 +188,22 @@ func BuildPublicHandler(cfg *config.Config, d *Deps) http.Handler {
 }
 
 // BuildInternalHandler returns the full internal (admin) handler chain:
-// CORS -> Logging -> {admin auth for /internal/ and /api/v1/admin/} + /metrics + /health.
+// CORS -> Logging -> {split auth: ServiceAuth for /internal/*, HumanAdminAuth for /api/v1/admin/*} + /metrics + /health.
+//
+// The split ensures:
+//   - /internal/* (service-to-service): X-Admin-Token ONLY, no JWT
+//   - /api/v1/admin/* (human admin): JWT (platform_admin) or X-Admin-Token
 func BuildInternalHandler(cfg *config.Config, d *Deps) http.Handler {
 	adminMux := BuildAdminMux(d)
+	adminToken := os.Getenv("ADMIN_TOKEN")
+	jwtSecret := []byte(cfg.JWTSecret)
+
 	internalMux := http.NewServeMux()
 	internalMux.Handle("GET /metrics", promhttp.Handler())
-	internalMux.Handle("/internal/", AdminAuthMiddleware(adminMux))
-	internalMux.Handle("/api/v1/admin/", AdminAuthMiddleware(adminMux))
+	// Service-to-service routes: X-Admin-Token only, no JWT
+	internalMux.Handle("/internal/", auth.ServiceAuthMiddleware(adminToken)(adminMux))
+	// Human admin routes: JWT (platform_admin) or X-Admin-Token for backward compat
+	internalMux.Handle("/api/v1/admin/", auth.HumanAdminAuthMiddleware(jwtSecret, adminToken)(adminMux))
 	// Health endpoints on the internal port mirror the public ones.
 	internalMux.HandleFunc("GET /health", d.HandleHealthLive)
 	internalMux.HandleFunc("GET /health/live", d.HandleHealthLive)

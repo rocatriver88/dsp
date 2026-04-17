@@ -28,6 +28,12 @@ func (s *Store) CreateAdvertiser(ctx context.Context, adv *Advertiser) (int64, e
 	return id, err
 }
 
+// DeleteAdvertiser removes an advertiser by ID (used for cleanup on failed user creation).
+func (s *Store) DeleteAdvertiser(ctx context.Context, id int64) error {
+	_, err := s.db.Exec(ctx, `DELETE FROM advertisers WHERE id = $1`, id)
+	return err
+}
+
 // GetAdvertiser returns an advertiser by ID.
 func (s *Store) GetAdvertiser(ctx context.Context, id int64) (*Advertiser, error) {
 	adv := &Advertiser{}

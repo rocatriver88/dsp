@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { getAccessToken, logout } from "@/lib/api";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 
 const adminNavItems = [
   { href: "/admin", label: "概览", icon: "概" },
   { href: "/admin/agencies", label: "代理商", icon: "商" },
+  { href: "/admin/users", label: "用户", icon: "户" },
   { href: "/admin/creatives", label: "素材审核", icon: "材" },
   { href: "/admin/invites", label: "邀请码", icon: "邀" },
   { href: "/admin/audit", label: "审计日志", icon: "审" },
@@ -98,116 +102,62 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-function AdminTokenGate({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [input, setInput] = useState("");
+function AdminAuthGate({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [validating, setValidating] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem("dsp_admin_token");
-    if (stored) {
-      // Re-validate stored token against server
-      fetch(
-        `${process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8182"}/api/v1/admin/health`,
-        { headers: { "X-Admin-Token": stored } }
-      )
-        .then((res) => {
-          if (res.ok) {
-            setToken(stored);
-          } else {
-            localStorage.removeItem("dsp_admin_token");
-          }
-        })
-        .catch(() => {
-          // Network error — fail closed.  A server outage (or attacker
-          // DoSing the health endpoint) must NOT grant admin access.
-          localStorage.removeItem("dsp_admin_token");
-        })
-        .finally(() => setChecking(false));
-    } else {
-      setChecking(false);
+    const token = getAccessToken();
+    if (!token) {
+      // No JWT — redirect to tenant login page
+      window.location.href = "/";
+      return;
     }
+
+    // Verify JWT and check role via /api/v1/auth/me (on the public port)
+    fetch(`${API_BASE}/api/v1/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          // Token expired or invalid — redirect to login
+          logout();
+          return;
+        }
+        if (!res.ok) {
+          // Other error — fail closed
+          window.location.href = "/";
+          return;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (!data) return;
+        if (data.role !== "platform_admin") {
+          // Not an admin — redirect to tenant dashboard
+          window.location.href = "/";
+          return;
+        }
+        setAuthorized(true);
+      })
+      .catch(() => {
+        // Network error — fail closed
+        window.location.href = "/";
+      })
+      .finally(() => setChecking(false));
   }, []);
 
-  const handleLogin = async () => {
-    if (!input) return;
-    setError(null);
-    setValidating(true);
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8182"}/api/v1/admin/health`,
-        { headers: { "X-Admin-Token": input.trim() } }
-      );
-      if (!res.ok) {
-        setError("Token 无效或服务不可用");
-        return;
-      }
-      localStorage.setItem("dsp_admin_token", input.trim());
-      setToken(input.trim());
-    } catch {
-      setError("无法连接到管理服务");
-    } finally {
-      setValidating(false);
-    }
-  };
-
-  function handleLogout() {
-    localStorage.removeItem("dsp_admin_token");
-    setToken(null);
-    setInput("");
-  }
-
   if (checking) return null;
-
-  if (!token) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-        <div className="bg-white rounded-lg p-8 w-full max-w-md shadow-sm">
-          <h2 className="text-xl font-semibold mb-2">DSP Admin</h2>
-          <p className="text-sm text-gray-500 mb-1">管理员控制台</p>
-          <Link
-            href="/"
-            className="inline-block text-xs text-blue-500 hover:text-blue-600 mb-6"
-          >
-            ← 广告主后台
-          </Link>
-          <input
-            type="password"
-            placeholder="输入管理员 Token"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleLogin();
-            }}
-          />
-          <button
-            onClick={handleLogin}
-            disabled={!input || validating}
-            className="w-full px-4 py-2 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            {validating ? "验证中..." : "登录"}
-          </button>
-          {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
-          <p className="text-xs text-gray-400 mt-3">
-            管理员 Token 由系统配置，请联系运维获取
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (!authorized) return null;
 
   return (
     <div className="flex min-h-screen">
-      <AdminSidebar onLogout={handleLogout} />
+      <AdminSidebar onLogout={logout} />
       <main className="flex-1 overflow-auto">{children}</main>
     </div>
   );
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return <AdminTokenGate>{children}</AdminTokenGate>;
+  return <AdminAuthGate>{children}</AdminAuthGate>;
 }

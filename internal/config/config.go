@@ -13,6 +13,7 @@ import (
 const (
 	defaultBidderHMACSecret = "dev-hmac-secret-change-in-production"
 	defaultAPIHMACSecret    = "dev-api-hmac-secret-change-in-production"
+	defaultJWTSecret        = "dev-jwt-secret-change-in-production"
 	defaultCORSOrigins      = "http://localhost:4000"
 	defaultRedisAddr        = "localhost:6380"
 )
@@ -38,6 +39,7 @@ type Config struct {
 	BidderPublicURL    string
 	BidderHMACSecret   string
 	APIHMACSecret      string
+	JWTSecret          string
 
 	// Alerting
 	SlackWebhookURL    string // Slack incoming webhook URL
@@ -77,6 +79,7 @@ func Load() *Config {
 		BidderPublicURL:    getEnv("BIDDER_PUBLIC_URL", "http://localhost:8180"),
 		BidderHMACSecret:   getEnv("BIDDER_HMAC_SECRET", defaultBidderHMACSecret),
 		APIHMACSecret:      getEnv("API_HMAC_SECRET", defaultAPIHMACSecret),
+		JWTSecret:          getEnv("JWT_SECRET", defaultJWTSecret),
 
 		SlackWebhookURL:    getEnv("SLACK_WEBHOOK_URL", ""),
 		AlertEmailSMTPHost: getEnv("ALERT_EMAIL_SMTP_HOST", ""),
@@ -133,6 +136,12 @@ func (c *Config) Validate() error {
 	}
 	if c.CORSAllowedOrigins == defaultCORSOrigins {
 		return fmt.Errorf("CORS_ALLOWED_ORIGINS must be set in production; refusing to start with the dev default %q", defaultCORSOrigins)
+	}
+	if c.JWTSecret == defaultJWTSecret {
+		return fmt.Errorf("JWT_SECRET must be set in production; refusing to start with the dev default")
+	}
+	if len(c.JWTSecret) < 32 {
+		return fmt.Errorf("JWT_SECRET must be at least 32 bytes; got %d", len(c.JWTSecret))
 	}
 	if c.RedisAddr == defaultRedisAddr {
 		return fmt.Errorf("REDIS_ADDR must be set in production; rate limiting requires Redis")

@@ -17,11 +17,13 @@ import (
 	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/config"
 	"github.com/heartgryphon/dsp/internal/guardrail"
+	"github.com/heartgryphon/dsp/internal/auth"
 	"github.com/heartgryphon/dsp/internal/handler"
 	"github.com/heartgryphon/dsp/internal/observability"
 	"github.com/heartgryphon/dsp/internal/reconciliation"
 	"github.com/heartgryphon/dsp/internal/registration"
 	"github.com/heartgryphon/dsp/internal/reporting"
+	"github.com/heartgryphon/dsp/internal/user"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )
@@ -121,7 +123,9 @@ func main() {
 	if rdb != nil {
 		budgetSvc = budget.New(rdb)
 	}
-	log.Println("Billing + Registration services initialized")
+	userStore := user.NewStore(db)
+	loginGuard := auth.NewLoginGuard(rdb)
+	log.Println("Billing + Registration + User services initialized")
 
 	// Connect ClickHouse (optional)
 	var reportStore *reporting.Store
@@ -170,7 +174,10 @@ func main() {
 		Guardrail:   guard,
 		AuditLog:    auditLogger,
 		SSETokenSecret: []byte(cfg.APIHMACSecret),
+		UserStore:      userStore,
+		JWTSecret:      []byte(cfg.JWTSecret),
 	}
+	h.SetLoginGuard(loginGuard)
 
 	publicSrv := &http.Server{
 		Addr:              ":" + cfg.APIPort,
