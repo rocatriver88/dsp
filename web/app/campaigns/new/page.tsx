@@ -114,26 +114,31 @@ export default function NewCampaignPage() {
 
   return (
     <div className="max-w-2xl">
-      <h2 className="text-2xl font-semibold mb-6">创建 Campaign</h2>
+      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>创建 Campaign</h2>
 
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-8">
         {[1, 2, 3].map((s) => (
           <div key={s} className="flex items-center gap-2">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
-              ${step >= s ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-500"}`}>
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
+              style={{
+                background: step > s ? "var(--success)" : step === s ? "var(--primary)" : "var(--bg-card)",
+                color: step >= s ? "#fff" : "var(--text-muted)",
+              }}
+            >
               {s}
             </div>
-            <span className={`text-sm ${step >= s ? "text-gray-900" : "text-gray-400"}`}>
+            <span className="text-sm" style={{ color: step >= s ? "var(--text-primary)" : "var(--text-muted)" }}>
               {s === 1 ? "基本信息" : s === 2 ? "定向" : "素材"}
             </span>
-            {s < 3 && <div className={`w-12 h-0.5 ${step > s ? "bg-blue-600" : "bg-gray-200"}`} />}
+            {s < 3 && <div className="w-12 h-0.5" style={{ background: step > s ? "var(--primary)" : "var(--border)" }} />}
           </div>
         ))}
       </div>
 
       {error && (
-        <div className="mb-4 p-3 rounded bg-red-50 text-red-700 text-sm">{error}</div>
+        <div className="mb-4 p-3 rounded-[14px] text-sm" style={{ background: "rgba(239, 68, 68, 0.12)", color: "var(--error)" }}>{error}</div>
       )}
 
       {/* Step 1: Basic info + billing model */}
@@ -142,20 +147,22 @@ export default function NewCampaignPage() {
           <Field label="Campaign 名称" required>
             <input type="text" value={name} onChange={(e) => setName(e.target.value)}
               placeholder="例: 云服务器春季促销"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              className="w-full px-3 py-2 rounded-md text-sm outline-none focus:ring-2"
+              style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)", border: "1px solid var(--border)", "--tw-ring-color": "var(--primary)" } as React.CSSProperties} />
           </Field>
 
           <Field label="计费方式" required>
             <div className="grid grid-cols-3 gap-2">
               {billingModels.map((b) => (
                 <button key={b.value} onClick={() => { setBillingModel(b.value); setBidAmount(""); }}
-                  className={`p-3 rounded-lg border text-left transition-colors ${
-                    billingModel === b.value
-                      ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}>
-                  <span className="text-sm font-semibold">{b.label}</span>
-                  <p className="text-xs text-gray-500 mt-0.5">{b.desc}</p>
+                  className="p-3 rounded-lg text-left transition-colors"
+                  style={{
+                    background: billingModel === b.value ? "var(--primary-muted)" : "var(--bg-card)",
+                    border: billingModel === b.value ? "1px solid var(--primary)" : "1px solid var(--border)",
+                    boxShadow: billingModel === b.value ? "0 0 0 1px var(--primary)" : "none",
+                  }}>
+                  <span className="text-sm font-semibold" style={{ color: billingModel === b.value ? "var(--primary)" : "var(--text-primary)" }}>{b.label}</span>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{b.desc}</p>
                 </button>
               ))}
             </div>
@@ -165,20 +172,23 @@ export default function NewCampaignPage() {
             <Field label="总预算 (¥)" required>
               <input type="number" value={budgetTotal} onChange={(e) => setBudgetTotal(e.target.value)}
                 placeholder="10000"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 rounded-md text-sm outline-none focus:ring-2"
+                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", "--tw-ring-color": "var(--primary)" } as React.CSSProperties} />
             </Field>
             <Field label="日预算 (¥)" required>
               <input type="number" value={budgetDaily} onChange={(e) => setBudgetDaily(e.target.value)}
                 placeholder="1000"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 rounded-md text-sm outline-none focus:ring-2"
+                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", "--tw-ring-color": "var(--primary)" } as React.CSSProperties} />
             </Field>
           </div>
 
           <Field label={`${selectedBilling.label} 出价 (¥)`} required>
             <input type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)}
               placeholder={selectedBilling.placeholder}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500" />
-            <p className="text-xs text-gray-500 mt-1">
+              className="w-full px-3 py-2 rounded-md text-sm outline-none focus:ring-2"
+              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", "--tw-ring-color": "var(--primary)" } as React.CSSProperties} />
+            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
               {billingModel === "cpm" && "每千次曝光的出价金额"}
               {billingModel === "cpc" && "每次点击的出价金额"}
               {billingModel === "ocpm" && "目标转化成本，系统自动优化出价"}
@@ -188,7 +198,8 @@ export default function NewCampaignPage() {
           <div className="flex justify-end pt-4">
             <button onClick={() => setStep(2)}
               disabled={!name || !budgetTotal || !budgetDaily || !bidAmount}
-              className="px-6 py-2 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+              className="px-6 py-2 text-sm font-medium text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+              style={{ background: "var(--primary)" }}>
               下一步: 定向
             </button>
           </div>
@@ -202,34 +213,42 @@ export default function NewCampaignPage() {
             <div className="flex flex-wrap gap-2">
               {geoOptions.map((g) => (
                 <button key={g} onClick={() => toggleGeo(g)}
-                  className={`px-3 py-1.5 text-sm rounded-md border ${
-                    geoTargets.includes(g)
-                      ? "bg-blue-50 border-blue-300 text-blue-700"
-                      : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
-                  }`}>
+                  className="px-3 py-1.5 text-sm rounded-md transition-colors"
+                  style={{
+                    background: geoTargets.includes(g) ? "var(--primary)" : "var(--bg-card)",
+                    border: geoTargets.includes(g) ? "1px solid var(--primary)" : "1px solid var(--border)",
+                    color: geoTargets.includes(g) ? "#fff" : "var(--text-secondary)",
+                  }}>
                   {g}
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-1">不选则投放所有地区</p>
+            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>不选则投放所有地区</p>
           </Field>
           <Field label="操作系统定向">
             <div className="flex flex-wrap gap-2">
               {osOptions.map((o) => (
                 <button key={o} onClick={() => toggleOS(o)}
-                  className={`px-3 py-1.5 text-sm rounded-md border ${
-                    osTargets.includes(o)
-                      ? "bg-blue-50 border-blue-300 text-blue-700"
-                      : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
-                  }`}>
+                  className="px-3 py-1.5 text-sm rounded-md transition-colors"
+                  style={{
+                    background: osTargets.includes(o) ? "var(--primary)" : "var(--bg-card)",
+                    border: osTargets.includes(o) ? "1px solid var(--primary)" : "1px solid var(--border)",
+                    color: osTargets.includes(o) ? "#fff" : "var(--text-secondary)",
+                  }}>
                   {o}
                 </button>
               ))}
             </div>
           </Field>
           <div className="flex justify-between pt-4">
-            <button onClick={() => setStep(1)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">上一步</button>
-            <button onClick={() => setStep(3)} className="px-6 py-2 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700">
+            <button onClick={() => setStep(1)}
+              className="px-4 py-2 text-sm rounded-md transition-colors hover:opacity-80"
+              style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+              上一步
+            </button>
+            <button onClick={() => setStep(3)}
+              className="px-6 py-2 text-sm font-medium text-white rounded-md hover:opacity-90 transition-opacity"
+              style={{ background: "var(--primary)" }}>
               下一步: 素材
             </button>
           </div>
@@ -243,13 +262,14 @@ export default function NewCampaignPage() {
             <div className="grid grid-cols-2 gap-2">
               {adTypes.map((a) => (
                 <button key={a.value} onClick={() => { setAdType(a.value); if (a.sizes.length > 0) setAdSize(a.sizes[0]); }}
-                  className={`p-3 rounded-lg border text-left transition-colors ${
-                    adType === a.value
-                      ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}>
-                  <span className="text-sm font-semibold">{a.label}</span>
-                  <p className="text-xs text-gray-500 mt-0.5">{a.desc}</p>
+                  className="p-3 rounded-lg text-left transition-colors"
+                  style={{
+                    background: adType === a.value ? "var(--primary-muted)" : "var(--bg-card)",
+                    border: adType === a.value ? "1px solid var(--primary)" : "1px solid var(--border)",
+                    boxShadow: adType === a.value ? "0 0 0 1px var(--primary)" : "none",
+                  }}>
+                  <span className="text-sm font-semibold" style={{ color: adType === a.value ? "var(--primary)" : "var(--text-primary)" }}>{a.label}</span>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{a.desc}</p>
                 </button>
               ))}
             </div>
@@ -261,9 +281,12 @@ export default function NewCampaignPage() {
               <div className="flex gap-2">
                 {selectedAdType.sizes.map((s) => (
                   <button key={s} onClick={() => setAdSize(s)}
-                    className={`px-3 py-1.5 text-sm rounded-md border font-geist tabular-nums ${
-                      adSize === s ? "bg-blue-50 border-blue-300 text-blue-700" : "border-gray-300 text-gray-600 hover:bg-gray-50"
-                    }`}>
+                    className="px-3 py-1.5 text-sm rounded-md tabular-nums transition-colors"
+                    style={{
+                      background: adSize === s ? "var(--primary)" : "var(--bg-card)",
+                      border: adSize === s ? "1px solid var(--primary)" : "1px solid var(--border)",
+                      color: adSize === s ? "#fff" : "var(--text-secondary)",
+                    }}>
                     {s}
                   </button>
                 ))}
@@ -274,28 +297,36 @@ export default function NewCampaignPage() {
           <Field label="素材名称">
             <input type="text" value={creativeName} onChange={(e) => setCreativeName(e.target.value)}
               placeholder={`例: ${selectedAdType.label}素材-01`}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 rounded-md text-sm outline-none focus:ring-2"
+              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", "--tw-ring-color": "var(--primary)" } as React.CSSProperties} />
           </Field>
 
           {/* Native ad fields */}
           {adType === "native" && (
-            <div className="space-y-3 p-4 rounded-lg bg-gray-50">
-              <p className="text-xs font-medium text-gray-500 mb-2">原生广告素材</p>
+            <div className="space-y-3 p-4 rounded-[14px]" style={{ background: "var(--bg-card-elevated)", border: "1px solid var(--border)" }}>
+              <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>原生广告素材</p>
               <input type="text" value={nativeTitle} onChange={(e) => setNativeTitle(e.target.value)}
                 placeholder="标题 (必填)"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 rounded-md text-sm outline-none focus:ring-2"
+                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", "--tw-ring-color": "var(--primary)" } as React.CSSProperties} />
               <textarea value={nativeDesc} onChange={(e) => setNativeDesc(e.target.value)}
                 rows={2} placeholder="描述文案"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 rounded-md text-sm outline-none focus:ring-2"
+                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", "--tw-ring-color": "var(--primary)" } as React.CSSProperties} />
               <div className="grid grid-cols-2 gap-3">
                 <input type="url" value={nativeIconURL} onChange={(e) => setNativeIconURL(e.target.value)}
-                  placeholder="图标 URL" className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500" />
+                  placeholder="图标 URL"
+                  className="px-3 py-2 rounded-md text-sm outline-none focus:ring-2"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", "--tw-ring-color": "var(--primary)" } as React.CSSProperties} />
                 <input type="url" value={nativeImageURL} onChange={(e) => setNativeImageURL(e.target.value)}
-                  placeholder="大图 URL" className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500" />
+                  placeholder="大图 URL"
+                  className="px-3 py-2 rounded-md text-sm outline-none focus:ring-2"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", "--tw-ring-color": "var(--primary)" } as React.CSSProperties} />
               </div>
               <input type="text" value={nativeCTA} onChange={(e) => setNativeCTA(e.target.value)}
                 placeholder="CTA 按钮文字 (默认: 了解更多)"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500" />
+                className="w-full px-3 py-2 rounded-md text-sm outline-none focus:ring-2"
+                style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", "--tw-ring-color": "var(--primary)" } as React.CSSProperties} />
             </div>
           )}
 
@@ -305,8 +336,9 @@ export default function NewCampaignPage() {
               <Field label="广告代码 (HTML)">
                 <textarea value={creativeMarkup} onChange={(e) => setCreativeMarkup(e.target.value)}
                   rows={3} placeholder={`<div style="width:${adSize.split('x')[0]}px;height:${adSize.split('x')[1]}px;background:#1a1a2e;color:#fff;display:flex;align-items:center;justify-content:center">广告内容</div>`}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-geist tabular-nums focus:ring-2 focus:ring-blue-500" />
-                <p className="text-xs text-gray-400 mt-1">留空将自动生成占位素材</p>
+                  className="w-full px-3 py-2 rounded-md text-sm tabular-nums outline-none focus:ring-2"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", "--tw-ring-color": "var(--primary)" } as React.CSSProperties} />
+                <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>留空将自动生成占位素材</p>
               </Field>
             </>
           )}
@@ -314,28 +346,34 @@ export default function NewCampaignPage() {
           <Field label="落地页 URL">
             <input type="url" value={creativeURL} onChange={(e) => setCreativeURL(e.target.value)}
               placeholder="https://example.com/landing"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500" />
+              className="w-full px-3 py-2 rounded-md text-sm outline-none focus:ring-2"
+              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)", "--tw-ring-color": "var(--primary)" } as React.CSSProperties} />
           </Field>
 
           {/* Summary */}
-          <div className="mt-6 p-4 rounded-lg bg-gray-50">
-            <h4 className="text-sm font-medium mb-3">确认信息</h4>
+          <div className="mt-6 p-4 rounded-[14px]" style={{ background: "var(--bg-card-elevated)", border: "1px solid var(--border)" }}>
+            <h4 className="text-sm font-medium mb-3" style={{ color: "var(--text-primary)" }}>确认信息</h4>
             <div className="grid grid-cols-2 gap-y-2 text-sm">
-              <span className="text-gray-500">名称:</span><span>{name}</span>
-              <span className="text-gray-500">计费方式:</span><span>{selectedBilling.label}</span>
-              <span className="text-gray-500">出价:</span><span>¥{bidAmount} {selectedBilling.label}</span>
-              <span className="text-gray-500">总预算:</span><span>¥{budgetTotal}</span>
-              <span className="text-gray-500">日预算:</span><span>¥{budgetDaily}</span>
-              <span className="text-gray-500">广告类型:</span><span>{selectedAdType.label}{adSize && adType !== "native" ? ` (${adSize})` : ""}</span>
-              <span className="text-gray-500">地区:</span><span>{geoTargets.length > 0 ? geoTargets.join(", ") : "全部"}</span>
-              <span className="text-gray-500">系统:</span><span>{osTargets.length > 0 ? osTargets.join(", ") : "全部"}</span>
+              <span style={{ color: "var(--text-muted)" }}>名称:</span><span style={{ color: "var(--text-primary)" }}>{name}</span>
+              <span style={{ color: "var(--text-muted)" }}>计费方式:</span><span style={{ color: "var(--text-primary)" }}>{selectedBilling.label}</span>
+              <span style={{ color: "var(--text-muted)" }}>出价:</span><span style={{ color: "var(--text-primary)" }}>¥{bidAmount} {selectedBilling.label}</span>
+              <span style={{ color: "var(--text-muted)" }}>总预算:</span><span style={{ color: "var(--text-primary)" }}>¥{budgetTotal}</span>
+              <span style={{ color: "var(--text-muted)" }}>日预算:</span><span style={{ color: "var(--text-primary)" }}>¥{budgetDaily}</span>
+              <span style={{ color: "var(--text-muted)" }}>广告类型:</span><span style={{ color: "var(--text-primary)" }}>{selectedAdType.label}{adSize && adType !== "native" ? ` (${adSize})` : ""}</span>
+              <span style={{ color: "var(--text-muted)" }}>地区:</span><span style={{ color: "var(--text-primary)" }}>{geoTargets.length > 0 ? geoTargets.join(", ") : "全部"}</span>
+              <span style={{ color: "var(--text-muted)" }}>系统:</span><span style={{ color: "var(--text-primary)" }}>{osTargets.length > 0 ? osTargets.join(", ") : "全部"}</span>
             </div>
           </div>
 
           <div className="flex justify-between pt-4">
-            <button onClick={() => setStep(2)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">上一步</button>
+            <button onClick={() => setStep(2)}
+              className="px-4 py-2 text-sm rounded-md transition-colors hover:opacity-80"
+              style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+              上一步
+            </button>
             <button onClick={handleSubmit} disabled={submitting}
-              className="px-6 py-2 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
+              className="px-6 py-2 text-sm font-medium text-white rounded-md disabled:opacity-50 hover:opacity-90 transition-opacity"
+              style={{ background: "var(--primary)" }}>
               {submitting ? "创建中..." : "创建 Campaign"}
             </button>
           </div>
@@ -348,8 +386,8 @@ export default function NewCampaignPage() {
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label} {required && <span className="text-red-500">*</span>}
+      <label className="block text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>
+        {label} {required && <span style={{ color: "var(--error)" }}>*</span>}
       </label>
       {children}
     </div>
