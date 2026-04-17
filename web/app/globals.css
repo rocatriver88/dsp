@@ -1,92 +1,62 @@
-@import url("https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/style.css");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
 @import "tailwindcss";
 
 :root {
-  --sidebar-bg: #1a1a1a;
-  --sidebar-text: #a1a1aa;
-  --sidebar-active: #ffffff;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --success: #059669;
-  --warning: #d97706;
-  --error: #dc2626;
-  --bg: #f9fafb;
-  --card-bg: #ffffff;
-  --text-primary: #111827;
-  --text-secondary: #6b7280;
-  --border: #e5e7eb;
+  --primary: #8B5CF6;
+  --primary-hover: #7C3AED;
+  --primary-muted: rgba(139, 92, 246, 0.12);
+  --bg-page: #0F0A1A;
+  --bg-sidebar: #0A0610;
+  --bg-card: #1A1225;
+  --bg-card-elevated: #231830;
+  --bg-input: #1A1225;
+  --border: #2A2035;
+  --border-subtle: #1F1730;
+  --text-primary: #FFFFFF;
+  --text-secondary: #A0A0B0;
+  --text-muted: #6B6B80;
+  --success: #22C55E;
+  --warning: #EAB308;
+  --error: #EF4444;
+  --info: #3B82F6;
+  --chart-1: #8B5CF6;
+  --chart-2: #3B82F6;
+  --chart-3: #22C55E;
+  --chart-4: #EAB308;
+  --chart-5: #EF4444;
+  --chart-6: #EC4899;
 }
 
 body {
-  background: var(--bg);
+  background: var(--bg-page);
   color: var(--text-primary);
-  font-family: "IBM Plex Sans", -apple-system, sans-serif;
-  font-size: 15px;
+  font-family: "Inter", -apple-system, sans-serif;
+  font-size: 14px;
   line-height: 1.6;
   margin: 0;
 }
 
-/* Geist font family for display/data per DESIGN.md */
-.font-geist {
-  font-family: "Geist", -apple-system, sans-serif;
-}
+.tabular-nums { font-variant-numeric: tabular-nums; }
+nav a, nav button { min-height: 44px; display: flex; align-items: center; }
 
-/* Data tables: 14px Geist tabular-nums per DESIGN.md */
-table td, table th {
-  font-size: 14px;
-}
-
-/* Tabular numbers for data alignment */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
-
-/* Navigation items: minimum 44px touch target */
-nav a, nav button {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-}
-
-/* Accessibility: visible focus ring on all interactive elements */
-a:focus-visible,
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--accent);
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
-/* Screen reader only utility */
 .sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;
 }
 
-/* Touch target minimum size */
-button, a {
-  min-height: 44px;
-  min-width: 44px;
-}
+button, a { min-height: 44px; min-width: 44px; }
+td a, p a, span a, .inline-link { min-height: auto; min-width: auto; }
 
-/* Exception: inline text links and table cell links don't need 44px */
-td a, p a, span a {
-  min-height: auto;
-  min-width: auto;
-}
-
-/* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-page); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }

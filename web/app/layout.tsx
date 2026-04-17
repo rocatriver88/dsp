@@ -15,16 +15,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" className="h-full">
-      <body className="h-full flex flex-col md:flex-row">
-        {/* Skip to content link — keyboard accessibility */}
+      <body className="h-full flex flex-col md:flex-row" style={{ background: "var(--bg-page)", color: "var(--text-primary)" }}>
         <a href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded focus:text-sm">
+          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:rounded focus:text-sm"
+          style={{ background: "var(--primary)", color: "#fff" }}>
           跳转到主内容
         </a>
-
-        <ApiKeyGate
-          sidebar={<Sidebar />}
-        >
+        <ApiKeyGate sidebar={<Sidebar />}>
           {children}
         </ApiKeyGate>
       </body>
