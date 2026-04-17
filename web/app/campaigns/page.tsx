@@ -82,13 +82,13 @@ export default function CampaignsPage() {
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>
-          Campaigns
-        </h2>
+        <div>
+          <h2 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>广告系列管理</h2>
+          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>管理和监控广告系列的投放表现</p>
+        </div>
         <Link
           href="/campaigns/new"
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-colors"
-          style={{ background: "var(--primary)" }}
+          className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-sm"
         >
           <Plus size={16} />
           创建广告系列
@@ -101,10 +101,10 @@ export default function CampaignsPage() {
           <button
             key={t.key}
             onClick={() => setFilter(t.key)}
-            className="px-3.5 py-1.5 text-sm font-medium rounded-lg transition-colors"
+            className={`px-3.5 py-1.5 text-sm font-medium rounded-lg transition-colors ${filter === t.key ? "btn-primary" : ""}`}
             style={
               filter === t.key
-                ? { background: "var(--primary)", color: "#FFFFFF" }
+                ? {}
                 : { background: "transparent", color: "var(--text-secondary)" }
             }
           >
@@ -150,9 +150,7 @@ export default function CampaignsPage() {
           actionHref="/campaigns/new"
         />
       ) : filtered.length === 0 ? (
-        <div
-          className="rounded-[14px] p-12 text-center"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+        <div className="glass-card-static p-12 text-center"
         >
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
             没有{filterTabs.find((t) => t.key === filter)?.label || ""}状态的 Campaign
@@ -169,8 +167,7 @@ export default function CampaignsPage() {
             return (
               <div
                 key={c.id}
-                className="rounded-[14px] p-5 transition-colors"
-                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}
+                className="glass-card p-5"
               >
                 {/* Card header */}
                 <div className="flex items-start justify-between mb-1">
@@ -279,7 +276,7 @@ export default function CampaignsPage() {
                     </span>
                     <div className="flex items-center gap-2">
                       <span
-                        className="text-[14px] font-bold font-geist"
+                        className="text-[14px] font-bold "
                         style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}
                       >
                         {progress}%
@@ -326,7 +323,7 @@ function MetricCell({
         {label}
       </span>
       <span
-        className="text-[14px] font-bold font-geist"
+        className="text-[14px] font-bold "
         style={{
           color: valueColor || "var(--text-primary)",
           fontVariantNumeric: "tabular-nums",

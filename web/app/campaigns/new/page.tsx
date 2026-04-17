@@ -114,7 +114,8 @@ export default function NewCampaignPage() {
 
   return (
     <div className="max-w-2xl">
-      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>创建 Campaign</h2>
+      <h2 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>创建广告系列</h2>
+      <p className="text-[13px] mb-6" style={{ color: "var(--text-secondary)" }}>配置广告系列的基本信息、定向和素材</p>
 
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-8">
@@ -123,8 +124,10 @@ export default function NewCampaignPage() {
             <div
               className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium"
               style={{
-                background: step > s ? "var(--success)" : step === s ? "var(--primary)" : "var(--bg-card)",
+                background: step > s ? "var(--success)" : step === s ? "linear-gradient(135deg, #8B5CF6, #7C3AED)" : "var(--glass-bg)",
                 color: step >= s ? "#fff" : "var(--text-muted)",
+                border: step < s ? "1px solid var(--border)" : "none",
+                boxShadow: step === s ? "0 4px 12px rgba(139,92,246,0.3)" : "none",
               }}
             >
               {s}
@@ -198,8 +201,7 @@ export default function NewCampaignPage() {
           <div className="flex justify-end pt-4">
             <button onClick={() => setStep(2)}
               disabled={!name || !budgetTotal || !budgetDaily || !bidAmount}
-              className="px-6 py-2 text-sm font-medium text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-              style={{ background: "var(--primary)" }}>
+              className="btn-primary px-6 py-2 text-sm">
               下一步: 定向
             </button>
           </div>
@@ -242,13 +244,11 @@ export default function NewCampaignPage() {
           </Field>
           <div className="flex justify-between pt-4">
             <button onClick={() => setStep(1)}
-              className="px-4 py-2 text-sm rounded-md transition-colors hover:opacity-80"
-              style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+              className="btn-ghost px-4 py-2 text-sm">
               上一步
             </button>
             <button onClick={() => setStep(3)}
-              className="px-6 py-2 text-sm font-medium text-white rounded-md hover:opacity-90 transition-opacity"
-              style={{ background: "var(--primary)" }}>
+              className="btn-primary px-6 py-2 text-sm">
               下一步: 素材
             </button>
           </div>
@@ -367,13 +367,11 @@ export default function NewCampaignPage() {
 
           <div className="flex justify-between pt-4">
             <button onClick={() => setStep(2)}
-              className="px-4 py-2 text-sm rounded-md transition-colors hover:opacity-80"
-              style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+              className="btn-ghost px-4 py-2 text-sm">
               上一步
             </button>
             <button onClick={handleSubmit} disabled={submitting}
-              className="px-6 py-2 text-sm font-medium text-white rounded-md disabled:opacity-50 hover:opacity-90 transition-opacity"
-              style={{ background: "var(--primary)" }}>
+              className="btn-primary px-6 py-2 text-sm">
               {submitting ? "创建中..." : "创建 Campaign"}
             </button>
           </div>

@@ -54,7 +54,7 @@ export default function CampaignDetailPage() {
 
   if (error || !campaign) {
     return (
-      <div className="rounded-[14px] p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+      <div className="glass-card-static p-8 text-center">
         <p className="text-sm" style={{ color: "var(--error)" }}>{error || "Campaign 未找到"}</p>
         <Link href="/campaigns" className="text-sm mt-4 inline-block" style={{ color: "var(--primary)" }}>返回列表</Link>
       </div>
@@ -105,7 +105,7 @@ export default function CampaignDetailPage() {
 
       {/* Campaign Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="rounded-[14px] p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <div className="glass-card-static p-5">
           <h3 className="text-sm font-medium mb-4" style={{ color: "var(--text-muted)" }}>基本信息</h3>
           <div className="space-y-3 text-sm">
             <InfoRow label="计费模式" value={campaign.billing_model || "cpm"} />
@@ -118,7 +118,7 @@ export default function CampaignDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-[14px] p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <div className="glass-card-static p-5">
           <h3 className="text-sm font-medium mb-4" style={{ color: "var(--text-muted)" }}>定向设置</h3>
           <div className="space-y-3 text-sm">
             <InfoRow label="地区" value={targeting.geo?.join(", ") || "全部"} />
@@ -144,7 +144,7 @@ export default function CampaignDetailPage() {
         )}
 
         {creatives.length === 0 ? (
-          <div className="rounded-[14px] p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+          <div className="glass-card-static p-8 text-center">
             <p className="text-base font-medium mb-2" style={{ color: "var(--text-primary)" }}>暂无素材</p>
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>Campaign 需要至少一个素材才能启动投放</p>
           </div>
@@ -239,7 +239,7 @@ function AddCreativeForm({ campaignId, onCreated }: { campaignId: number; onCrea
   };
 
   return (
-    <div className="rounded-[14px] p-5 mb-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+    <div className="glass-card-static p-5 mb-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>素材名称</label>
@@ -392,7 +392,7 @@ function CreativeCard({ creative: cr, onUpdated }: { creative: Creative; onUpdat
   };
 
   return (
-    <div className="rounded-[14px] overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+    <div className="glass-card-static overflow-hidden">
       {/* Summary row */}
       <div className="flex items-center px-4 py-3 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setExpanded(!expanded)}>
         {previewImgUrl && (
@@ -531,7 +531,7 @@ function BidSimulator({ campaignId, currentBidCPM }: { campaignId: number; curre
   const winDelta = result ? result.simulated_win_rate - result.current_win_rate : 0;
 
   return (
-    <div className="rounded-[14px] p-5 mt-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+    <div className="glass-card-static p-5 mt-6">
       <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>出价模拟器</h3>
       <div className="flex items-center gap-4 mb-4">
         <label className="text-sm flex-shrink-0" style={{ color: "var(--text-muted)" }}>模拟 CPM</label>
