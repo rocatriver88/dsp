@@ -12,7 +12,7 @@ interface Stats {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[14px] p-5" style={{ background: "var(--bg-card)" }}>
+    <div className="glass-card-static p-5">
       <p className="text-xs font-medium mb-2" style={{ color: "var(--text-secondary)" }}>{label}</p>
       <p className="text-2xl font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>{value}</p>
     </div>
@@ -21,7 +21,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 function StatCardSkeleton() {
   return (
-    <div className="rounded-[14px] p-5 animate-pulse h-20" style={{ background: "var(--bg-card)" }} />
+    <div className="glass-card-static p-5 animate-pulse h-20" />
   );
 }
 
@@ -128,7 +128,7 @@ export default function AdminOverviewPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Circuit Breaker */}
-        <div className="rounded-[14px] p-6" style={{ background: "var(--bg-card)" }}>
+        <div className="glass-card-static p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>熔断器状态</h3>
             {circuitError && (
@@ -200,7 +200,7 @@ export default function AdminOverviewPage() {
         </div>
 
         {/* System Health */}
-        <div className="rounded-[14px] p-6" style={{ background: "var(--bg-card)" }}>
+        <div className="glass-card-static p-6">
           <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>系统健康</h3>
           {loading ? (
             <div className="animate-pulse space-y-3">

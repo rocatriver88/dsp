@@ -101,18 +101,18 @@ export default function AuditPage() {
       )}
 
       {loading ? (
-        <div className="rounded-[14px] p-6 animate-pulse space-y-3" style={{ background: "var(--bg-card)" }}>
+        <div className="glass-card-static p-6 animate-pulse space-y-3">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="h-10 rounded" style={{ background: "var(--bg-card-elevated)" }} />
           ))}
         </div>
       ) : entries.length === 0 && page === 0 ? (
-        <div className="rounded-[14px] p-16 text-center" style={{ background: "var(--bg-card)" }}>
+        <div className="glass-card-static p-16 text-center">
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>暂无审计记录</p>
         </div>
       ) : (
         <>
-          <div className="rounded-[14px] overflow-hidden mb-4" style={{ background: "var(--bg-card)" }}>
+          <div className="glass-card-static p-0 overflow-hidden mb-4">
             <table className="w-full text-sm" aria-label="审计日志">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>

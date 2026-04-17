@@ -183,7 +183,7 @@ export default function AgenciesPage() {
               {registrations.length}
             </span>
           </h3>
-          <div className="rounded-[14px] overflow-hidden" style={{ background: "var(--bg-card)" }}>
+          <div className="glass-card-static p-0 overflow-hidden">
             <table className="w-full text-sm" aria-label="待审核注册">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
@@ -235,17 +235,17 @@ export default function AgenciesPage() {
       <section>
         <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>广告主列表</h3>
         {loading ? (
-          <div className="rounded-[14px] p-6 animate-pulse space-y-3" style={{ background: "var(--bg-card)" }}>
+          <div className="glass-card-static p-6 animate-pulse space-y-3">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="h-10 rounded" style={{ background: "var(--bg-card-elevated)" }} />
             ))}
           </div>
         ) : advertisers.length === 0 ? (
-          <div className="rounded-[14px] p-12 text-center" style={{ background: "var(--bg-card)" }}>
+          <div className="glass-card-static p-12 text-center">
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>暂无广告主</p>
           </div>
         ) : (
-          <div className="rounded-[14px] overflow-hidden" style={{ background: "var(--bg-card)" }}>
+          <div className="glass-card-static p-0 overflow-hidden">
             <table className="w-full text-sm" aria-label="广告主列表">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>

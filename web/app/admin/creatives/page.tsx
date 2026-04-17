@@ -15,7 +15,7 @@ function CreativeCard({
   actionLoading: boolean;
 }) {
   return (
-    <div className="rounded-[14px] p-5" style={{ background: "var(--bg-card)" }}>
+    <div className="glass-card p-5">
       <div className="flex items-start justify-between gap-4 mb-3">
         <div>
           <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{creative.name}</p>
@@ -171,7 +171,7 @@ export default function CreativesPage() {
       {loading ? (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="rounded-[14px] p-5 animate-pulse" style={{ background: "var(--bg-card)" }}>
+            <div key={i} className="glass-card-static p-5 animate-pulse">
               <div className="h-4 rounded w-1/3 mb-3" style={{ background: "var(--bg-card-elevated)" }} />
               <div className="h-3 rounded w-1/2 mb-4" style={{ background: "var(--bg-card-elevated)" }} />
               <div className="h-20 rounded" style={{ background: "var(--bg-card-elevated)" }} />
@@ -179,7 +179,7 @@ export default function CreativesPage() {
           ))}
         </div>
       ) : creatives.length === 0 ? (
-        <div className="rounded-[14px] p-16 text-center" style={{ background: "var(--bg-card)" }}>
+        <div className="glass-card-static p-16 text-center">
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>暂无待审核素材</p>
         </div>
       ) : (
