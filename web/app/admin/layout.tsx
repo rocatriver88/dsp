@@ -82,13 +82,6 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
           })}
         </div>
         <div className="px-5 py-4 border-t border-gray-800 space-y-2">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors w-full"
-          >
-            <span className="text-xs">←</span>
-            广告主后台
-          </Link>
           <button
             onClick={onLogout}
             className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors w-full"
