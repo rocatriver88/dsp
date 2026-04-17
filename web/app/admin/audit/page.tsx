@@ -30,13 +30,13 @@ function actionLabel(action: string): string {
 }
 
 function formatDetails(details: Record<string, unknown>): string {
-  if (!details || Object.keys(details).length === 0) return "—";
+  if (!details || Object.keys(details).length === 0) return "\u2014";
   try {
     return Object.entries(details)
       .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
       .join(", ");
   } catch {
-    return "—";
+    return "\u2014";
   }
 }
 
@@ -91,64 +91,64 @@ export default function AuditPage() {
 
   return (
     <div className="p-8 max-w-6xl">
-      <h2 className="text-2xl font-semibold mb-6">审计日志</h2>
+      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>审计日志</h2>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded bg-red-50 text-red-700 text-sm flex items-center justify-between">
+        <div className="mb-4 px-4 py-3 rounded text-sm flex items-center justify-between" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>
           <span>{error}</span>
           <button onClick={handleRetry} className="text-xs underline ml-4">重试</button>
         </div>
       )}
 
       {loading ? (
-        <div className="bg-white rounded-lg p-6 animate-pulse space-y-3">
+        <div className="rounded-[14px] p-6 animate-pulse space-y-3" style={{ background: "var(--bg-card)" }}>
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-10 bg-gray-100 rounded" />
+            <div key={i} className="h-10 rounded" style={{ background: "var(--bg-card-elevated)" }} />
           ))}
         </div>
       ) : entries.length === 0 && page === 0 ? (
-        <div className="bg-white rounded-lg p-16 text-center">
-          <p className="text-sm text-gray-500">暂无审计记录</p>
+        <div className="rounded-[14px] p-16 text-center" style={{ background: "var(--bg-card)" }}>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>暂无审计记录</p>
         </div>
       ) : (
         <>
-          <div className="bg-white rounded-lg overflow-hidden mb-4">
+          <div className="rounded-[14px] overflow-hidden mb-4" style={{ background: "var(--bg-card)" }}>
             <table className="w-full text-sm" aria-label="审计日志">
-              <thead className="bg-gray-50">
+              <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">时间</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">操作</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">操作人</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">广告主 ID</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">资源</th>
-                  <th className="text-left py-3 px-4 text-xs text-gray-500 font-medium border-b border-gray-100">详情</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>时间</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>操作</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>操作人</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>广告主 ID</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>资源</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)", borderBottom: "1px solid var(--border)" }}>详情</th>
                 </tr>
               </thead>
               <tbody>
                 {entries.map((entry) => (
-                  <tr key={entry.id} className="border-b last:border-0 border-gray-100">
-                    <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums whitespace-nowrap">
+                  <tr key={entry.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                    <td className="py-3 px-4 text-xs tabular-nums whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
                       {new Date(entry.created_at).toLocaleString("zh-CN")}
                     </td>
                     <td className="py-3 px-4">
-                      <span className="text-sm text-gray-900">{actionLabel(entry.action)}</span>
-                      <span className="ml-2 text-xs text-gray-400 font-mono">{entry.action}</span>
+                      <span className="text-sm" style={{ color: "var(--text-primary)" }}>{actionLabel(entry.action)}</span>
+                      <span className="ml-2 text-xs font-mono" style={{ color: "var(--text-muted)" }}>{entry.action}</span>
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-700">{entry.actor || "—"}</td>
-                    <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
-                      {entry.advertiser_id ? `#${entry.advertiser_id}` : "—"}
+                    <td className="py-3 px-4 text-sm" style={{ color: "var(--text-primary)" }}>{entry.actor || "\u2014"}</td>
+                    <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
+                      {entry.advertiser_id ? `#${entry.advertiser_id}` : "\u2014"}
                     </td>
-                    <td className="py-3 px-4 text-xs text-gray-500 font-geist tabular-nums">
+                    <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {entry.resource_type ? (
                         <span>
                           {entry.resource_type}
                           {entry.resource_id ? ` #${entry.resource_id}` : ""}
                         </span>
                       ) : (
-                        "—"
+                        "\u2014"
                       )}
                     </td>
-                    <td className="py-3 px-4 text-xs text-gray-500 max-w-xs truncate" title={formatDetails(entry.details)}>
+                    <td className="py-3 px-4 text-xs max-w-xs truncate" style={{ color: "var(--text-muted)" }} title={formatDetails(entry.details)}>
                       {formatDetails(entry.details)}
                     </td>
                   </tr>
@@ -159,21 +159,23 @@ export default function AuditPage() {
 
           {/* Pagination */}
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
               第 {page + 1} 页 · 每页 {PAGE_SIZE} 条
             </span>
             <div className="flex items-center gap-2">
               <button
                 onClick={handlePrev}
                 disabled={page === 0 || loading}
-                className="px-3 py-1.5 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
               >
                 上一页
               </button>
               <button
                 onClick={handleNext}
                 disabled={!hasMore || loading}
-                className="px-3 py-1.5 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                style={{ background: "var(--bg-card)", color: "var(--text-primary)" }}
               >
                 下一页
               </button>
