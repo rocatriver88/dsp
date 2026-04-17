@@ -64,10 +64,11 @@ export default function BillingPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>账户</h2>
+      <h2 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>账户</h2>
+      <p className="text-[13px] mb-6" style={{ color: "var(--text-secondary)" }}>管理账户余额和查看交易记录</p>
 
       {/* Balance card */}
-      <div className="rounded-[14px] p-6 mb-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+      <div className="glass-card-static p-6 mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-baseline gap-6">
             <div>
@@ -80,7 +81,7 @@ export default function BillingPage() {
             </div>
           </div>
           <button onClick={() => { setShowTopUp(!showTopUp); setTopUpSuccess(false); setTopUpError(null); }}
-            className="px-4 py-2 text-sm font-medium text-white rounded-md" style={{ background: "var(--primary)" }}>
+            className="btn-primary px-4 py-2 text-sm">
             {showTopUp ? "取消" : "充值"}
           </button>
         </div>
@@ -151,12 +152,12 @@ export default function BillingPage() {
       {/* Transaction history */}
       <h3 className="text-sm font-medium mb-3" style={{ color: "var(--text-secondary)" }}>交易记录</h3>
       {transactions.length === 0 ? (
-        <div className="rounded-[14px] p-12 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <div className="glass-card-static p-12 text-center">
           <p className="text-base font-medium mb-2" style={{ color: "var(--text-primary)" }}>暂无交易记录</p>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Campaign 开始投放后，花费和充值记录会显示在这里</p>
         </div>
       ) : (
-        <div className="rounded-[14px] overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <div className="glass-card-static p-0 overflow-hidden">
           <table className="w-full text-sm" aria-label="交易记录">
             <thead style={{ background: "var(--bg-card-elevated)" }}>
               <tr>

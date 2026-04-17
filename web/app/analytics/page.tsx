@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { LoadingSkeleton, ErrorState, EmptyState } from "../_components/LoadingState";
 import { StatCard } from "../_components/StatCard";
 import { getAccessToken } from "@/lib/api";
+import { Eye, MousePointer, DollarSign, TrendingUp } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 
@@ -175,9 +176,12 @@ export default function AnalyticsPage() {
   const totalProfit = data.campaigns.reduce((s, c) => s + c.profit_cents, 0);
 
   return (
-    <main className="p-6 max-w-7xl mx-auto">
+    <main>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>实时竞价分析</h1>
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>数据分析</h1>
+          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>实时监控竞价投放数据</p>
+        </div>
         <div className="flex items-center gap-2 text-sm">
           <span className={`inline-block w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`} />
           <span style={{ color: "var(--text-secondary)" }}>
@@ -191,16 +195,16 @@ export default function AnalyticsPage() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <StatCard label="今日曝光" value={totalImpressions.toLocaleString()} />
-        <StatCard label="今日点击" value={totalClicks.toLocaleString()} />
-        <StatCard label="今日花费" value={`¥${(totalSpend / 100).toFixed(2)}`} />
-        <StatCard label="今日利润" value={`¥${(totalProfit / 100).toFixed(2)}`} iconColor={totalProfit >= 0 ? "#22C55E" : "#EF4444"} />
+        <StatCard label="今日曝光" value={totalImpressions.toLocaleString()} icon={Eye} iconColor="#8B5CF6" stagger={1} />
+        <StatCard label="今日点击" value={totalClicks.toLocaleString()} icon={MousePointer} iconColor="#3B82F6" stagger={2} />
+        <StatCard label="今日花费" value={`¥${(totalSpend / 100).toFixed(2)}`} icon={DollarSign} iconColor="#F97316" stagger={3} />
+        <StatCard label="今日利润" value={`¥${(totalProfit / 100).toFixed(2)}`} icon={TrendingUp} iconColor={totalProfit >= 0 ? "#22C55E" : "#EF4444"} stagger={4} />
       </div>
 
       {data.campaigns.length === 0 ? (
         <EmptyState heading="暂无活跃 Campaign" message="创建并启动 Campaign 后，实时竞价数据会在这里显示" actionLabel="创建 Campaign" actionHref="/campaigns/new" />
       ) : (
-        <div className="overflow-x-auto rounded-[14px]" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <div className="glass-card-static p-0 overflow-hidden animate-fade-in">
           <table className="w-full text-sm" aria-label="实时竞价数据">
             <thead>
               <tr className="text-left" style={{ borderBottom: "1px solid var(--border)", color: "var(--text-secondary)" }}>
