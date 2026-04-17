@@ -32,20 +32,20 @@ export default function ReportsPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>报表</h2>
-      <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>选择一个 Campaign 查看详细报表和 bid 透明度数据</p>
+      <h2 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>报表</h2>
+      <p className="text-[13px] mb-6" style={{ color: "var(--text-secondary)" }}>选择一个广告系列查看详细报表和竞价透明度数据</p>
 
       {loading ? (
         <LoadingSkeleton rows={3} />
       ) : error ? (
         <ErrorState message={error} onRetry={handleRetry} />
       ) : campaigns.length === 0 ? (
-        <div className="rounded-[14px] p-12 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <div className="glass-card-static p-12 text-center">
           <p className="text-lg font-medium mb-2" style={{ color: "var(--text-primary)" }}>还没有 Campaign</p>
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>创建并投放 Campaign 后，这里会显示报表数据</p>
         </div>
       ) : (
-        <div className="rounded-[14px] overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <div className="glass-card-static p-0 overflow-hidden">
           <table className="w-full text-sm" aria-label="Campaign 报表列表">
             <thead style={{ background: "var(--bg-card-elevated)" }}>
               <tr>

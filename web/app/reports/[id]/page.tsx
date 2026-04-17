@@ -54,7 +54,7 @@ export default function CampaignReportPage() {
 
   if (error || !campaign) {
     return (
-      <div className="rounded-[14px] p-8 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+      <div className="glass-card-static p-8 text-center">
         <p className="text-sm" style={{ color: "var(--error)" }}>{error || "Campaign 未找到"}</p>
         <Link href="/reports" className="text-sm mt-4 inline-block" style={{ color: "var(--primary)" }}>返回报表列表</Link>
       </div>
@@ -119,7 +119,7 @@ export default function CampaignReportPage() {
       {tab === "overview" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Hourly chart (text-based for Phase 2) */}
-          <div className="rounded-[14px] p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+          <div className="glass-card-static p-5">
             <h3 className="text-sm font-medium mb-4" style={{ color: "var(--text-secondary)" }}>今日小时分布</h3>
             {hourly.length === 0 ? (
               <div className="text-center py-8">
@@ -146,7 +146,7 @@ export default function CampaignReportPage() {
           </div>
 
           {/* Geo breakdown */}
-          <div className="rounded-[14px] p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+          <div className="glass-card-static p-5">
             <h3 className="text-sm font-medium mb-4" style={{ color: "var(--text-secondary)" }}>地区分布</h3>
             {geo.length === 0 ? (
               <div className="text-center py-8">
@@ -179,7 +179,7 @@ export default function CampaignReportPage() {
         </div>
       ) : (
         /* Bid Transparency Tab */
-        <div className="rounded-[14px] overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <div className="glass-card-static p-0 overflow-hidden">
           <div className="px-5 py-3" style={{ background: "var(--bg-card-elevated)", borderBottom: "1px solid var(--border)" }}>
             <h3 className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>逐笔竞价记录</h3>
             <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>每一笔竞价的真实出价和成交价，完全透明</p>
