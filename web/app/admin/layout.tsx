@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getAccessToken, logout } from "@/lib/api";
+import { getAccessToken, login, logout } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 
@@ -27,7 +27,7 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
         className="md:hidden flex items-center gap-1 px-3 py-2 overflow-x-auto"
         style={{ background: "#111827" }}
       >
-        <span className="text-white font-semibold text-sm mr-2 flex-shrink-0">Admin</span>
+        <span className="text-white font-semibold text-sm mr-2 flex-shrink-0">管理后台</span>
         {adminNavItems.map((item) => {
           const isActive =
             pathname === item.href ||
@@ -54,7 +54,7 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
         style={{ width: 224, minHeight: "100vh", background: "#111827" }}
       >
         <div className="px-5 py-5 border-b border-gray-800">
-          <h1 className="text-lg font-semibold text-white tracking-tight">DSP Admin</h1>
+          <h1 className="text-lg font-semibold text-white tracking-tight">DSP 管理后台</h1>
           <p className="text-xs mt-0.5 text-gray-400">管理员控制台</p>
         </div>
         <div className="flex-1 py-3" role="list">
@@ -105,28 +105,28 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
 function AdminAuthGate({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true);
   const [authorized, setAuthorized] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginLoading, setLoginLoading] = useState(false);
 
-  useEffect(() => {
+  function checkAuth() {
     const token = getAccessToken();
     if (!token) {
-      // No JWT — redirect to tenant login page
-      window.location.href = "/";
+      setChecking(false);
       return;
     }
 
-    // Verify JWT and check role via /api/v1/auth/me (on the public port)
     fetch(`${API_BASE}/api/v1/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
         if (res.status === 401) {
-          // Token expired or invalid — redirect to login
           logout();
           return;
         }
         if (!res.ok) {
-          // Other error — fail closed
-          window.location.href = "/";
+          setChecking(false);
           return;
         }
         return res.json();
@@ -134,21 +134,96 @@ function AdminAuthGate({ children }: { children: React.ReactNode }) {
       .then((data) => {
         if (!data) return;
         if (data.role !== "platform_admin") {
-          // Not an admin — redirect to tenant dashboard
+          // Not admin — redirect to tenant dashboard
           window.location.href = "/";
           return;
         }
         setAuthorized(true);
       })
       .catch(() => {
-        // Network error — fail closed
-        window.location.href = "/";
+        setChecking(false);
       })
       .finally(() => setChecking(false));
-  }, []);
+  }
+
+  useEffect(() => { checkAuth(); }, []);
+
+  async function handleAdminLogin() {
+    if (!loginEmail || !loginPassword) return;
+    setLoginError(null);
+    setLoginLoading(true);
+    try {
+      const result = await login(loginEmail, loginPassword);
+      if (result.user?.role !== "platform_admin") {
+        setLoginError("该账号不是平台管理员");
+        logout();
+        return;
+      }
+      setAuthorized(true);
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message === "__admin_redirect__") {
+        // login() redirected admin — just reload
+        setAuthorized(true);
+        return;
+      }
+      setLoginError(e instanceof Error ? e.message : "登录失败");
+    } finally {
+      setLoginLoading(false);
+    }
+  }
 
   if (checking) return null;
-  if (!authorized) return null;
+
+  if (!authorized) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
+        <div className="bg-white rounded-lg p-8 w-full max-w-md shadow-sm">
+          <h2 className="text-xl font-semibold mb-2">DSP 管理后台</h2>
+          <p className="text-sm text-gray-500 mb-6">
+            使用管理员账号登录
+          </p>
+          {loginError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+              {loginError}
+            </div>
+          )}
+          <div className="mb-3">
+            <label className="block text-xs font-medium text-gray-500 mb-1">邮箱</label>
+            <input
+              type="email"
+              placeholder="admin@example.com"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdminLogin(); }}
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-gray-500 mb-1">密码</label>
+            <input
+              type="password"
+              placeholder="输入密码"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdminLogin(); }}
+            />
+          </div>
+          <button
+            onClick={handleAdminLogin}
+            disabled={!loginEmail || !loginPassword || loginLoading}
+            className="w-full px-4 py-2 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            {loginLoading ? "登录中..." : "登录"}
+          </button>
+          <p className="text-xs text-gray-400 mt-4 text-center">
+            <a href="/" className="text-blue-500 hover:underline">← 返回广告主登录</a>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen">
