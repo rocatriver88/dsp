@@ -3,18 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/lib/api";
+import { LayoutDashboard, Megaphone, BarChart3, Activity, Wallet, LogOut } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-// Icon chars are picked to NOT duplicate the first character of the label:
-// 概览 → 总 (overview/summary), 账户 → 户 (account holder).
-// For English labels (Campaigns) or multi-char labels where the char
-// already differs from the first char (报表→表, 实时分析→析), we keep
-// the original.
-const navItems = [
-  { href: "/", label: "概览", icon: "总" },
-  { href: "/campaigns", label: "Campaigns", icon: "投" },
-  { href: "/reports", label: "报表", icon: "表" },
-  { href: "/analytics", label: "实时分析", icon: "析" },
-  { href: "/billing", label: "账户", icon: "户" },
+const navItems: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: "/", label: "概览", icon: LayoutDashboard },
+  { href: "/campaigns", label: "Campaigns", icon: Megaphone },
+  { href: "/reports", label: "报表", icon: BarChart3 },
+  { href: "/analytics", label: "实时分析", icon: Activity },
+  { href: "/billing", label: "账户", icon: Wallet },
 ];
 
 export default function Sidebar() {
@@ -33,7 +30,7 @@ export default function Sidebar() {
             <Link key={item.href} href={item.href}
               className={`flex items-center gap-1 px-3 py-1.5 text-xs rounded-full flex-shrink-0 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${isActive ? "bg-blue-600 text-white" : "hover:bg-gray-800"}`}
               style={isActive ? {} : { color: "var(--sidebar-text)" }}>
-              <span className="font-medium">{item.icon}</span>
+              <item.icon size={14} />
               {item.label}
             </Link>
           );
@@ -55,7 +52,7 @@ export default function Sidebar() {
               <Link key={item.href} href={item.href} role="listitem"
                 className={`flex items-center gap-3 px-5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-inset ${isActive ? "bg-blue-600/20 text-blue-400 border-r-2 border-blue-400" : "hover:bg-gray-800"}`}
                 style={isActive ? {} : { color: "var(--sidebar-text)" }}>
-                <span className="text-xs font-bold w-5 h-5 flex items-center justify-center rounded bg-gray-800 text-gray-400">{item.icon}</span>
+                <span className="w-5 h-5 flex items-center justify-center rounded bg-gray-800 text-gray-400"><item.icon size={14} /></span>
                 {item.label}
               </Link>
             );
@@ -66,8 +63,7 @@ export default function Sidebar() {
             onClick={() => { logout(); }}
             className="flex items-center gap-2 text-sm hover:text-white transition-colors w-full"
             style={{ color: "var(--sidebar-text)" }}>
-            {/* Icon 出 avoids duplicating the first char of 退出登录 */}
-            <span className="text-xs">出</span>
+            <LogOut size={14} />
             退出登录
           </button>
         </div>

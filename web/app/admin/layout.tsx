@@ -4,16 +4,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getAccessToken, login, logout } from "@/lib/api";
+import { LayoutDashboard, Building2, Users, FileCheck, Ticket, ScrollText, LogOut } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 
-const adminNavItems = [
-  { href: "/admin", label: "概览", icon: "概" },
-  { href: "/admin/agencies", label: "代理商", icon: "商" },
-  { href: "/admin/users", label: "用户", icon: "户" },
-  { href: "/admin/creatives", label: "素材审核", icon: "材" },
-  { href: "/admin/invites", label: "邀请码", icon: "邀" },
-  { href: "/admin/audit", label: "审计日志", icon: "审" },
+const adminNavItems: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: "/admin", label: "概览", icon: LayoutDashboard },
+  { href: "/admin/agencies", label: "代理商", icon: Building2 },
+  { href: "/admin/users", label: "用户", icon: Users },
+  { href: "/admin/creatives", label: "素材审核", icon: FileCheck },
+  { href: "/admin/invites", label: "邀请码", icon: Ticket },
+  { href: "/admin/audit", label: "审计日志", icon: ScrollText },
 ];
 
 function AdminSidebar({ onLogout }: { onLogout: () => void }) {
@@ -40,7 +42,7 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
                 isActive ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-800"
               }`}
             >
-              <span className="font-medium">{item.icon}</span>
+              <item.icon size={14} />
               {item.label}
             </Link>
           );
@@ -73,8 +75,8 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
                     : "text-gray-400 hover:bg-gray-800"
                 }`}
               >
-                <span className="text-xs font-bold w-5 h-5 flex items-center justify-center rounded bg-gray-800 text-gray-400">
-                  {item.icon}
+                <span className="w-5 h-5 flex items-center justify-center rounded bg-gray-800 text-gray-400">
+                  <item.icon size={14} />
                 </span>
                 {item.label}
               </Link>
@@ -86,7 +88,7 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
             onClick={onLogout}
             className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors w-full"
           >
-            <span className="text-xs">退</span>
+            <LogOut size={14} />
             退出登录
           </button>
         </div>
