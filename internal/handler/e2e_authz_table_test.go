@@ -78,6 +78,9 @@ func TestAuthz_PublicRoutes_401WithoutAPIKey(t *testing.T) {
 		{"GET", "/api/v1/advertisers/1"},
 		{"GET", "/api/v1/ad-types"},
 		{"GET", "/api/v1/billing-models"},
+		// User auth endpoints (JWT-authenticated, not exempt)
+		{"GET", "/api/v1/auth/me"},
+		{"POST", "/api/v1/auth/change-password"},
 	}
 
 	for _, c := range cases {
@@ -127,6 +130,10 @@ func TestAuthz_AdminRoutes_401WithoutAdminToken(t *testing.T) {
 		{"POST", "/api/v1/admin/invite-codes"},
 		{"GET", "/api/v1/admin/invite-codes"},
 		{"GET", "/api/v1/admin/audit-log"},
+		// User management routes (added in user-rbac)
+		{"GET", "/api/v1/admin/users"},
+		{"POST", "/api/v1/admin/users"},
+		{"PUT", "/api/v1/admin/users/1"},
 	}
 
 	for _, c := range cases {

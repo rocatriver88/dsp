@@ -161,11 +161,6 @@ function AdminAuthGate({ children }: { children: React.ReactNode }) {
       }
       setAuthorized(true);
     } catch (e: unknown) {
-      if (e instanceof Error && e.message === "__admin_redirect__") {
-        // login() redirected admin — just reload
-        setAuthorized(true);
-        return;
-      }
       setLoginError(e instanceof Error ? e.message : "登录失败");
     } finally {
       setLoginLoading(false);

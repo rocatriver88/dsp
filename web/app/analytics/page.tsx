@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { LoadingSkeleton, ErrorState, EmptyState } from "../_components/LoadingState";
 import { StatCard } from "../_components/StatCard";
+import { getAccessToken } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 
@@ -53,8 +54,9 @@ export default function AnalyticsPage() {
 
     async function fetchToken(): Promise<TokenResponse | null> {
       // Support both JWT Bearer token (new) and API Key (legacy/programmatic).
-      // JWT takes priority if present.
-      const accessToken = localStorage.getItem("dsp_access_token");
+      // JWT takes priority if present. Use getAccessToken() from api.ts
+      // instead of raw localStorage to keep token key in one place.
+      const accessToken = getAccessToken();
       const apiKey = localStorage.getItem("dsp_api_key") || "";
       const headers: Record<string, string> = {};
       if (accessToken) {

@@ -42,12 +42,13 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
       setError(null);
       setLoading(true);
       try {
-        await login(email, password);
-        // For advertisers, reload to pick up new auth state
+        const result = await login(email, password);
+        if (result.user?.role === "platform_admin") {
+          window.location.href = "/admin";
+          return;
+        }
         window.location.reload();
       } catch (e: unknown) {
-        // login() throws __admin_redirect__ for platform_admin — suppress it
-        if (e instanceof Error && e.message === "__admin_redirect__") return;
         setError(e instanceof Error ? e.message : "邮箱或密码错误");
       } finally {
         setLoading(false);
