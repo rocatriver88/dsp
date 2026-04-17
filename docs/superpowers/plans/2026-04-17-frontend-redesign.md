@@ -1,14 +1,16 @@
-# Frontend Redesign V2 — Implementation Plan
+# Frontend Visual Redesign V2 — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> **Design Spec:** `docs/superpowers/specs/2026-04-17-frontend-redesign-design.md` — contains all CSS values, color tokens, spacing, and component specs. Reference it for every visual decision.
+>
+> **Figma Reference:** `docs/design/figma-screens/01_home.png` through `04_audiences.png`
 
-**Goal:** Redesign the entire DSP Platform frontend from a light industrial theme to a dark purple premium theme, matching the Figma design in `docs/design/figma-screens/`.
+**Goal:** Visually restructure all 14 existing frontend pages to DESIGN.md V2 + Figma quality with glassmorphism, gradient effects, entrance animations, and a brand-level split login page.
 
-**Architecture:** Update CSS design tokens → shared components → page-by-page conversion. No backend changes. No route changes. All existing API integrations preserved. Add recharts for data visualization. Convert campaign list from table to card layout.
+**Architecture:** Foundation CSS → shared components → layout shell (sidebar + TopBar + login) → tenant pages → admin pages. API clients (`lib/api.ts`, `lib/admin-api.ts`, `lib/api-types.ts`) stay untouched. No route changes, no backend changes.
 
-**Tech Stack:** Next.js 16 (App Router), React 19, Tailwind CSS 4, TypeScript, recharts (new), lucide-react (existing), Inter font (replacing Geist + IBM Plex Sans)
-
-**Design Source:** `DESIGN.md` V2 (2026-04-17), Figma screenshots in `docs/design/figma-screens/`
+**Tech Stack:** Next.js 16 App Router, React 19, TypeScript 5.9, Tailwind CSS 4, Recharts 3 (already installed), Lucide React, Inter font via Google Fonts.
 
 ---
 
@@ -16,72 +18,66 @@
 
 | Phase | Scope | Tasks |
 |-------|-------|-------|
-| 1 | Foundation: tokens, fonts, shared components | 1-5 |
-| 2 | Tenant pages: dashboard, campaigns, campaigns/new, campaigns/[id] | 6-10 |
-| 3 | Tenant pages: analytics, billing, reports | 11-13 |
-| 4 | Auth pages: login gate, admin login | 14-15 |
-| 5 | Admin pages: layout, overview, agencies, creatives, invites, audit, users | 16-22 |
+| 1 | Foundation: CSS tokens, utilities, animations, DESIGN.md update | 1 |
+| 2 | Shared components: GlassCard, StatCard, TopBar, DataTable, LoadingState | 2 |
+| 3 | Layout shell: Sidebar V3, split login page, root layout | 3 |
+| 4 | Tenant pages: dashboard, campaigns (3), reports (2), analytics, billing | 4-7 |
+| 5 | Admin: layout + 6 pages | 8-9 |
+| 6 | Final verification | 10 |
 
 ---
 
 ## Phase 1: Foundation
 
-### Task 1: Install recharts + Inter font
+### Task 1: CSS Variables, Utilities, Animations + DESIGN.md Update
 
 **Files:**
-- Modify: `web/package.json`
 - Modify: `web/app/globals.css`
-- Modify: `web/app/layout.tsx`
+- Modify: `DESIGN.md`
 
-- [ ] **Step 1: Install recharts**
-
-```bash
-cd web && npm install recharts
-```
-
-- [ ] **Step 2: Update globals.css — replace font imports and CSS variables**
+- [ ] **Step 1: Replace globals.css**
 
 Replace the entire `web/app/globals.css` with:
 
 ```css
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 :root {
-  /* Primary */
   --primary: #8B5CF6;
   --primary-hover: #7C3AED;
   --primary-muted: rgba(139, 92, 246, 0.12);
-
-  /* Dark backgrounds */
   --bg-page: #0F0A1A;
   --bg-sidebar: #0A0610;
   --bg-card: #1A1225;
   --bg-card-elevated: #231830;
   --bg-input: #1A1225;
-
-  /* Borders */
   --border: #2A2035;
   --border-subtle: #1F1730;
-
-  /* Text */
   --text-primary: #FFFFFF;
   --text-secondary: #A0A0B0;
   --text-muted: #6B6B80;
-
-  /* Semantic */
   --success: #22C55E;
   --warning: #EAB308;
   --error: #EF4444;
   --info: #3B82F6;
-
-  /* Chart colors */
   --chart-1: #8B5CF6;
   --chart-2: #3B82F6;
   --chart-3: #22C55E;
   --chart-4: #EAB308;
   --chart-5: #EF4444;
   --chart-6: #EC4899;
+
+  /* Sidebar-specific (V3 Figma-aligned) */
+  --sidebar-text: #9898AC;
+  --sidebar-text-hover: #C0C0D0;
+  --sidebar-text-active: #8B5CF6;
+
+  /* Glass card tokens */
+  --glass-bg: rgba(26, 18, 37, 0.7);
+  --glass-border: rgba(139, 92, 246, 0.1);
+  --glass-border-hover: rgba(139, 92, 246, 0.25);
+  --glass-light-edge: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.3), transparent);
 }
 
 body {
@@ -93,252 +89,300 @@ body {
   margin: 0;
 }
 
-/* Tabular numbers for data alignment */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
+.tabular-nums { font-variant-numeric: tabular-nums; }
+nav a, nav button { min-height: 44px; display: flex; align-items: center; }
 
-/* Navigation items: minimum 44px touch target */
-nav a, nav button {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-}
-
-/* Accessibility: visible focus ring */
-a:focus-visible,
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
-/* Screen reader only utility */
 .sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;
+}
+
+button, a { min-height: 44px; min-width: 44px; }
+td a, p a, span a, .inline-link { min-height: auto; min-width: auto; }
+
+/* ===== Glass card base ===== */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  position: relative;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
+  transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: var(--glass-light-edge);
+  z-index: 1;
+}
+.glass-card:hover {
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 32px rgba(139, 92, 246, 0.08);
 }
 
-/* Touch target minimum size */
-button, a {
-  min-height: 44px;
-  min-width: 44px;
+/* ===== Ambient glow (page-level) ===== */
+.ambient-glow { position: relative; }
+.ambient-glow::after {
+  content: '';
+  position: absolute;
+  top: -100px; right: -100px;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
 }
 
-/* Exception: inline text links and table cell links */
-td a, p a, span a, .inline-link {
-  min-height: auto;
-  min-width: auto;
+/* ===== Entrance animations ===== */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes breathe {
+  0%, 100% { text-shadow: 0 0 0 transparent; }
+  50% { text-shadow: 0 0 8px rgba(139, 92, 246, 0.4); }
 }
 
-/* Reduced motion preference */
+.animate-fade-in-up { animation: fadeInUp 400ms ease-out both; }
+.animate-fade-in { animation: fadeIn 300ms ease-out both; }
+.animate-breathe { animation: breathe 600ms ease-in-out; }
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 50ms; }
+.stagger-3 { animation-delay: 100ms; }
+.stagger-4 { animation-delay: 150ms; }
+
+/* ===== Button utilities ===== */
+.btn-primary {
+  background: linear-gradient(135deg, #8B5CF6, #7C3AED);
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.25);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, #7C3AED, #6D28D9);
+  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.35);
+}
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 0.15s ease;
+  cursor: pointer;
+}
+.btn-ghost:hover { border-color: var(--primary); }
+
+/* ===== Reduced motion ===== */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-/* Scrollbar styling for dark theme */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-page);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
-}
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-page); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 ```
 
-- [ ] **Step 3: Update layout.tsx — switch to Inter font**
+- [ ] **Step 2: Update DESIGN.md**
 
-Replace `web/app/layout.tsx` with:
+In `DESIGN.md`, update the Sidebar Navigation section:
 
-```tsx
-import type { Metadata } from "next";
-import ApiKeyGate from "./_components/ApiKeyGate";
-import Sidebar from "./_components/Sidebar";
-import "./globals.css";
+1. Inactive text color: `#6B6B80` → `#9898AC` (sidebar-only override)
+2. Inactive hover: `#A0A0B0` → `#C0C0D0`
+3. Add explicit font-size `14px`, font-weight inactive `400` / active `500`
+4. Add icon size `20px`
+5. Add padding `11px 16px`
 
-export const metadata: Metadata = {
-  title: "DSP Platform",
-  description: "Demand-Side Platform — 广告主管理后台",
-};
+Add new sections to DESIGN.md:
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="zh-CN" className="h-full">
-      <body className="h-full flex flex-col md:flex-row" style={{ background: "var(--bg-page)", color: "var(--text-primary)" }}>
-        <a href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:rounded focus:text-sm"
-          style={{ background: "var(--primary)", color: "#fff" }}>
-          跳转到主内容
-        </a>
+6. **Top Bar** component pattern: 64px height, glassmorphism (`backdrop-filter: blur(12px)`), search input, notification bell, avatar
+7. **Enhancement Effects**: glassmorphism cards, entrance animations, ambient gradients, data breathing, gradient accents
+8. **Login Page**: split-layout brand login pattern
+9. **Buttons**: update Primary to gradient
 
-        <ApiKeyGate
-          sidebar={<Sidebar />}
-        >
-          {children}
-        </ApiKeyGate>
-      </body>
-    </html>
-  );
-}
-```
-
-- [ ] **Step 4: Verify build compiles**
+- [ ] **Step 3: Verify build**
 
 ```bash
-cd web && npx next build 2>&1 | tail -5
+cd web && npm run build
 ```
 
-Expected: build succeeds (warnings OK, no errors)
+Expected: Build succeeds
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add web/package.json web/package-lock.json web/app/globals.css web/app/layout.tsx
-git commit -m "feat(web): install recharts, switch to Inter font, dark theme CSS tokens"
+git add web/app/globals.css DESIGN.md
+git commit -m "feat(web): glass/animation CSS foundation + DESIGN.md V2 updates"
 ```
 
 ---
 
-### Task 2: Redesign Sidebar component
+## Phase 2: Shared Components
+
+### Task 2: GlassCard, StatCard, TopBar, DataTable, LoadingState
 
 **Files:**
-- Modify: `web/app/_components/Sidebar.tsx`
+- Create: `web/app/_components/GlassCard.tsx`
+- Create: `web/app/_components/TopBar.tsx`
+- Create: `web/app/_components/DataTable.tsx`
+- Modify: `web/app/_components/StatCard.tsx`
+- Modify: `web/app/_components/LoadingState.tsx`
 
-- [ ] **Step 1: Replace Sidebar.tsx**
-
-Replace the entire file with:
+- [ ] **Step 1: Create GlassCard.tsx**
 
 ```tsx
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { logout } from "@/lib/api";
-import { LayoutDashboard, Megaphone, BarChart3, Activity, Wallet, LogOut } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+interface GlassCardProps {
+  children: React.ReactNode;
+  className?: string;
+  padding?: string;
+  hover?: boolean;
+}
 
-const navItems: { href: string; label: string; icon: LucideIcon }[] = [
-  { href: "/", label: "仪表板", icon: LayoutDashboard },
-  { href: "/campaigns", label: "广告系列", icon: Megaphone },
-  { href: "/reports", label: "报表", icon: BarChart3 },
-  { href: "/analytics", label: "数据分析", icon: Activity },
-  { href: "/billing", label: "账户", icon: Wallet },
-];
-
-export default function Sidebar() {
-  const pathname = usePathname();
-
+export default function GlassCard({ children, className = "", padding = "p-5", hover = true }: GlassCardProps) {
+  const hoverClass = hover ? "" : "[&]:hover:transform-none [&]:hover:shadow-none [&]:hover:border-[var(--glass-border)]";
   return (
-    <>
-      {/* Mobile bottom nav */}
-      <nav aria-label="移动端导航"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2"
-        style={{ background: "var(--bg-sidebar)", borderTop: "1px solid var(--border)" }}>
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
-          return (
-            <Link key={item.href} href={item.href}
-              className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-[10px] rounded-lg transition-colors"
-              style={{ color: isActive ? "var(--primary)" : "var(--text-muted)" }}>
-              <item.icon size={20} />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Desktop sidebar */}
-      <nav aria-label="主导航"
-        className="hidden md:flex flex-shrink-0 flex-col"
-        style={{ width: 220, minHeight: "100vh", background: "var(--bg-sidebar)" }}>
-        <div className="px-5 py-5" style={{ borderBottom: "1px solid var(--border)" }}>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #8B5CF6, #6D28D9)" }}>
-              <span className="text-white text-xs font-bold">D</span>
-            </div>
-            <div>
-              <h1 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>DSP Platform</h1>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 py-3 px-3" role="list">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
-            return (
-              <Link key={item.href} href={item.href} role="listitem"
-                className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg mb-0.5 transition-colors"
-                style={{
-                  color: isActive ? "#8B5CF6" : "var(--text-muted)",
-                  background: isActive ? "var(--primary-muted)" : "transparent",
-                }}>
-                <item.icon size={18} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-
-        <div className="px-5 py-4" style={{ borderTop: "1px solid var(--border)" }}>
-          <button
-            onClick={() => { logout(); }}
-            className="flex items-center gap-2 text-sm transition-colors w-full"
-            style={{ color: "var(--text-muted)" }}>
-            <LogOut size={16} />
-            退出登录
-          </button>
-        </div>
-      </nav>
-    </>
+    <div className={`glass-card ${padding} ${hoverClass} ${className}`}>
+      {children}
+    </div>
   );
 }
 ```
 
-- [ ] **Step 2: Verify build**
+- [ ] **Step 2: Create TopBar.tsx**
 
-```bash
-cd web && npx next build 2>&1 | tail -5
+```tsx
+"use client";
+
+import { Search, Bell } from "lucide-react";
+
+export default function TopBar() {
+  return (
+    <div className="h-16 flex items-center justify-between px-8"
+      style={{
+        background: "rgba(15, 10, 26, 0.6)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        borderBottom: "1px solid var(--border)",
+      }}>
+      <div className="flex items-center gap-2 px-4 py-2 rounded-[10px] w-80 text-[13px]"
+        style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
+        <Search size={14} />
+        <span>搜索广告系列、受众...</span>
+      </div>
+      <div className="flex items-center gap-4">
+        <button className="relative w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+          style={{ color: "var(--text-muted)" }}
+          aria-label="通知">
+          <Bell size={18} />
+          <span className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full" style={{ background: "var(--error)" }} />
+        </button>
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold cursor-pointer"
+          style={{
+            background: "linear-gradient(135deg, #8B5CF6, #3B82F6)",
+            boxShadow: "0 0 0 2px var(--bg-page), 0 0 0 3px rgba(139,92,246,0.3)",
+          }}>
+          U
+        </div>
+      </div>
+    </div>
+  );
+}
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Create DataTable.tsx**
 
-```bash
-git add web/app/_components/Sidebar.tsx
-git commit -m "feat(web): redesign sidebar — dark purple theme with gradient logo"
+```tsx
+"use client";
+
+interface Column<T> {
+  key: string;
+  header: string;
+  align?: "left" | "right" | "center";
+  render: (row: T) => React.ReactNode;
+}
+
+interface DataTableProps<T> {
+  columns: Column<T>[];
+  data: T[];
+  keyFn: (row: T) => string | number;
+  emptyMessage?: string;
+}
+
+export default function DataTable<T>({ columns, data, keyFn, emptyMessage = "暂无数据" }: DataTableProps<T>) {
+  return (
+    <div className="glass-card p-0 overflow-hidden animate-fade-in">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ background: "var(--bg-card-elevated)" }}>
+              {columns.map((col) => (
+                <th key={col.key}
+                  className={`py-3 px-4 text-[11px] font-semibold uppercase tracking-wider ${col.align === "right" ? "text-right" : "text-left"}`}
+                  style={{ color: "var(--text-muted)" }}>
+                  {col.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className="py-12 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+                  {emptyMessage}
+                </td>
+              </tr>
+            ) : data.map((row) => (
+              <tr key={keyFn(row)} className="transition-colors"
+                style={{ borderTop: "1px solid var(--border-subtle)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                {columns.map((col) => (
+                  <td key={col.key}
+                    className={`py-3 px-4 ${col.align === "right" ? "text-right tabular-nums" : ""}`}
+                    style={{ color: "var(--text-secondary)" }}>
+                    {col.render(row)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 ```
 
----
+- [ ] **Step 4: Rebuild StatCard.tsx**
 
-### Task 3: Redesign StatCard component
-
-**Files:**
-- Modify: `web/app/_components/StatCard.tsx`
-
-- [ ] **Step 1: Replace StatCard.tsx with new dark theme + trend indicators**
+Replace entire file. Key changes vs current:
+- Use `glass-card` class instead of inline `bg-card` + border
+- Add `animate-fade-in-up` + `stagger-N` classes
+- Label: `text-[11px] font-medium uppercase tracking-wider`
+- Icon container: `w-9 h-9 rounded-[10px]`
+- Remove `HeroStatCard` export (dashboard will use regular StatCard grid)
 
 ```tsx
 "use client";
@@ -352,20 +396,17 @@ interface StatCardProps {
   trend?: { value: string; positive: boolean };
   icon?: LucideIcon;
   iconColor?: string;
-  className?: string;
+  stagger?: number;
 }
 
-export function StatCard({ label, value, trend, icon: Icon, iconColor = "#8B5CF6", className }: StatCardProps) {
-  const iconBg = iconColor + "26"; // ~15% opacity
-
+export function StatCard({ label, value, trend, icon: Icon, iconColor = "#8B5CF6", stagger = 1 }: StatCardProps) {
+  const iconBg = iconColor + "26";
   return (
-    <div className={`rounded-[14px] p-5 ${className || ""}`}
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+    <div className={`glass-card p-5 animate-fade-in-up stagger-${stagger}`}>
       <div className="flex items-start justify-between mb-3">
         {Icon && (
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ background: iconBg }}>
-            <Icon size={20} style={{ color: iconColor }} />
+          <div className="w-9 h-9 rounded-[10px] flex items-center justify-center" style={{ background: iconBg }}>
+            <Icon size={18} style={{ color: iconColor }} />
           </div>
         )}
         {trend && (
@@ -377,617 +418,454 @@ export function StatCard({ label, value, trend, icon: Icon, iconColor = "#8B5CF6
         )}
       </div>
       <p className="text-2xl font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{value}</p>
-      <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{label}</p>
-    </div>
-  );
-}
-
-export function HeroStatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="col-span-2 rounded-[14px] p-6"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-      <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <p className="text-4xl font-bold tracking-tight tabular-nums" style={{ color: "var(--text-primary)" }}>{value}</p>
-      {sub && <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{sub}</p>}
+      <p className="text-[11px] font-medium uppercase tracking-wider mt-1" style={{ color: "var(--text-muted)" }}>{label}</p>
     </div>
   );
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 5: Update LoadingState.tsx**
+
+Update all four exports to use `glass-card` class on containers and `btn-primary` on action buttons. Keep the same props/API. Reference current file for exact changes — swap `style={{ background: "var(--bg-card)", border: "..." }}` to `className="glass-card"`.
+
+- [ ] **Step 6: Verify build**
 
 ```bash
-git add web/app/_components/StatCard.tsx
-git commit -m "feat(web): redesign StatCard — dark cards with icon circles and trend indicators"
+cd web && npm run build
+```
+
+Expected: Build may warn about `HeroStatCard` import in `page.tsx` — that's expected, fixed in Task 4.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add web/app/_components/GlassCard.tsx web/app/_components/TopBar.tsx web/app/_components/DataTable.tsx web/app/_components/StatCard.tsx web/app/_components/LoadingState.tsx
+git commit -m "feat(web): glass shared components — StatCard, TopBar, DataTable, GlassCard, LoadingState"
 ```
 
 ---
 
-### Task 4: Redesign StatusBadge component
+## Phase 3: Layout Shell
+
+### Task 3: Sidebar V3 + Split Login + Root Layout
 
 **Files:**
-- Modify: `web/app/_components/StatusBadge.tsx`
+- Modify: `web/app/_components/Sidebar.tsx`
+- Modify: `web/app/_components/ApiKeyGate.tsx`
+- Modify: `web/app/layout.tsx`
 
-- [ ] **Step 1: Replace StatusBadge.tsx with dark theme badges**
+- [ ] **Step 1: Rebuild Sidebar.tsx (V3 Figma-aligned)**
 
+Replace entire file. Changes from current:
+- Nav item font: `text-sm` (14px) + `font-normal` (400 inactive) / `font-medium` (500 active)
+- Nav item color: `var(--sidebar-text)` instead of `var(--text-muted)`
+- Nav item hover: `var(--sidebar-text-hover)` + `background: rgba(255,255,255,0.04)`
+- Icon size: `20` instead of `18`
+- Padding: `px-4 py-[11px]` instead of `px-3 py-2.5`
+- Gap between items: `mb-[3px]` instead of `mb-0.5`
+- Active state: add left border bar with inline style:
+  ```tsx
+  style={{
+    color: "var(--sidebar-text-active)",
+    background: "var(--primary-muted)",
+    borderLeft: "3px solid var(--primary)",
+    boxShadow: "inset 3px 0 8px -3px rgba(139,92,246,0.4)",
+  }}
+  ```
+- Logo icon: add `boxShadow: "0 4px 12px rgba(139,92,246,0.3)"`
+- Logout: use `var(--sidebar-text)` color
+- Mobile bottom nav: update icon size to `20`, color to `var(--sidebar-text)` / `var(--sidebar-text-active)`
+
+- [ ] **Step 2: Rebuild ApiKeyGate.tsx — split login + TopBar shell**
+
+Replace entire file. This is the biggest change. Two states:
+
+**Unauthenticated → Split login page:**
+- Full-screen flex layout: `min-h-screen flex`
+- Left brand side (`flex-1`, bg `#0F0A1A`):
+  - Two animated gradient orbs (define CSS keyframes inline or use `<style jsx>`)
+  - Logo: 40px icon with gradient + shadow
+  - Headline: "智能投放\n精准触达" — `text-[28px] font-extrabold`, gradient text via `background: linear-gradient(135deg, #fff 30%, #c4b5fd)` + `-webkit-background-clip: text`
+  - Description: `text-[15px]` secondary color
+  - Stats strip: 3 metrics (50M+ 日均竞价 / 200+ 活跃广告主 / 98.5% 可用性), purple values, border-top separator
+- Right form side (`w-[440px]`, bg `var(--bg-card)`, border-left):
+  - Centered form `max-w-xs`
+  - Title "登录" 20px fw600
+  - Email + password inputs with `#0F0A1A` background
+  - Submit: `btn-primary` class, full-width
+  - Divider + collapsible API Key fallback
+  - **Keep all existing auth logic intact** (login(), isAuthenticated(), API key handling, admin redirect)
+
+**Authenticated → Layout shell with TopBar:**
 ```tsx
-"use client";
+import TopBar from "./TopBar";
 
-const styles: Record<string, { bg: string; text: string }> = {
-  draft: { bg: "rgba(107,107,128,0.15)", text: "#6B6B80" },
-  active: { bg: "rgba(34,197,94,0.15)", text: "#22C55E" },
-  paused: { bg: "rgba(234,179,8,0.15)", text: "#EAB308" },
-  completed: { bg: "rgba(59,130,246,0.15)", text: "#3B82F6" },
-};
-
-const zhLabels: Record<string, string> = {
-  draft: "草稿",
-  active: "运行中",
-  paused: "已暂停",
-  completed: "已完成",
-};
-
-export function StatusBadge({ status }: { status: string }) {
-  const s = styles[status] || styles.draft;
-  return (
-    <span className="inline-block px-2.5 py-0.5 text-[11px] font-semibold rounded-full"
-      style={{ background: s.bg, color: s.text }}>
-      {zhLabels[status] || status}
-    </span>
-  );
-}
-
-const eventStyles: Record<string, { bg: string; text: string }> = {
-  bid: { bg: "rgba(59,130,246,0.15)", text: "#3B82F6" },
-  win: { bg: "rgba(34,197,94,0.15)", text: "#22C55E" },
-  loss: { bg: "rgba(239,68,68,0.15)", text: "#EF4444" },
-  impression: { bg: "rgba(139,92,246,0.15)", text: "#8B5CF6" },
-  click: { bg: "rgba(249,115,22,0.15)", text: "#F97316" },
-};
-
-export function EventBadge({ type }: { type: string }) {
-  const s = eventStyles[type] || { bg: "rgba(107,107,128,0.15)", text: "#6B6B80" };
-  return (
-    <span className="inline-block px-1.5 py-0.5 text-[11px] font-medium rounded"
-      style={{ background: s.bg, color: s.text }}>
-      {type}
-    </span>
-  );
-}
-
-export function TypeBadge({ type }: { type: string }) {
-  return (
-    <span className="inline-block px-2 py-0.5 text-[11px] font-medium rounded-full"
-      style={{ background: "rgba(139,92,246,0.15)", color: "#A78BFA" }}>
-      {type}
-    </span>
-  );
-}
+// ... in the authenticated return:
+return (
+  <>
+    {sidebar}
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <TopBar />
+      <main id="main-content" className="flex-1 overflow-auto ambient-glow" role="main">
+        <div className="relative z-10 max-w-6xl mx-auto px-4 py-4 md:px-8 md:py-7">
+          {children}
+        </div>
+      </main>
+    </div>
+  </>
+);
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 3: Update layout.tsx**
+
+No structural changes — keep existing file as-is. It already delegates to `<ApiKeyGate sidebar={<Sidebar />}>`.
+
+- [ ] **Step 4: Verify build**
 
 ```bash
-git add web/app/_components/StatusBadge.tsx
-git commit -m "feat(web): redesign StatusBadge — dark theme with Chinese labels"
+cd web && npm run build
+```
+
+Expected: May fail if `page.tsx` still imports `HeroStatCard`. If so, that's OK — fixed in Task 4.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add web/app/_components/Sidebar.tsx web/app/_components/ApiKeyGate.tsx web/app/layout.tsx
+git commit -m "feat(web): layout shell — V3 sidebar, split brand login, TopBar integration"
 ```
 
 ---
 
-### Task 5: Redesign LoadingState component
+## Phase 4: Tenant Pages
 
-**Files:**
-- Modify: `web/app/_components/LoadingState.tsx`
-
-- [ ] **Step 1: Replace LoadingState.tsx with dark theme variants**
-
-```tsx
-"use client";
-
-export function LoadingSkeleton({ rows = 3 }: { rows?: number }) {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="h-10 rounded-lg animate-pulse"
-          style={{ background: "var(--bg-card)" }} />
-      ))}
-    </div>
-  );
-}
-
-export function LoadingCards({ count = 4 }: { count?: number }) {
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="rounded-[14px] h-28 animate-pulse"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }} />
-      ))}
-    </div>
-  );
-}
-
-export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
-  return (
-    <div className="text-center py-12 rounded-[14px]"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-      <p className="text-sm mb-3" style={{ color: "var(--error)" }}>{message}</p>
-      {onRetry && (
-        <button
-          onClick={onRetry}
-          className="px-4 py-2 text-sm font-semibold text-white rounded-lg transition-colors"
-          style={{ background: "var(--primary)" }}>
-          重试
-        </button>
-      )}
-    </div>
-  );
-}
-
-export function EmptyState({ heading, message, actionLabel, actionHref, onAction }: {
-  heading?: string;
-  message: string;
-  actionLabel?: string;
-  actionHref?: string;
-  onAction?: () => void;
-}) {
-  return (
-    <div className="rounded-[14px] p-12 text-center"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-      {heading && <p className="text-base font-semibold mb-2" style={{ color: "var(--text-primary)" }}>{heading}</p>}
-      <p className="text-sm mb-1" style={{ color: "var(--text-secondary)" }}>{message}</p>
-      {actionLabel && actionHref && (
-        <a href={actionHref}
-          className="inline-block mt-4 px-6 py-2.5 text-sm font-semibold text-white rounded-lg"
-          style={{ background: "var(--primary)" }}>
-          {actionLabel}
-        </a>
-      )}
-      {actionLabel && onAction && !actionHref && (
-        <button onClick={onAction}
-          className="mt-4 px-6 py-2.5 text-sm font-semibold text-white rounded-lg"
-          style={{ background: "var(--primary)" }}>
-          {actionLabel}
-        </button>
-      )}
-    </div>
-  );
-}
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add web/app/_components/LoadingState.tsx
-git commit -m "feat(web): redesign LoadingState — dark theme skeletons and states"
-```
-
----
-
-## Phase 2: Tenant Pages (Dashboard + Campaigns)
-
-### Task 6: Redesign Dashboard (home page)
+### Task 4: Dashboard (/)
 
 **Files:**
 - Modify: `web/app/page.tsx`
 
-- [ ] **Step 1: Replace page.tsx with dark theme dashboard + chart placeholders**
+- [ ] **Step 1: Rewrite dashboard page**
 
-Replace `web/app/page.tsx`. Key changes:
-- Dark card backgrounds for all stat cards
-- Add icon + trend indicators to stat cards (use Eye, MousePointer, Target, DollarSign from lucide-react)
-- Replace white bg with `var(--bg-card)` everywhere
-- Replace text-gray-* with `var(--text-*)` tokens
-- Replace bg-blue-600 with `var(--primary)` for buttons
-- Campaign table: dark header, dark rows, purple links
-- Low balance warning: dark card with warning border
+Replace entire file. Key changes:
+- Remove `HeroStatCard` import — use 4× `StatCard` in `grid-cols-2 md:grid-cols-4` grid
+- Each StatCard: `icon`, `iconColor`, `trend`, `stagger` (1-4)
+  - 总展示量: Eye, `#8B5CF6`, stagger 1
+  - 点击次数: MousePointer, `#3B82F6`, stagger 2
+  - 转化率: Target, `#F97316`, stagger 3
+  - 总收入: DollarSign, `#22C55E`, stagger 4
+- Charts: wrap in `<GlassCard>` with `p-6` padding
+- Chart tooltips: `contentStyle={{ background: "#231830", border: "1px solid #2A2035", borderRadius: 12, color: "#fff", fontSize: 12 }}`
+- Campaign table: wrap in `glass-card`, use uppercase muted headers
+- Low balance warning: keep styling (already dark theme)
+- Keep all existing API calls and data logic
 
-NOTE: Full code for this task is ~160 lines. The pattern is: for every `bg-white` → `style={{ background: "var(--bg-card)" }}`, for every `text-gray-500` → `style={{ color: "var(--text-secondary)" }}`, for every `bg-blue-600` → `style={{ background: "var(--primary)" }}`, for every `border-gray-*` → `style={{ borderColor: "var(--border)" }}`.
-
-The implementer should apply these substitutions systematically to the existing `page.tsx` while preserving all business logic.
-
-- [ ] **Step 2: Verify the page renders in browser**
+- [ ] **Step 2: Verify build**
 
 ```bash
-cd web && npm run dev
-# Open http://localhost:4000 in browser, verify dark theme
+cd web && npm run build
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add web/app/page.tsx
-git commit -m "feat(web): redesign dashboard — dark theme with stat cards and trend indicators"
+git commit -m "feat(web): redesign dashboard — glass StatCards, enhanced charts"
 ```
 
 ---
 
-### Task 7: Redesign Campaign List (table → cards)
+### Task 5: Campaign Pages (/campaigns, /campaigns/new, /campaigns/[id])
 
 **Files:**
 - Modify: `web/app/campaigns/page.tsx`
-
-- [ ] **Step 1: Convert campaign list from table to card layout**
-
-Key changes:
-- Replace `<table>` with campaign cards (dark card bg, 14px radius)
-- Each card: header (name + status badge + type badge), date range, metrics row, action buttons
-- Add filter tabs: 全部 / 运行中 / 已暂停 / 草稿
-- Action buttons as icon buttons (Pause, Copy, Edit, Trash2, MoreHorizontal from lucide-react)
-- Keep all existing API logic (handleAction, load, etc.)
-- Dark theme colors throughout
-
-- [ ] **Step 2: Verify in browser**
-- [ ] **Step 3: Commit**
-
-```bash
-git add web/app/campaigns/page.tsx
-git commit -m "feat(web): redesign campaigns — card layout with filter tabs and dark theme"
-```
-
----
-
-### Task 8: Redesign Campaign Creation Wizard
-
-**Files:**
 - Modify: `web/app/campaigns/new/page.tsx`
-
-- [ ] **Step 1: Apply dark theme to 3-step wizard**
-
-Key changes:
-- All form inputs: dark background (`var(--bg-input)`), border `var(--border)`, white text
-- Step indicators: purple for active step, muted for inactive
-- Buttons: primary purple, ghost with dark border
-- Targeting geo/OS toggles: purple when selected
-- Dark card backgrounds for each step section
-
-- [ ] **Step 2: Verify wizard flow in browser (click through all 3 steps)**
-- [ ] **Step 3: Commit**
-
-```bash
-git add web/app/campaigns/new/page.tsx
-git commit -m "feat(web): redesign campaign wizard — dark theme forms and step indicators"
-```
-
----
-
-### Task 9: Redesign Campaign Detail Page
-
-**Files:**
 - Modify: `web/app/campaigns/[id]/page.tsx`
 
-- [ ] **Step 1: Apply dark theme to campaign detail**
+- [ ] **Step 1: Read all three campaign pages**
+
+Read each file fully before making changes.
+
+- [ ] **Step 2: Rewrite campaigns list (/campaigns)**
 
 Key changes:
-- Header with campaign name + status badge
-- Dark stat cards for campaign metrics
-- Creative list with dark cards
-- Edit form inputs: dark theme
-- All buttons: purple primary
+- Filter tabs: active uses `btn-primary` styling (gradient bg, white text), inactive uses transparent + secondary text
+- Campaign cards: use `glass-card` class on each card container
+- "创建广告系列" CTA: use `btn-primary` class
+- Filter button: use `btn-ghost` class
+- MetricCell: remove `font-geist` reference, use Inter (default)
+- Keep all existing API calls, action handlers, filtering logic
 
-- [ ] **Step 2: Commit**
-
-```bash
-git add "web/app/campaigns/[id]/page.tsx"
-git commit -m "feat(web): redesign campaign detail — dark theme with stat cards"
-```
-
----
-
-### Task 10: Add recharts to Dashboard
-
-**Files:**
-- Modify: `web/app/page.tsx`
-
-- [ ] **Step 1: Add performance trend chart (area line) and budget allocation chart (bar)**
-
-Add to dashboard below stat cards:
-- "投放表现趋势" area chart: purple gradient fill, dark grid, last 7 days
-- "预算分配" bar chart: purple + blue bars, campaign names on x-axis
-- Both use recharts `ResponsiveContainer`, `AreaChart`/`BarChart`
-- Dark tooltip styling
-- Data sourced from existing API data (campaigns array)
-
-```tsx
-// Example chart component pattern:
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-
-// Inside component:
-<div className="rounded-[14px] p-6" style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-  <h3 className="text-base font-semibold mb-1" style={{ color: "var(--text-primary)" }}>投放表现趋势</h3>
-  <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>最近7天的数据概览</p>
-  <ResponsiveContainer width="100%" height={240}>
-    <AreaChart data={trendData}>
-      <defs>
-        <linearGradient id="purpleGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
-          <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      <CartesianGrid stroke="#1F1730" strokeDasharray="3 3" />
-      <XAxis dataKey="date" stroke="#6B6B80" fontSize={11} />
-      <YAxis stroke="#6B6B80" fontSize={11} />
-      <Tooltip contentStyle={{ background: "#231830", border: "1px solid #2A2035", borderRadius: 12, color: "#fff" }} />
-      <Area type="monotone" dataKey="value" stroke="#8B5CF6" fill="url(#purpleGrad)" strokeWidth={2} />
-    </AreaChart>
-  </ResponsiveContainer>
-</div>
-```
-
-- [ ] **Step 2: Verify charts render in browser**
-- [ ] **Step 3: Commit**
-
-```bash
-git add web/app/page.tsx
-git commit -m "feat(web): add recharts to dashboard — trend area chart + budget bar chart"
-```
-
----
-
-## Phase 3: Analytics, Billing, Reports
-
-### Task 11: Redesign Analytics Page
-
-**Files:**
-- Modify: `web/app/analytics/page.tsx`
-
-- [ ] **Step 1: Apply dark theme + add chart components**
+- [ ] **Step 3: Rewrite campaign wizard (/campaigns/new)**
 
 Key changes:
-- Dark stat cards with KPI values (转化率/跳出率/CPC/CPA)
-- Multi-line trend chart (综合表现趋势) with recharts
-- Donut chart (设备分布) with recharts PieChart
-- Channel analysis table with dark styling
-- Keep existing SSE real-time connection logic
+- Wizard container: `glass-card` with `p-6` or `p-8`
+- Step indicators: numbered circles — completed/active filled with gradient, future with border
+- Form inputs: `style={{ background: "var(--bg-input)", border: "1px solid var(--border)" }}`, focus → purple border
+- Select elements: same input styling
+- Submit/next: `btn-primary`, back: `btn-ghost`
+- Keep all form state, validation, and API submission logic
 
-- [ ] **Step 2: Commit**
-
-```bash
-git add web/app/analytics/page.tsx
-git commit -m "feat(web): redesign analytics — dark theme with multi-line chart and donut"
-```
-
----
-
-### Task 12: Redesign Billing Page
-
-**Files:**
-- Modify: `web/app/billing/page.tsx`
-
-- [ ] **Step 1: Apply dark theme to billing**
+- [ ] **Step 4: Rewrite campaign detail (/campaigns/[id])**
 
 Key changes:
-- Balance card: dark bg, large white number
-- Top-up form: dark inputs, purple quick-amount buttons when selected
-- Transaction table: dark header/rows
-- Amount badges: green for income, red for expense
+- Campaign info: `glass-card` container
+- Stats: use `StatCard` components
+- Creatives list: `glass-card` per creative
+- Add creative form: `glass-card` with form inputs
+- Bid simulator: `glass-card`, slider/input with purple accent
+- Keep all API calls and state logic
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 5: Verify build**
 
 ```bash
-git add web/app/billing/page.tsx
-git commit -m "feat(web): redesign billing — dark theme with styled transaction table"
+cd web && npm run build
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add web/app/campaigns/
+git commit -m "feat(web): redesign campaign pages — glass cards, gradient tabs, enhanced wizard"
 ```
 
 ---
 
-### Task 13: Redesign Reports Pages
+### Task 6: Report Pages (/reports, /reports/[id])
 
 **Files:**
 - Modify: `web/app/reports/page.tsx`
 - Modify: `web/app/reports/[id]/page.tsx`
 
-- [ ] **Step 1: Apply dark theme to reports list and detail**
-- [ ] **Step 2: Commit**
+- [ ] **Step 1: Read both report pages**
+
+- [ ] **Step 2: Rewrite reports selector (/reports)**
+
+- Each campaign rendered as clickable `glass-card` with name, status badge, key metrics
+- Page title: 24px fw700
+
+- [ ] **Step 3: Rewrite report detail (/reports/[id])**
+
+- Stats: `StatCard` grid
+- Charts: `GlassCard` containers, recharts with dark tooltip
+- Bid table: use `DataTable` component
+- CSV export buttons: `btn-ghost`
+- Keep all API calls
+
+- [ ] **Step 4: Verify build**
 
 ```bash
-git add web/app/reports/page.tsx "web/app/reports/[id]/page.tsx"
-git commit -m "feat(web): redesign reports — dark theme"
+cd web && npm run build
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add web/app/reports/
+git commit -m "feat(web): redesign report pages — glass containers, DataTable"
 ```
 
 ---
 
-## Phase 4: Auth Pages
-
-### Task 14: Redesign Tenant Login (ApiKeyGate)
+### Task 7: Analytics + Billing
 
 **Files:**
-- Modify: `web/app/_components/ApiKeyGate.tsx`
+- Modify: `web/app/analytics/page.tsx`
+- Modify: `web/app/billing/page.tsx`
 
-- [ ] **Step 1: Dark theme login screen**
+- [ ] **Step 1: Read both pages fully**
+
+Analytics has complex SSE logic — read the entire file to understand token minting, refresh, and event source management.
+
+- [ ] **Step 2: Rewrite analytics page**
+
+**CRITICAL: DO NOT modify SSE connection logic, token minting, refresh timer, or EventSource management. Only change JSX and styling.**
+
+Key styling changes:
+- Stat cards: use `StatCard` components
+- Live campaign table: use `DataTable` component
+- Connection status: small indicator dot in glass-card container
+- Data breathing: when SSE pushes new values, add `animate-breathe` class to updated cells. Implementation: track previous values in a ref, compare on update, add class via state, remove after animation.
+- Keep all existing SSE code paths
+
+- [ ] **Step 3: Rewrite billing page**
 
 Key changes:
-- Full-page dark background (`var(--bg-page)`)
-- Login card: dark card bg, purple accent
-- Input: dark bg, border on focus → purple
-- Button: purple primary
-- Logo area with gradient icon
+- Balance card: `glass-card` with large number (text-3xl fw700), billing type badge
+- Top-up form: `glass-card`, inputs with standard styling, `btn-primary` submit
+- Transaction history: use `DataTable` with columns for type, amount, balance_after, description, date
+- Transaction type badges: topup=green, spend=red, adjustment=blue, refund=yellow
+- Keep all API calls and state logic
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 4: Verify build**
 
 ```bash
-git add web/app/_components/ApiKeyGate.tsx
-git commit -m "feat(web): redesign tenant login — dark theme with purple accent"
+cd web && npm run build
 ```
 
----
-
-### Task 15: Redesign Admin Login + Layout
-
-**Files:**
-- Modify: `web/app/admin/layout.tsx`
-
-- [ ] **Step 1: Dark theme admin login + admin sidebar**
-
-Key changes:
-- Admin login: same dark card style as tenant login
-- Admin sidebar: dark bg with admin nav items, purple active state
-- Admin mobile nav: dark bottom bar
-
-- [ ] **Step 2: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add web/app/admin/layout.tsx
-git commit -m "feat(web): redesign admin login and layout — dark theme"
+git add web/app/analytics/page.tsx web/app/billing/page.tsx
+git commit -m "feat(web): redesign analytics (data breathing) and billing pages"
 ```
 
 ---
 
 ## Phase 5: Admin Pages
 
-### Task 16: Redesign Admin Overview
+### Task 8: Admin Layout
+
+**Files:**
+- Modify: `web/app/admin/layout.tsx`
+
+- [ ] **Step 1: Read current admin/layout.tsx**
+
+- [ ] **Step 2: Rebuild admin layout**
+
+Key changes:
+
+**AdminSidebar:**
+- Apply V3 Figma-aligned styling (same tokens as tenant Sidebar):
+  - Font: 14px, fw400 inactive, fw500 active
+  - Colors: `var(--sidebar-text)`, `var(--sidebar-text-hover)`, `var(--sidebar-text-active)`
+  - Icon size: 20px (bare icons, remove the old rounded icon wrapper background)
+  - Active state: left border with glow shadow
+  - Logo area: "DSP 管理后台" with gradient logo icon + subtitle
+
+**AdminAuthGate login:**
+- Use `glass-card` on login container
+- Inputs: `#0F0A1A` background
+- Submit: `btn-primary` class
+- Keep all auth logic (checkAuth, handleAdminLogin, token verification)
+
+**Authenticated shell:**
+- Import and render `TopBar` above `<main>`
+- Wrap main content in `ambient-glow` container
+- Keep "← 广告主后台" link in sidebar footer
+
+- [ ] **Step 3: Verify build**
+
+```bash
+cd web && npm run build
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add web/app/admin/layout.tsx
+git commit -m "feat(web): redesign admin layout — V3 sidebar, glass login, TopBar"
+```
+
+---
+
+### Task 9: Admin Pages (6 pages)
 
 **Files:**
 - Modify: `web/app/admin/page.tsx`
-
-- [ ] **Step 1: Dark theme admin dashboard**
-
-Key changes:
-- Stat cards: dark bg with purple/blue/green/orange icons
-- Circuit breaker panel: dark card
-- System health: dark card with status indicators
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add web/app/admin/page.tsx
-git commit -m "feat(web): redesign admin overview — dark theme"
-```
-
----
-
-### Task 17: Redesign Admin Agencies
-
-**Files:**
 - Modify: `web/app/admin/agencies/page.tsx`
-
-- [ ] **Step 1: Dark theme agencies management**
-
-Key changes:
-- Pending registrations table: dark header/rows
-- Advertiser list table: dark theme
-- Top-up modal: dark card, dark inputs
-- Approve/reject buttons: green/red on dark bg
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add web/app/admin/agencies/page.tsx
-git commit -m "feat(web): redesign admin agencies — dark theme tables and modal"
-```
-
----
-
-### Task 18: Redesign Admin Creatives
-
-**Files:**
+- Modify: `web/app/admin/users/page.tsx`
 - Modify: `web/app/admin/creatives/page.tsx`
-
-- [ ] **Step 1: Dark theme creatives review**
-- [ ] **Step 2: Commit**
-
-```bash
-git add web/app/admin/creatives/page.tsx
-git commit -m "feat(web): redesign admin creatives — dark theme"
-```
-
----
-
-### Task 19: Redesign Admin Invites
-
-**Files:**
 - Modify: `web/app/admin/invites/page.tsx`
-
-- [ ] **Step 1: Dark theme invite management**
-- [ ] **Step 2: Commit**
-
-```bash
-git add web/app/admin/invites/page.tsx
-git commit -m "feat(web): redesign admin invites — dark theme"
-```
-
----
-
-### Task 20: Redesign Admin Audit
-
-**Files:**
 - Modify: `web/app/admin/audit/page.tsx`
 
-- [ ] **Step 1: Dark theme audit log**
-- [ ] **Step 2: Commit**
+- [ ] **Step 1: Read all 6 admin pages**
+
+- [ ] **Step 2: Rewrite admin overview (/admin)**
+
+- StatCards: use `StatCard` for system health metrics
+- Circuit breaker: `glass-card`, status indicator, trip/reset buttons (`btn-primary` / `btn-ghost`)
+- System health: `glass-card` with colored service status dots
+
+- [ ] **Step 3: Rewrite admin agencies (/admin/agencies)**
+
+- Advertiser list: use `DataTable`
+- Create form / top-up form: `glass-card` with form inputs
+- Pending registrations: use `DataTable`
+
+- [ ] **Step 4: Rewrite admin users (/admin/users)**
+
+- User list: use `DataTable`
+- Create/edit form: `glass-card`
+- Role badges: purple for admin, blue for advertiser
+
+- [ ] **Step 5: Rewrite admin creatives (/admin/creatives)**
+
+- Creative list: `glass-card` per creative (card layout for visual review)
+- Approve/reject buttons: green/red variants
+- Status badges: reuse `StatusBadge`
+
+- [ ] **Step 6: Rewrite admin invites (/admin/invites)**
+
+- Invite list: use `DataTable`
+- Create form: `glass-card`
+
+- [ ] **Step 7: Rewrite admin audit (/admin/audit)**
+
+- Audit log: use `DataTable`
+- Pagination buttons: `btn-ghost`
+
+- [ ] **Step 8: Verify build**
 
 ```bash
-git add web/app/admin/audit/page.tsx
-git commit -m "feat(web): redesign admin audit — dark theme"
+cd web && npm run build
+```
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add web/app/admin/
+git commit -m "feat(web): redesign all 6 admin pages — glass DataTables and components"
 ```
 
 ---
 
-### Task 21: Redesign Admin Users
+## Phase 6: Final Verification
 
-**Files:**
-- Modify: `web/app/admin/users/page.tsx`
+### Task 10: Build + Lint + Smoke Test
 
-- [ ] **Step 1: Dark theme user management**
-- [ ] **Step 2: Commit**
+- [ ] **Step 1: Full build**
 
 ```bash
-git add web/app/admin/users/page.tsx
-git commit -m "feat(web): redesign admin users — dark theme"
+cd web && npm run build
 ```
 
----
+Expected: Zero errors
 
-### Task 22: Final E2E Verification
-
-**Files:**
-- Modify: `test/e2e/test_design_compliance.py` (update color references)
-
-- [ ] **Step 1: Update E2E design compliance tests for dark theme**
-
-Update `DESIGN` dict in `test_design_compliance.py`:
-- primary_color: "#8b5cf6"
-- sidebar_bg: "#0a0610"
-- page_bg: "#0f0a1a"
-
-- [ ] **Step 2: Run full E2E test suite**
+- [ ] **Step 2: Lint**
 
 ```bash
-cd test/e2e && bash run.sh
+cd web && npm run lint
 ```
 
-- [ ] **Step 3: Run E2E business flow test**
+Expected: No errors (warnings OK)
+
+- [ ] **Step 3: Type check**
 
 ```bash
-PYTHONIOENCODING=utf-8 python test/e2e/test_e2e_flow.py
+cd web && npx tsc --noEmit
 ```
 
-- [ ] **Step 4: Commit test updates**
+Expected: No type errors
+
+- [ ] **Step 4: Visual smoke test**
 
 ```bash
-git add test/e2e/test_design_compliance.py
-git commit -m "test(e2e): update design compliance tests for dark purple theme"
+cd web && npm run dev
 ```
 
----
+Verify in browser at http://localhost:4000:
+1. Login page: split layout with brand side + form
+2. Dashboard: glass stat cards + charts
+3. Campaigns: card-based layout with filter tabs
+4. Analytics: live SSE data table
+5. Admin: unified design language
+6. Entrance animations play on each page
+7. Glass card hover effects work
+8. Mobile bottom nav renders
 
-## Design Token Quick Reference (for all tasks)
+- [ ] **Step 5: Commit any final fixes**
 
-When converting any page from light → dark, apply these substitutions:
-
-| Old (light) | New (dark) |
-|-------------|-----------|
-| `bg-white` | `style={{ background: "var(--bg-card)" }}` |
-| `bg-gray-50` | `style={{ background: "var(--bg-page)" }}` |
-| `bg-gray-100` | `style={{ background: "var(--bg-card)" }}` |
-| `text-gray-500`, `text-gray-600` | `style={{ color: "var(--text-secondary)" }}` |
-| `text-gray-400`, `text-gray-300` | `style={{ color: "var(--text-muted)" }}` |
-| `text-gray-700`, `text-gray-800`, `text-gray-900` | `style={{ color: "var(--text-primary)" }}` |
-| `border-gray-100`, `border-gray-200` | `style={{ borderColor: "var(--border)" }}` |
-| `bg-blue-600` | `style={{ background: "var(--primary)" }}` |
-| `hover:bg-blue-700` | onHover → `var(--primary-hover)` |
-| `text-blue-600` | `style={{ color: "var(--primary)" }}` |
-| `bg-green-50 text-green-700` | `style={{ background: "rgba(34,197,94,0.15)", color: "#22C55E" }}` |
-| `bg-yellow-50 text-yellow-700` | `style={{ background: "rgba(234,179,8,0.15)", color: "#EAB308" }}` |
-| `bg-red-50 text-red-700` | `style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}` |
-| `rounded-lg` | `rounded-[14px]` (cards) or `rounded-lg` (small elements) |
-| `font-geist` | remove (Inter is the only font now) |
+```bash
+git add web/
+git commit -m "fix(web): final polish for frontend V2 redesign"
+```

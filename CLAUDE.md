@@ -45,36 +45,116 @@ Use the /browse skill from gstack for all web browsing. Never use mcp__claude-in
 
 ## Development Workflow
 
-Standard flow for any feature/phase implementation:
+Standard flow for any feature/phase implementation.
+Skills 分工：superpowers 管"做"（生成方案、写代码、纪律约束），gstack 管"查"（挑战方案、验证产品、发布部署）。
 
 ```
-1. Brainstorming                    构思 → 设计文档
-2. Writing Plans                    设计 → 实现计划
-3. Execution (TDD)                  计划 → 代码
-   ├── 每个 task:
-   │   ├── implementer subagent     写测试 → 写代码 → 跑测试 → 提交
-   │   ├── spec compliance review   对照计划检查（没多做、没少做）
-   │   └── code quality review      代码质量审查
-   │
-   ├── 每个 Phase 完成后:
-   │   ├── requesting-code-review   阶段性全量审查 → 修 Critical/Important
-   │   ├── verification-before-completion   启动真实服务，跑集成验证
-   │   ├── /qa                              无头浏览器系统性测试前端
-   │   └── 一轮走完后回到 requesting-code-review，直到整轮三步都零问题（最多 5 轮）
-   │
-   └── 全部实现完成后:
-       ├── final-code-review        全量审查 → 修 Critical/Important
-       ├── verification-before-completion   启动真实服务，跑集成验证
-       ├── /qa                              无头浏览器系统性测试前端
-       ├── /browse                          截图验证关键页面
-       └── 一轮走完后回到 final-code-review，直到整轮四步都零问题（最多 5 轮）
-4. Finishing Branch                  打 tag / 创建 PR / push
+═══════════════════════════════════════════
+ Phase 0: 构思 + 设计
+═══════════════════════════════════════════
+
+superpowers:brainstorming              构思：探索意图、需求、设计方向
+  ↓
+gstack /office-hours                   灵魂拷问（大功能才用）
+  ↓
+superpowers:writing-plans              出实现计划
+  ↓
+gstack /plan-ceo-review                挑战范围（该不该扩大/收缩）
+gstack /plan-eng-review + /codex       挑战架构（Codex 独立审查技术假设）
+gstack /plan-design-review             挑战交互/视觉（有 UI 时）
+  ↓
+计划定稿
+
+═══════════════════════════════════════════
+ Phase 1-N: 实现（每个 Phase 重复）
+═══════════════════════════════════════════
+
+superpowers:executing-plans            按计划推进
+  │
+  │  ┌─── 每个 task ───────────────────────────┐
+  │  │  superpowers:TDD                         │ 红→绿→重构
+  │  │    遇 bug → superpowers:                 │
+  │  │             systematic-debugging         │
+  │  │  superpowers:requesting-code-review      │ task 级 review
+  │  │  superpowers:verification-               │ 跑测试确认
+  │  │             before-completion            │
+  │  └─────────────────────────────────────────┘
+  │
+  │  Phase 完成 → 审查+测试循环（最多 5 轮）:
+  │
+  │  ┌─── 循环直到零问题 ──────────────────────┐
+  │  │                                          │
+  │  │  ── 审查（先查代码）──                    │
+  │  │  1. superpowers:requesting-code-review   │ Phase 级全量审查
+  │  │  2. gstack /review + /codex              │ 多专项深度审查 + Codex 对抗
+  │  │  3. 修复 review 发现的问题               │
+  │  │                                          │
+  │  │  ── 测试（再跑系统）──                    │
+  │  │  4. go test ./... -short                 │ 内核逻辑
+  │  │  5. bash scripts/qa/run.sh               │ API 链路
+  │  │  6. python test/e2e/test_e2e_flow.py     │ 浏览器端到端全链路
+  │  │  7. gstack /qa                           │ 浏览器系统性测试
+  │  │                                          │
+  │  │  有修复 → 回到 1                          │
+  │  │  零问题 → Phase 通过                      │
+  │  └──────────────────────────────────────────┘
+
+═══════════════════════════════════════════
+ Phase Final: 终审 + 发布
+═══════════════════════════════════════════
+
+  ┌─── 循环直到零问题（最多 5 轮）──────────┐
+  │                                          │
+  │  ── 终审（先查代码）──                    │
+  │  1. superpowers:requesting-code-review   │ 终审
+  │  2. gstack /review + /codex（必须）      │ 多专项 + Codex 对抗 + challenge
+  │  3. 修复                                 │
+  │                                          │
+  │  ── 终测（再跑系统）──                    │
+  │  4. go test ./... -short                 │
+  │  5. bash scripts/qa/run.sh               │
+  │  6. python test/e2e/test_e2e_flow.py     │
+  │  7. gstack /qa                           │
+  │  8. gstack /browse                       │ 截图验证
+  │  9. gstack /design-review                │ 视觉合规（有 UI 时）
+  │  10. gstack /cso                         │ 安全审计（涉及敏感时）
+  │                                          │
+  │  有修复 → 回到 1                          │
+  │  零问题 → 终审通过                        │
+  └──────────────────────────────────────────┘
+  ↓
+superpowers:finishing-a-development-branch    决定 merge/PR
+  ↓
+gstack /ship                                 创建 PR、push
+gstack /land-and-deploy                      merge + 部署
+gstack /canary                               线上监控
 ```
+
+**三层测试定位：**
+- `go test` — 秒级，验内核逻辑（SQL、租户隔离、业务规则）
+- `scripts/qa/run.sh` — 十秒级，验 API 契约（curl 全链路，检查 JSON 响应）
+- `test/e2e/test_e2e_flow.py` — 分钟级，验用户体验（浏览器操作+数据库交叉比对）
+
+**Codex 使用规则：**
+- Phase 边界 review：需要（gstack /review 内开启 Codex 对抗审查）
+- Phase Final 终审：必须（Codex review + challenge 模式都开）
+- 安全相关改动：必须（无论改动大小）
+- 跨边界改动（前端↔后端、服务↔服务）：需要
+- task 级 review / 构思阶段 / 设计审查：不需要
+- plan-eng-review：需要（架构决策定了改动成本极高，Codex consult 挑战技术假设）
+
+**用户参与点（仅以下 5 个环节需要用户介入，其余自动推进）：**
+1. 提需求 — "我要做 X"
+2. 拍板范围 — /plan-ceo-review 后确认做大还是做小
+3. 批准计划 — "计划通过"
+4. 批准推送 — "推吧"
+5. 批准上线 — "上线"
 
 **Key rules:**
+- 审查在测试之前 — review 发现结构性问题，修完再跑测试，避免测试白跑
 - 验证是完整轮次循环 — 每轮按顺序走完所有步骤，发现问题就地修，走完一轮后从头开始下一轮，直到整轮零问题
 - 只要某一轮进行了任何问题修复，就必须跑下一轮，不能修完直接 push
-- verification + /qa runs at EVERY Phase boundary, not just at the end
+- 三层测试 + /qa runs at EVERY Phase boundary, not just at the end
 - Compiling + unit tests ≠ working system — must verify against live services
 - /browse screenshots at the end confirm visual compliance with DESIGN.md
 - Do NOT skip any step
