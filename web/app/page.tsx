@@ -28,7 +28,6 @@ export default function OverviewPage() {
 
   const active = campaigns.filter((c) => c.status === "active");
   const totalSpent = overview?.today_spend_cents || 0;
-  const totalBudget = campaigns.reduce((sum, c) => sum + c.budget_total_cents, 0);
   const activeDailyBudget = active.reduce((sum, c) => sum + c.budget_daily_cents, 0);
   const balanceCents = overview?.balance_cents || 0;
   const isLowBalance = balanceCents > 0 && activeDailyBudget > 0 && balanceCents < activeDailyBudget;
@@ -93,9 +92,11 @@ export default function OverviewPage() {
         const trendData = Array.from({ length: 7 }, (_, i) => {
           const d = new Date();
           d.setDate(d.getDate() - (6 - i));
+          // Deterministic pseudo-variation based on day index
+          const factor = [0.7, 0.85, 0.6, 1.0, 0.9, 0.75, 0.95][i];
           return {
             date: `${d.getMonth() + 1}/${d.getDate()}`,
-            value: Math.round(totalSpent / 100 * (0.5 + Math.random() * 0.8) / 7),
+            value: Math.round(totalSpent / 100 * factor / 7),
           };
         });
 

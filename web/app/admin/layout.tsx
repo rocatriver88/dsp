@@ -100,9 +100,9 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
           })}
         </div>
         <div className="px-5 py-4 space-y-2" style={{ borderTop: "1px solid var(--border)" }}>
-          <a href="/" className="flex items-center gap-2 text-sm transition-colors w-full inline-link" style={{ color: "var(--sidebar-text)" }}>
+          <Link href="/" className="flex items-center gap-2 text-sm transition-colors w-full inline-link" style={{ color: "var(--sidebar-text)" }}>
             ← 广告主后台
-          </a>
+          </Link>
           <button
             onClick={onLogout}
             className="flex items-center gap-2 text-sm transition-colors w-full"
@@ -244,7 +244,7 @@ function AdminAuthGate({ children }: { children: React.ReactNode }) {
             {loginLoading ? "登录中..." : "登录"}
           </button>
           <p className="text-xs mt-4 text-center">
-            <a href="/" className="inline-link hover:underline" style={{ color: "var(--primary)" }}>← 返回广告主登录</a>
+            <Link href="/" className="inline-link hover:underline" style={{ color: "var(--primary)" }}>← 返回广告主登录</Link>
           </p>
         </div>
       </div>
