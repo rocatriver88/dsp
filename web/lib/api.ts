@@ -68,6 +68,13 @@ export async function login(email: string, password: string): Promise<{
   }
   const data = await res.json();
   setTokens(data.access_token, data.refresh_token);
+  // Admin redirect: navigate to /admin and throw to prevent the caller
+  // from executing any code after login() (e.g., window.location.reload
+  // which would override our redirect target).
+  if (data.user?.role === "platform_admin") {
+    window.location.href = "/admin";
+    throw new Error("__admin_redirect__");
+  }
   return data;
 }
 
