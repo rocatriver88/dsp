@@ -93,6 +93,7 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
             onClick={onLogout}
             className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors w-full"
           >
+            <span className="text-xs">退</span>
             退出登录
           </button>
         </div>
