@@ -63,22 +63,33 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
     }
 
     return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-        <div className="bg-white rounded-lg p-8 w-full max-w-md">
-          <h2 className="text-xl font-semibold mb-2">DSP Platform</h2>
-          <p className="text-sm text-gray-500 mb-6">
+      <div className="min-h-screen w-full flex items-center justify-center"
+        style={{ background: "var(--bg-page)" }}>
+        <div className="p-8 w-full max-w-md"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14 }}>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ background: "linear-gradient(135deg, #8B5CF6, #6D28D9)" }}>
+              <span className="text-white text-xs font-bold">D</span>
+            </div>
+            <h2 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>DSP Platform</h2>
+          </div>
+          <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
             登录广告管理后台
           </p>
 
           {/* Email + Password login form */}
           <div className="mb-3">
-            <label className="block text-xs font-medium text-gray-500 mb-1">邮箱</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>邮箱</label>
             <input
               type="email"
               placeholder="your@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 rounded-md text-sm focus:outline-none"
+              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+              onFocus={(e) => e.currentTarget.style.borderColor = "var(--primary)"}
+              onBlur={(e) => e.currentTarget.style.borderColor = "var(--border)"}
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleLogin();
@@ -86,34 +97,41 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
             />
           </div>
           <div className="mb-4">
-            <label className="block text-xs font-medium text-gray-500 mb-1">密码</label>
+            <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>密码</label>
             <input
               type="password"
               placeholder="输入密码"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 rounded-md text-sm focus:outline-none"
+              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+              onFocus={(e) => e.currentTarget.style.borderColor = "var(--primary)"}
+              onBlur={(e) => e.currentTarget.style.borderColor = "var(--border)"}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleLogin();
               }}
             />
           </div>
 
-          {error && <p className="text-xs text-red-500 mb-3">{error}</p>}
+          {error && <p className="text-xs mb-3" style={{ color: "var(--error)" }}>{error}</p>}
 
           <button
             onClick={handleLogin}
             disabled={loading || !email || !password}
-            className="w-full px-4 py-2 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            className="w-full px-4 py-2 text-sm font-medium text-white rounded-md disabled:cursor-not-allowed"
+            style={{ background: "var(--primary)", opacity: (loading || !email || !password) ? 0.5 : 1 }}
+            onMouseEnter={(e) => { if (!loading && email && password) e.currentTarget.style.background = "var(--primary-hover)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--primary)"; }}
           >
             {loading ? "登录中..." : "登录"}
           </button>
 
           {/* API Key fallback section */}
-          <div className="mt-4 border-t border-gray-100 pt-3">
+          <div className="mt-4 pt-3" style={{ borderTop: "1px solid var(--border)" }}>
             <button
               onClick={() => setShowApiKey(!showApiKey)}
-              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-xs transition-colors"
+              style={{ color: "var(--text-muted)" }}
             >
               {showApiKey ? "收起" : "使用 API Key 登录"}
             </button>
@@ -125,7 +143,10 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
                   placeholder="dsp_..."
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-md text-sm mb-3 focus:outline-none"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = "var(--primary)"}
+                  onBlur={(e) => e.currentTarget.style.borderColor = "var(--border)"}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && apiKeyInput.startsWith("dsp_")) {
                       handleApiKeyLogin();
@@ -135,11 +156,12 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
                 <button
                   onClick={handleApiKeyLogin}
                   disabled={!apiKeyInput.startsWith("dsp_")}
-                  className="w-full px-4 py-2 text-sm font-medium text-white rounded-md bg-gray-600 hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-2 text-sm font-medium text-white rounded-md disabled:cursor-not-allowed"
+                  style={{ background: "var(--primary)", opacity: !apiKeyInput.startsWith("dsp_") ? 0.5 : 1 }}
                 >
                   使用 API Key 登录
                 </button>
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
                   API Key 由管理员分配，格式为 dsp_ 开头的字符串
                 </p>
               </div>
@@ -153,7 +175,7 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
   return (
     <>
       {sidebar}
-      <main id="main-content" className="flex-1 overflow-auto" role="main">
+      <main id="main-content" className="flex-1 overflow-auto" role="main" style={{ background: "transparent" }}>
         <div className="max-w-6xl mx-auto px-4 py-4 md:px-8 md:py-6">
           {children}
         </div>
