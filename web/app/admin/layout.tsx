@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getAccessToken, login, logout } from "@/lib/api";
+import TopBar from "../_components/TopBar";
 import { LayoutDashboard, Building2, Users, FileCheck, Ticket, ScrollText, LogOut } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -38,10 +39,10 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
             <Link
               key={item.href}
               href={item.href}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-full flex-shrink-0 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-full flex-shrink-0 transition-colors"
               style={isActive
-                ? { background: "var(--primary-muted)", color: "var(--primary)" }
-                : { color: "var(--text-muted)" }}
+                ? { background: "var(--primary-muted)", color: "var(--sidebar-text-active)" }
+                : { color: "var(--sidebar-text)" }}
             >
               <item.icon size={14} />
               {item.label}
@@ -54,13 +55,24 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
       <nav
         aria-label="管理员导航"
         className="hidden md:flex flex-col flex-shrink-0"
-        style={{ width: 224, minHeight: "100vh", background: "var(--bg-sidebar)" }}
+        style={{ width: 220, minHeight: "100vh", background: "var(--bg-sidebar)" }}
       >
         <div className="px-5 py-5" style={{ borderBottom: "1px solid var(--border)" }}>
-          <h1 className="text-lg font-semibold text-white tracking-tight">DSP 管理后台</h1>
-          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>管理员控制台</p>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{
+                background: "linear-gradient(135deg, #8B5CF6, #6D28D9)",
+                boxShadow: "0 4px 12px rgba(139,92,246,0.3)",
+              }}>
+              <span className="text-white text-xs font-bold">D</span>
+            </div>
+            <div>
+              <h1 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>DSP 管理后台</h1>
+              <p className="text-[11px]" style={{ color: "var(--sidebar-text)" }}>管理员控制台</p>
+            </div>
+          </div>
         </div>
-        <div className="flex-1 py-3" role="list">
+        <div className="flex-1 py-3 px-3" role="list">
           {adminNavItems.map((item) => {
             const isActive =
               pathname === item.href ||
@@ -70,29 +82,33 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
                 key={item.href}
                 href={item.href}
                 role="listitem"
-                className="flex items-center gap-3 px-5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-inset"
-                style={isActive
-                  ? { background: "var(--primary-muted)", color: "var(--primary)", borderLeft: "3px solid var(--primary)" }
-                  : { color: "var(--text-muted)", borderLeft: "3px solid transparent" }}
+                className={`flex items-center gap-3 px-4 py-[11px] text-[14px] rounded-lg mb-[3px] transition-colors ${isActive ? "font-medium" : "font-normal"}`}
+                style={isActive ? {
+                  color: "var(--sidebar-text-active)",
+                  background: "var(--primary-muted)",
+                  borderLeft: "3px solid var(--primary)",
+                  boxShadow: "inset 3px 0 8px -3px rgba(139,92,246,0.4)",
+                  paddingLeft: "13px",
+                } : {
+                  color: "var(--sidebar-text)",
+                }}
               >
-                <span className="w-5 h-5 flex items-center justify-center rounded" style={{ background: "var(--border)" }}>
-                  <item.icon size={14} />
-                </span>
+                <item.icon size={20} style={{ opacity: isActive ? 1 : 0.55, flexShrink: 0 }} />
                 {item.label}
               </Link>
             );
           })}
         </div>
         <div className="px-5 py-4 space-y-2" style={{ borderTop: "1px solid var(--border)" }}>
-          <a href="/" className="flex items-center gap-2 text-sm transition-colors w-full inline-link" style={{ color: "var(--text-muted)" }}>
+          <a href="/" className="flex items-center gap-2 text-sm transition-colors w-full inline-link" style={{ color: "var(--sidebar-text)" }}>
             ← 广告主后台
           </a>
           <button
             onClick={onLogout}
             className="flex items-center gap-2 text-sm transition-colors w-full"
-            style={{ color: "var(--text-muted)" }}
+            style={{ color: "var(--sidebar-text)" }}
           >
-            <LogOut size={14} />
+            <LogOut size={16} />
             退出登录
           </button>
         </div>
@@ -133,7 +149,6 @@ function AdminAuthGate({ children }: { children: React.ReactNode }) {
       .then((data) => {
         if (!data) return;
         if (data.role !== "platform_admin") {
-          // Not admin — redirect to tenant dashboard
           window.location.href = "/";
           return;
         }
@@ -172,48 +187,50 @@ function AdminAuthGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center"
         style={{ background: "var(--bg-page)" }}>
-        <div className="p-8 w-full max-w-md"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14 }}>
+        <div className="glass-card p-8 w-full max-w-md">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={{ background: "linear-gradient(135deg, #8B5CF6, #6D28D9)" }}>
+              style={{
+                background: "linear-gradient(135deg, #8B5CF6, #6D28D9)",
+                boxShadow: "0 4px 12px rgba(139,92,246,0.3)",
+              }}>
               <span className="text-white text-xs font-bold">D</span>
             </div>
             <h2 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>DSP 管理后台</h2>
           </div>
-          <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
+          <p className="text-[13px] mb-6" style={{ color: "var(--text-secondary)" }}>
             使用管理员账号登录
           </p>
           {loginError && (
-            <div className="mb-4 p-3 rounded-md text-sm"
+            <div className="mb-4 p-3 rounded-lg text-sm"
               style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", color: "var(--error)" }}>
               {loginError}
             </div>
           )}
           <div className="mb-3">
-            <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>邮箱</label>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>邮箱</label>
             <input
               type="email"
               placeholder="admin@example.com"
               value={loginEmail}
               onChange={(e) => setLoginEmail(e.target.value)}
-              className="w-full px-3 py-2 rounded-md text-sm focus:outline-none"
-              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+              className="w-full px-3.5 py-2.5 rounded-lg text-[13px] focus:outline-none transition-colors"
+              style={{ background: "#0F0A1A", border: "1px solid var(--border)", color: "var(--text-primary)" }}
               onFocus={(e) => e.currentTarget.style.borderColor = "var(--primary)"}
               onBlur={(e) => e.currentTarget.style.borderColor = "var(--border)"}
               autoFocus
               onKeyDown={(e) => { if (e.key === "Enter") handleAdminLogin(); }}
             />
           </div>
-          <div className="mb-4">
-            <label className="block text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>密码</label>
+          <div className="mb-5">
+            <label className="block text-xs font-medium mb-1.5" style={{ color: "var(--text-secondary)" }}>密码</label>
             <input
               type="password"
               placeholder="输入密码"
               value={loginPassword}
               onChange={(e) => setLoginPassword(e.target.value)}
-              className="w-full px-3 py-2 rounded-md text-sm focus:outline-none"
-              style={{ background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
+              className="w-full px-3.5 py-2.5 rounded-lg text-[13px] focus:outline-none transition-colors"
+              style={{ background: "#0F0A1A", border: "1px solid var(--border)", color: "var(--text-primary)" }}
               onFocus={(e) => e.currentTarget.style.borderColor = "var(--primary)"}
               onBlur={(e) => e.currentTarget.style.borderColor = "var(--border)"}
               onKeyDown={(e) => { if (e.key === "Enter") handleAdminLogin(); }}
@@ -222,10 +239,7 @@ function AdminAuthGate({ children }: { children: React.ReactNode }) {
           <button
             onClick={handleAdminLogin}
             disabled={!loginEmail || !loginPassword || loginLoading}
-            className="w-full px-4 py-2 text-sm font-medium text-white rounded-md disabled:cursor-not-allowed"
-            style={{ background: "var(--primary)", opacity: (!loginEmail || !loginPassword || loginLoading) ? 0.5 : 1 }}
-            onMouseEnter={(e) => { if (loginEmail && loginPassword && !loginLoading) e.currentTarget.style.background = "var(--primary-hover)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--primary)"; }}
+            className="btn-primary w-full px-4 py-2.5 text-sm"
           >
             {loginLoading ? "登录中..." : "登录"}
           </button>
@@ -240,7 +254,14 @@ function AdminAuthGate({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       <AdminSidebar onLogout={logout} />
-      <main className="flex-1 overflow-auto">{children}</main>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <TopBar />
+        <main className="flex-1 overflow-auto ambient-glow">
+          <div className="relative z-10 max-w-6xl mx-auto px-4 py-4 md:px-8 md:py-7">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
