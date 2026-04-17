@@ -100,19 +100,27 @@
 
 ### Sidebar Navigation
 - Dark background (#0A0610), full height
-- Logo: "DSP Platform" with icon, top-left
-- Nav items: icon (20px) + label, 10px 16px padding
-- Active: purple left border accent + rgba(139,92,246,0.12) background + #8B5CF6 text
-- Inactive: #6B6B80 text, hover → #A0A0B0
-- Bottom: user avatar / settings
+- Logo: "DSP Platform" with gradient icon (linear-gradient 135deg #8B5CF6 → #6D28D9), box-shadow glow
+- Nav items: icon (20px) + label, 11px 16px padding, 3px gap between items
+- Font: Inter 14px
+- Active: font-weight 500, purple left border accent (3px, with box-shadow glow) + rgba(139,92,246,0.12) background + #8B5CF6 text
+- Inactive: font-weight 400, #9898AC text, hover → #C0C0D0 + rgba(255,255,255,0.04) background
+- Bottom: logout button, #9898AC text
+- Note: sidebar uses its own text color (#9898AC) instead of --text-muted (#6B6B80) for better contrast on #0A0610
 
-### Top Bar
-- Search input: dark background, rounded, magnifying glass icon, placeholder "搜索广告系列、受众..."
-- Right side: notification bell + user avatar circle (#8B5CF6 gradient)
-- Height: ~64px
+### Top Bar (glassmorphism)
+- Height: 64px
+- Background: rgba(15,10,26,0.6) + backdrop-filter: blur(12px)
+- Border: bottom 1px #2A2035
+- Left: search input (320px, #1A1225 bg, #2A2035 border, 10px radius, focus → #8B5CF6 border)
+- Right: notification bell (36px circle, red dot indicator, UI-only) + user avatar (32px circle, linear-gradient #8B5CF6 → #3B82F6, double ring shadow)
 
-### Stat Cards
-- Dark card background (#1A1225), 1px border, 14px radius
+### Stat Cards (glassmorphism)
+- Glass background: rgba(26,18,37,0.7) + backdrop-filter: blur(16px)
+- Border: 1px rgba(139,92,246,0.1), hover → rgba(139,92,246,0.25)
+- Top light edge: 1px linear-gradient(90deg, transparent, rgba(139,92,246,0.3), transparent)
+- Hover: translateY(-1px) + box-shadow 0 8px 32px rgba(139,92,246,0.08)
+- 14px border-radius
 - Left: colored icon circle (40px, with category-specific background)
 - Top-right: trend arrow (↑/↓) + percentage change (green for positive, red for negative)
 - Value: 24-28px bold white
@@ -220,6 +228,48 @@
 - Campaign cards: full-width always
 - Charts: maintain aspect ratio, reduce padding
 
+## Enhancement Effects
+
+### Glassmorphism
+- All card/panel containers use: backdrop-filter: blur(16px) + semi-transparent background rgba(26,18,37,0.7) + top gradient light edge
+- Hover: border brightens rgba(139,92,246,0.25) + translateY(-1px) + purple box-shadow
+
+### Entrance Animations
+- StatCards: staggered fadeInUp (animation-delay: 0/50/100/150ms, 400ms ease-out)
+- Charts: fadeIn 300ms ease-out
+- Tables: fadeIn 200ms
+- CSS-only, no JS animation library
+
+### Ambient Gradient Background
+- Each page: one radial-gradient purple orb (6% opacity) in content area
+- Position varies per page, pointer-events: none, z-index: 0
+
+### Data Breathing (analytics page only)
+- SSE data update triggers brief glow pulse on changed numbers
+- text-shadow pulse from transparent to rgba(139,92,246,0.4), 600ms
+
+### Gradient Accents
+- Logo icon, user avatar, primary CTA buttons: purple-blue gradient instead of flat color
+- Primary button: linear-gradient(135deg, #8B5CF6, #7C3AED) + box-shadow 0 4px 16px rgba(139,92,246,0.25)
+
+## Login Page (Split Layout)
+
+### Left Brand Side
+- Background: #0F0A1A
+- Animated orbs: two radial-gradient blobs (purple 15% / blue 10% opacity) with slow float animations (8-10s)
+- Logo: 40px gradient icon with stronger shadow
+- Headline: "智能投放 精准触达" — 28px fw800, gradient text (white → #c4b5fd)
+- Description: 15px #A0A0B0, max-width 380px
+- Stats strip: border-top rgba(139,92,246,0.15), three stats with purple values
+
+### Right Form Side
+- Background: #1A1225, 440px width, border-left #2A2035
+- Form: max-width 320px centered
+- Title: "登录" 20px fw600
+- Inputs: #0F0A1A background, focus → #8B5CF6 border
+- Button: gradient primary with box-shadow
+- API Key fallback: collapsible section below divider
+
 ## Decisions Log
 | Date | Decision | Rationale |
 |------|----------|-----------|
@@ -228,3 +278,6 @@
 | 2026-04-17 | Card-based campaigns (not table) | Figma design uses campaign cards with inline metrics instead of table rows. Richer data display per campaign. |
 | 2026-04-17 | recharts for visualization | Figma design spec calls for recharts. React-native, supports dark theme well. |
 | 2026-04-17 | Inter as sole typeface | Clean, widely available, excellent CJK rendering, tabular-nums support. Replaces Geist + IBM Plex Sans. |
+| 2026-04-17 | V2 enhanced: glassmorphism + animations | User chose "Figma base + advanced enhancements" (option B). Glassmorphism cards, entrance animations, data breathing, gradient accents. |
+| 2026-04-17 | Sidebar text #9898AC | Original #6B6B80 had poor contrast on #0A0610. V3 Figma-aligned: 14px/fw400/20px icons. |
+| 2026-04-17 | Brand split login page | User chose brand-level (option A). Left brand area + right form. First touchpoint = premium impression. |

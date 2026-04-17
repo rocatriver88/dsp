@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -25,6 +25,17 @@
   --chart-4: #EAB308;
   --chart-5: #EF4444;
   --chart-6: #EC4899;
+
+  /* Sidebar-specific (V3 Figma-aligned) */
+  --sidebar-text: #9898AC;
+  --sidebar-text-hover: #C0C0D0;
+  --sidebar-text-active: #8B5CF6;
+
+  /* Glass card tokens */
+  --glass-bg: rgba(26, 18, 37, 0.7);
+  --glass-border: rgba(139, 92, 246, 0.1);
+  --glass-border-hover: rgba(139, 92, 246, 0.25);
+  --glass-light-edge: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.3), transparent);
 }
 
 body {
@@ -52,10 +63,117 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 button, a { min-height: 44px; min-width: 44px; }
 td a, p a, span a, .inline-link { min-height: auto; min-width: auto; }
 
+/* ===== Glass card base ===== */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+}
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: var(--glass-light-edge);
+  z-index: 1;
+}
+.glass-card:hover {
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 32px rgba(139, 92, 246, 0.08);
+}
+
+/* Glass card without hover effect */
+.glass-card-static {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.glass-card-static::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: var(--glass-light-edge);
+  z-index: 1;
+}
+
+/* ===== Ambient glow (page-level) ===== */
+.ambient-glow { position: relative; }
+.ambient-glow::after {
+  content: '';
+  position: absolute;
+  top: -100px; right: -100px;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ===== Entrance animations ===== */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes breathe {
+  0%, 100% { text-shadow: 0 0 0 transparent; }
+  50% { text-shadow: 0 0 8px rgba(139, 92, 246, 0.4); }
+}
+
+.animate-fade-in-up { animation: fadeInUp 400ms ease-out both; }
+.animate-fade-in { animation: fadeIn 300ms ease-out both; }
+.animate-breathe { animation: breathe 600ms ease-in-out; }
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 50ms; }
+.stagger-3 { animation-delay: 100ms; }
+.stagger-4 { animation-delay: 150ms; }
+
+/* ===== Button utilities ===== */
+.btn-primary {
+  background: linear-gradient(135deg, #8B5CF6, #7C3AED);
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.25);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, #7C3AED, #6D28D9);
+  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.35);
+}
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 0.15s ease;
+  cursor: pointer;
+}
+.btn-ghost:hover { border-color: var(--primary); }
+
+/* ===== Reduced motion ===== */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
+/* ===== Scrollbar ===== */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--bg-page); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
