@@ -86,9 +86,13 @@ func (d *Deps) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 		advertiserID = &id
 	}
 
-	// Create user
+	// Create user — if this fails and we created an advertiser above, clean it up
 	u, err := d.UserStore.Create(ctx, req.Email, passwordHash, req.Name, req.Role, advertiserID)
 	if err != nil {
+		// Clean up orphan advertiser if user creation failed
+		if advertiserID != nil {
+			_ = d.Store.DeleteAdvertiser(ctx, *advertiserID)
+		}
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique") {
 			WriteError(w, http.StatusConflict, "email already registered")
 			return

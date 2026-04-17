@@ -60,8 +60,10 @@ func TenantAuthMiddleware(jwtSecret []byte, apiKeyLookup APIKeyLookup) func(http
 						// Same tenant or invalid API Key — JWT wins
 					}
 
-					// Role gate: platform_admin cannot access tenant routes
-					if claims.Role == RolePlatformAdmin {
+					// Role gate: platform_admin cannot access tenant routes,
+					// EXCEPT /api/v1/auth/* (me, change-password) which are
+					// role-agnostic endpoints that both admin and advertiser need.
+					if claims.Role == RolePlatformAdmin && !strings.HasPrefix(r.URL.Path, "/api/v1/auth/") {
 						writeAuthError(w, http.StatusForbidden, "advertiser access required")
 						return
 					}

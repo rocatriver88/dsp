@@ -60,13 +60,9 @@ func (d *Deps) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check if user is suspended
-	if u.Status == "suspended" {
-		WriteError(w, http.StatusForbidden, "account suspended")
-		return
-	}
-
-	// Verify password (bcrypt — constant-time internally)
+	// Verify password BEFORE checking suspension status.
+	// Checking suspension first would leak "this email exists and is suspended"
+	// to an attacker who doesn't know the password.
 	if err := auth.CheckPassword(u.PasswordHash, req.Password); err != nil {
 		if d.loginGuard != nil {
 			d.loginGuard.RecordFailure(ctx, req.Email, ip)
@@ -75,7 +71,13 @@ func (d *Deps) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Password correct — clear lockout
+	// Password correct — now safe to reveal account status
+	if u.Status == "suspended" {
+		WriteError(w, http.StatusForbidden, "account suspended")
+		return
+	}
+
+	// Clear lockout
 	if d.loginGuard != nil {
 		d.loginGuard.RecordSuccess(ctx, req.Email)
 	}

@@ -7,8 +7,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// Role constants — duplicated here until internal/user lands.
-// When internal/user/model.go exists, these should be removed and imported from there.
+// Role constants — also declared in internal/user/model.go.
+// Both packages need these; importing user from auth would create a cycle.
 const (
 	RolePlatformAdmin = "platform_admin"
 	RoleAdvertiser    = "advertiser"
