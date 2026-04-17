@@ -83,6 +83,13 @@ func (s *Store) UpdateStatus(ctx context.Context, userID int64, status string) e
 	return err
 }
 
+func (s *Store) UpdateName(ctx context.Context, userID int64, name string) error {
+	_, err := s.db.Exec(ctx,
+		`UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2`,
+		name, userID)
+	return err
+}
+
 func (s *Store) UpdatePassword(ctx context.Context, userID int64, newHash string) error {
 	_, err := s.db.Exec(ctx,
 		`UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
