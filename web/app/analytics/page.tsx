@@ -52,11 +52,21 @@ export default function AnalyticsPage() {
     }
 
     async function fetchToken(): Promise<TokenResponse | null> {
+      // Support both JWT Bearer token (new) and API Key (legacy/programmatic).
+      // JWT takes priority if present.
+      const accessToken = localStorage.getItem("dsp_access_token");
       const apiKey = localStorage.getItem("dsp_api_key") || "";
-      if (!apiKey) return null;
+      const headers: Record<string, string> = {};
+      if (accessToken) {
+        headers["Authorization"] = `Bearer ${accessToken}`;
+      } else if (apiKey) {
+        headers["X-API-Key"] = apiKey;
+      } else {
+        return null;
+      }
       const r = await fetch(`${API_BASE}/api/v1/analytics/token`, {
         method: "POST",
-        headers: { "X-API-Key": apiKey },
+        headers,
       });
       if (!r.ok) return null;
       return (await r.json()) as TokenResponse;
