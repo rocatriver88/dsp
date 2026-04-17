@@ -12,16 +12,16 @@ interface Stats {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-white p-5">
-      <p className="text-xs font-medium text-gray-500 mb-2">{label}</p>
-      <p className="text-2xl font-semibold font-geist tabular-nums">{value}</p>
+    <div className="rounded-[14px] p-5" style={{ background: "var(--bg-card)" }}>
+      <p className="text-xs font-medium mb-2" style={{ color: "var(--text-secondary)" }}>{label}</p>
+      <p className="text-2xl font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>{value}</p>
     </div>
   );
 }
 
 function StatCardSkeleton() {
   return (
-    <div className="rounded-lg bg-gray-200 p-5 animate-pulse h-20" />
+    <div className="rounded-[14px] p-5 animate-pulse h-20" style={{ background: "var(--bg-card)" }} />
   );
 }
 
@@ -98,10 +98,10 @@ export default function AdminOverviewPage() {
 
   return (
     <div className="p-8 max-w-6xl">
-      <h2 className="text-2xl font-semibold mb-6">概览</h2>
+      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>概览</h2>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded bg-red-50 text-red-700 text-sm flex items-center justify-between">
+        <div className="mb-4 px-4 py-3 rounded text-sm flex items-center justify-between" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>
           <span>{error}</span>
           <button onClick={handleRetry} className="text-xs underline ml-4">重试</button>
         </div>
@@ -128,36 +128,35 @@ export default function AdminOverviewPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Circuit Breaker */}
-        <div className="bg-white rounded-lg p-6">
+        <div className="rounded-[14px] p-6" style={{ background: "var(--bg-card)" }}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-700">熔断器状态</h3>
+            <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>熔断器状态</h3>
             {circuitError && (
-              <span className="text-xs text-red-600">{circuitError}</span>
+              <span className="text-xs" style={{ color: "#EF4444" }}>{circuitError}</span>
             )}
           </div>
           {loading ? (
             <div className="animate-pulse space-y-3">
-              <div className="h-10 bg-gray-100 rounded" />
-              <div className="h-10 bg-gray-100 rounded" />
+              <div className="h-10 rounded" style={{ background: "var(--bg-card-elevated)" }} />
+              <div className="h-10 rounded" style={{ background: "var(--bg-card-elevated)" }} />
             </div>
           ) : !circuit ? (
-            <p className="text-sm text-gray-500 text-center py-6">暂无熔断器数据</p>
+            <p className="text-sm text-center py-6" style={{ color: "var(--text-secondary)" }}>暂无熔断器数据</p>
           ) : (
             <div>
-              <div className="flex items-center justify-between py-3 border-b">
+              <div className="flex items-center justify-between py-3" style={{ borderBottom: "1px solid var(--border)" }}>
                 <div className="flex items-center gap-3">
                   <span
-                    className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                      isTripped ? "bg-red-500" : "bg-green-500"
-                    }`}
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{ background: isTripped ? "#EF4444" : "#22C55E" }}
                     aria-label={circuit.circuit_breaker}
                   />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                       {isTripped ? "熔断已触发" : "正常运行"}
                     </p>
                     {circuit.reason && (
-                      <p className="text-xs text-gray-500 mt-0.5">{circuit.reason}</p>
+                      <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{circuit.reason}</p>
                     )}
                   </div>
                 </div>
@@ -165,14 +164,16 @@ export default function AdminOverviewPage() {
                   {isTripped ? (
                     <button
                       onClick={handleReset}
-                      className="px-3 py-1.5 text-xs font-medium rounded bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                      className="px-3 py-1.5 text-xs font-medium rounded transition-colors"
+                      style={{ background: "rgba(34,197,94,0.15)", color: "#22C55E" }}
                     >
                       重置
                     </button>
                   ) : (
                     <button
                       onClick={handleTrip}
-                      className="px-3 py-1.5 text-xs font-medium rounded bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                      className="px-3 py-1.5 text-xs font-medium rounded transition-colors"
+                      style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}
                     >
                       手动熔断
                     </button>
@@ -186,11 +187,12 @@ export default function AdminOverviewPage() {
                     value={circuitReason}
                     onChange={(e) => setCircuitReason(e.target.value)}
                     placeholder="熔断原因（可选）"
-                    className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-300"
+                    className="flex-1 text-xs rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-300"
+                    style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
                   />
                 </div>
               )}
-              <div className="mt-3 text-xs text-gray-500">
+              <div className="mt-3 text-xs" style={{ color: "var(--text-secondary)" }}>
                 今日全局花费：¥{(circuit.global_spend_today_cents / 100).toLocaleString()}
               </div>
             </div>
@@ -198,22 +200,23 @@ export default function AdminOverviewPage() {
         </div>
 
         {/* System Health */}
-        <div className="bg-white rounded-lg p-6">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">系统健康</h3>
+        <div className="rounded-[14px] p-6" style={{ background: "var(--bg-card)" }}>
+          <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>系统健康</h3>
           {loading ? (
             <div className="animate-pulse space-y-3">
-              <div className="h-6 bg-gray-100 rounded w-1/2" />
-              <div className="h-10 bg-gray-100 rounded" />
+              <div className="h-6 rounded w-1/2" style={{ background: "var(--bg-card-elevated)" }} />
+              <div className="h-10 rounded" style={{ background: "var(--bg-card-elevated)" }} />
             </div>
           ) : !health ? (
-            <p className="text-sm text-gray-500 text-center py-6">健康数据不可用</p>
+            <p className="text-sm text-center py-6" style={{ color: "var(--text-secondary)" }}>健康数据不可用</p>
           ) : (
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <span
-                  className={`w-2.5 h-2.5 rounded-full ${healthOk ? "bg-green-500" : "bg-red-500"}`}
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ background: healthOk ? "#22C55E" : "#EF4444" }}
                 />
-                <span className={`text-sm font-medium ${healthOk ? "text-green-700" : "text-red-700"}`}>
+                <span className="text-sm font-medium" style={{ color: healthOk ? "#22C55E" : "#EF4444" }}>
                   {healthOk ? "所有服务正常" : "存在异常"}
                 </span>
               </div>
@@ -225,27 +228,28 @@ export default function AdminOverviewPage() {
                   const val = health[key as keyof SystemHealth] as string;
                   const ok = val === "ok" || val === "healthy";
                   return (
-                    <div key={key} className="flex items-center justify-between py-1.5 border-b last:border-0">
-                      <span className="text-xs text-gray-600">{label}</span>
+                    <div key={key} className="flex items-center justify-between py-1.5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                      <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{label}</span>
                       <span
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        className="text-xs font-medium px-2 py-0.5 rounded-full"
+                        style={
                           ok
-                            ? "bg-green-50 text-green-700"
-                            : "bg-red-50 text-red-700"
-                        }`}
+                            ? { background: "rgba(34,197,94,0.15)", color: "#22C55E" }
+                            : { background: "rgba(239,68,68,0.15)", color: "#EF4444" }
+                        }
                       >
                         {val}
                       </span>
                     </div>
                   );
                 })}
-                <div className="flex items-center justify-between py-1.5 border-b last:border-0">
-                  <span className="text-xs text-gray-600">活跃 Campaign</span>
-                  <span className="text-xs font-medium text-gray-700 tabular-nums">{health.active_campaigns}</span>
+                <div className="flex items-center justify-between py-1.5" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>活跃 Campaign</span>
+                  <span className="text-xs font-medium tabular-nums" style={{ color: "var(--text-primary)" }}>{health.active_campaigns}</span>
                 </div>
                 <div className="flex items-center justify-between py-1.5">
-                  <span className="text-xs text-gray-600">待审注册</span>
-                  <span className="text-xs font-medium text-gray-700 tabular-nums">{health.pending_registrations}</span>
+                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>待审注册</span>
+                  <span className="text-xs font-medium tabular-nums" style={{ color: "var(--text-primary)" }}>{health.pending_registrations}</span>
                 </div>
               </div>
             </div>
