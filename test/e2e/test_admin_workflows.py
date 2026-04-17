@@ -20,7 +20,7 @@ def test_admin_overview_stat_cards():
     with sync_playwright() as p:
         browser = launch_browser(p)
         page = new_page(browser)
-        admin_login(page, ADMIN_TOKEN)
+        admin_login(page)
         page.goto(f"{FRONTEND_URL}/admin")
         page.wait_for_load_state("networkidle")
 
@@ -37,7 +37,7 @@ def test_admin_overview_health_panel():
     with sync_playwright() as p:
         browser = launch_browser(p)
         page = new_page(browser)
-        admin_login(page, ADMIN_TOKEN)
+        admin_login(page)
         page.goto(f"{FRONTEND_URL}/admin")
         page.wait_for_load_state("networkidle")
 
@@ -53,7 +53,7 @@ def test_invite_code_generation():
     with sync_playwright() as p:
         browser = launch_browser(p)
         page = new_page(browser)
-        admin_login(page, ADMIN_TOKEN)
+        admin_login(page)
         page.goto(f"{FRONTEND_URL}/admin/invites")
         page.wait_for_load_state("networkidle")
 
@@ -82,7 +82,7 @@ def test_invite_code_table():
     with sync_playwright() as p:
         browser = launch_browser(p)
         page = new_page(browser)
-        admin_login(page, ADMIN_TOKEN)
+        admin_login(page)
         page.goto(f"{FRONTEND_URL}/admin/invites")
         page.wait_for_load_state("networkidle")
 
@@ -100,7 +100,7 @@ def test_agencies_page_sections():
     with sync_playwright() as p:
         browser = launch_browser(p)
         page = new_page(browser)
-        admin_login(page, ADMIN_TOKEN)
+        admin_login(page)
         page.goto(f"{FRONTEND_URL}/admin/agencies")
         page.wait_for_load_state("networkidle")
 
@@ -119,7 +119,7 @@ def test_agencies_topup_modal():
     with sync_playwright() as p:
         browser = launch_browser(p)
         page = new_page(browser)
-        admin_login(page, ADMIN_TOKEN)
+        admin_login(page)
         page.goto(f"{FRONTEND_URL}/admin/agencies")
         page.wait_for_load_state("networkidle")
 
@@ -148,7 +148,7 @@ def test_audit_log_page():
     with sync_playwright() as p:
         browser = launch_browser(p)
         page = new_page(browser)
-        admin_login(page, ADMIN_TOKEN)
+        admin_login(page)
         page.goto(f"{FRONTEND_URL}/admin/audit")
         page.wait_for_load_state("networkidle")
 
@@ -166,7 +166,7 @@ def test_creatives_review_page():
     with sync_playwright() as p:
         browser = launch_browser(p)
         page = new_page(browser)
-        admin_login(page, ADMIN_TOKEN)
+        admin_login(page)
         page.goto(f"{FRONTEND_URL}/admin/creatives")
         page.wait_for_load_state("networkidle")
 

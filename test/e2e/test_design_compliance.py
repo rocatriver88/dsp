@@ -95,7 +95,8 @@ def test_login_page_design():
             f"Page bg: expected ~{DESIGN['page_bg']}, got {bg}"
 
         # Login button: disabled state uses opacity, so fill to enable first
-        page.locator('input[placeholder="dsp_..."]').fill("dsp_test")
+        page.locator('input[type="email"]').fill("test@example.com")
+        page.locator('input[type="password"]').fill("password123")
         btn_bg = get_color_hex(page, "button", "backgroundColor")
         assert color_close(btn_bg, DESIGN["primary_color"]), \
             f"Button bg: expected ~{DESIGN['primary_color']}, got {btn_bg}"
@@ -114,7 +115,7 @@ def test_admin_sidebar_design():
     with sync_playwright() as p:
         browser = launch_browser(p)
         page = new_page(browser)
-        admin_login(page, ADMIN_TOKEN)
+        admin_login(page)
 
         # Sidebar background should be #111827 (DESIGN.md sidebar bg)
         sidebar_bg = get_color_hex(page, 'nav[aria-label="管理员导航"]', "backgroundColor")
@@ -163,7 +164,8 @@ def test_primary_button_colors():
         page.wait_for_load_state("networkidle")
 
         # Fill input to enable button
-        page.locator('input[placeholder="dsp_..."]').fill("dsp_test")
+        page.locator('input[type="email"]').fill("test@example.com")
+        page.locator('input[type="password"]').fill("password123")
 
         btn_bg = get_color_hex(page, "button", "backgroundColor")
         assert color_close(btn_bg, DESIGN["primary_color"]), \

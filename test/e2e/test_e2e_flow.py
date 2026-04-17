@@ -74,7 +74,7 @@ def record(step_name, passed, detail=""):
 # ============================================================================
 def step1_admin_generate_invite(browser):
     page = new_page(browser)
-    admin_login(page, ADMIN_TOKEN)
+    admin_login(page)
     page.goto(f"{FRONTEND_URL}/admin/invites")
     page.wait_for_load_state("networkidle")
 
@@ -165,7 +165,7 @@ def step2_register(browser):
 # ============================================================================
 def step3_admin_approve(browser):
     page = new_page(browser)
-    admin_login(page, ADMIN_TOKEN)
+    admin_login(page)
     page.goto(f"{FRONTEND_URL}/admin/agencies")
     page.wait_for_load_state("networkidle")
 
@@ -253,7 +253,7 @@ def step4_tenant_login(browser):
 # ============================================================================
 def step5_admin_topup(browser):
     page = new_page(browser)
-    admin_login(page, ADMIN_TOKEN)
+    admin_login(page)
     page.goto(f"{FRONTEND_URL}/admin/agencies")
     page.wait_for_load_state("networkidle")
 
