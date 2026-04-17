@@ -1,113 +1,230 @@
-# Design System — DSP Platform
+# Design System — DSP Platform V2
 
 ## Product Context
 - **What this is:** B2B 程序化广告投放管理平台（DSP）
 - **Who it's for:** 中国中小广告代理商的广告运营人员
 - **Space/industry:** 广告技术（AdTech），竞品: 巨量引擎、广点通、The Trade Desk
-- **Project type:** Web app (dashboard + data tables + campaign management)
+- **Project type:** Web app (dashboard + data visualization + campaign management)
+- **Design source:** Figma Make 设计稿 (2026-04-17), screenshots in `docs/design/figma-screens/`
 
 ## Aesthetic Direction
-- **Direction:** Industrial/Utilitarian
-- **Decoration level:** Minimal — typography and whitespace do all the work
-- **Mood:** 清晰、靠谱、专业。用户每天在这个界面工作数小时，视觉上不能累眼。数据可读性和操作效率优先于装饰。
-- **Anti-patterns:** No decorative borders on cards (use background + spacing), no purple gradients, no 3-column icon grids, no centered everything
+- **Direction:** Dark Premium / 深色科技感
+- **Theme:** Dark mode only（不提供 light mode）
+- **Decoration level:** Moderate — 图标、趋势箭头、渐变色块增强品牌感，但不过度装饰
+- **Mood:** 高级、专业、科技感。深紫色调传递"这是一个认真的数据平台"。长时间使用不累眼，数据在深色背景上更醒目。
+- **Inspiration:** Linear / Raycast 的品质感，但数据密度更高
+- **Anti-patterns:** No light/white backgrounds for main content, no cold gray (use warm dark tones), no flat unstyled tables, no generic blue-only palette
 
 ## Typography
-- **Display/Hero:** Geist (48px bold, -0.5px letter-spacing) — 现代感、辨识度高
-- **Body:** IBM Plex Sans (15px/1.6) — 中英混排表现优秀，可读性强
-- **UI/Labels:** IBM Plex Sans (12-13px medium)
-- **Data/Tables:** Geist (14px, font-variant-numeric: tabular-nums) — 数字对齐
+- **Display/Hero:** Inter (28-32px, font-weight 700) — 页面标题
+- **Body:** Inter (13-14px/1.6, font-weight 400) — 正文、描述
+- **UI/Labels:** Inter (11-12px, font-weight 500, uppercase letter-spacing 0.8px) — stat 标签、表头
+- **Data/Numbers:** Inter (24-28px, font-weight 700, font-variant-numeric: tabular-nums) — stat 数值
+- **Trend indicators:** Inter (13px, font-weight 600) — 涨跌百分比
+- **Chinese body:** Inter + system fallback (13-14px) — 中文内容
 - **Code:** JetBrains Mono
-- **Loading:** Google Fonts (IBM Plex Sans), CDN for Geist
-- **Scale:** 12px / 13px / 14px / 15px / 18px / 20px / 24px / 36px / 48px
+- **Loading:** Google Fonts (Inter)
+- **Scale:** 11px / 12px / 13px / 14px / 16px / 20px / 24px / 28px / 32px
 
 ## Color
-- **Approach:** Restrained — 1 accent + neutrals, color is rare and meaningful
-- **Primary:** #2563EB (蓝色，信任+专业，CTA、链接、活跃状态)
-- **Primary Hover:** #1D4ED8
-- **Sidebar:** #1A1A1A bg, #A1A1AA text, #FFFFFF active text
-- **Neutrals:**
-  - 50: #F9FAFB (page background)
-  - 100: #F3F4F6 (card hover, table header)
-  - 200: #E5E7EB (borders)
-  - 300: #D1D5DB (disabled)
-  - 500: #6B7280 (secondary text)
-  - 700: #374151 (strong secondary)
-  - 900: #111827 (primary text)
-- **Semantic:**
-  - Success: #059669 (campaign active, positive metrics)
-  - Warning: #D97706 (campaign paused, approaching limits)
-  - Error: #DC2626 (failures, overspend)
+
+### Primary Palette
+- **Primary accent:** #8B5CF6 (紫色，品牌色，CTA、活跃状态、高亮)
+- **Primary hover:** #7C3AED
+- **Primary muted:** rgba(139, 92, 246, 0.12) (活跃导航背景、选中态)
+
+### Dark Background Layers
+- **Page background:** #0F0A1A (最深层，页面底色)
+- **Sidebar background:** #0A0610 (侧边栏，比页面更深)
+- **Card background:** #1A1225 (卡片、面板)
+- **Card elevated:** #231830 (悬停态、弹窗)
+- **Input background:** #1A1225 (输入框、搜索栏)
+- **Border:** #2A2035 (卡片边框、分割线)
+- **Border subtle:** #1F1730 (更淡的分割)
+
+### Text
+- **Text primary:** #FFFFFF (标题、重要数据)
+- **Text secondary:** #A0A0B0 (描述、次要信息)
+- **Text muted:** #6B6B80 (标签、占位符、禁用态)
+- **Text on primary:** #FFFFFF (紫色按钮上的文字)
+
+### Semantic
+- **Success:** #22C55E (campaign active, positive metrics, 涨幅)
+- **Warning:** #EAB308 (campaign paused, approaching limits)
+- **Error:** #EF4444 (failures, overspend, 跌幅)
+- **Info:** #3B82F6 (informational badges, 某些图表线)
+
+### Chart Colors (按顺序使用)
+1. #8B5CF6 (purple — primary)
+2. #3B82F6 (blue)
+3. #22C55E (green)
+4. #EAB308 (yellow)
+5. #EF4444 (red)
+6. #EC4899 (pink)
+
+### Stat Card Icon Backgrounds
+- Purple: rgba(139, 92, 246, 0.15) with #8B5CF6 icon
+- Blue: rgba(59, 130, 246, 0.15) with #3B82F6 icon
+- Orange: rgba(249, 115, 22, 0.15) with #F97316 icon
+- Green: rgba(34, 197, 94, 0.15) with #22C55E icon
 
 ## Spacing
 - **Base unit:** 4px
 - **Density:** Comfortable
 - **Scale:** 2xs(2px) xs(4px) sm(8px) md(16px) lg(24px) xl(32px) 2xl(48px) 3xl(64px)
-- **Card padding:** 20px
-- **Card gap:** 12px
-- **Table row height:** 44px (touch-friendly)
+- **Card padding:** 24px
+- **Card gap:** 16px
+- **Table row height:** 48px
 - **Section gap:** 24-32px
+- **Sidebar item padding:** 10px 16px
 
 ## Layout
-- **Approach:** Grid-disciplined
-- **Sidebar:** 224px fixed width (desktop), horizontal scroll (mobile)
-- **Content max-width:** 1152px (max-w-6xl)
-- **Content padding:** 32px horizontal, 24px vertical (desktop); 16px (mobile)
-- **Border radius:** sm: 4px, md: 6px, lg: 8px, full: 9999px (pills/badges)
-- **Cards:** No border. White background (#FFFFFF) on gray page (#F9FAFB). Differentiation through background contrast and spacing, not lines.
+- **Approach:** Sidebar + Content area
+- **Sidebar:** 220px fixed width (desktop), icons with labels
+- **Top bar:** Full width, contains search + notifications + avatar
+- **Content max-width:** None (fills available space, max ~1200px content)
+- **Content padding:** 32px horizontal, 28px vertical
+- **Border radius:** sm: 6px, md: 10px, lg: 14px, full: 9999px (pills/badges)
+- **Cards:** 1px border (#2A2035), dark background (#1A1225), rounded corners (10-14px)
 
 ## Motion
-- **Approach:** Minimal-functional
+- **Approach:** Subtle and purposeful
 - **Easing:** enter: ease-out, exit: ease-in, move: ease-in-out
-- **Duration:** micro: 50-100ms (hover), short: 150ms (state transitions), medium: 250ms (page transitions)
-- **Rules:** No decorative animations. Transitions only where they help the user understand state changes (active tab, expanding panel, loading skeleton).
+- **Duration:** micro: 100ms (hover states), short: 150ms (state transitions), medium: 300ms (page transitions)
+- **Hover effects:** Cards lift with subtle brightness increase. Buttons brighten.
+- **Loading:** Skeleton placeholders with subtle pulse animation on dark background
+- **Charts:** Smooth entry animations on data load (recharts default)
+- **Rules:** Animations should feel premium, not playful. No bouncing, no overshooting.
 
 ## Component Patterns
 
-### Stat Cards
-- No border, white background on gray page
-- Label: 12px medium, secondary color
-- Value: Geist font, bold, primary color
-- Sub-text: 12px, muted color
-- Hero card: 2-column span, larger value (36px)
+### Sidebar Navigation
+- Dark background (#0A0610), full height
+- Logo: "DSP Platform" with icon, top-left
+- Nav items: icon (20px) + label, 10px 16px padding
+- Active: purple left border accent + rgba(139,92,246,0.12) background + #8B5CF6 text
+- Inactive: #6B6B80 text, hover → #A0A0B0
+- Bottom: user avatar / settings
 
-### Data Tables
-- No outer border, white background with rounded corners (8px)
-- Header: neutral-50 background, 13px medium secondary
-- Row: 14px, border-top neutral-100
-- Numbers: Geist tabular-nums for alignment
-- Links: primary blue, no underline
+### Top Bar
+- Search input: dark background, rounded, magnifying glass icon, placeholder "搜索广告系列、受众..."
+- Right side: notification bell + user avatar circle (#8B5CF6 gradient)
+- Height: ~64px
+
+### Stat Cards
+- Dark card background (#1A1225), 1px border, 14px radius
+- Left: colored icon circle (40px, with category-specific background)
+- Top-right: trend arrow (↑/↓) + percentage change (green for positive, red for negative)
+- Value: 24-28px bold white
+- Label: 12px muted text below value
+- 4-column grid on desktop, responsive
+
+### Campaign Cards (not table rows)
+- Full-width dark card, 14px radius
+- Header: campaign name (16px bold white) + status badge + type badge
+- Sub-header: date range (13px muted)
+- Metrics row: 预算 / 已花费 / 展示量 / 点击量 / 点击率 / 转化数 / ROI / 进度
+- ROI: green text when positive
+- Progress: small circular or bar indicator
+- Action buttons: icon buttons row (暂停/复制/编辑/删除/更多), top-right of card
+- Hover: subtle brightness lift
+
+### Data Tables (within cards)
+- Dark card container, 14px radius
+- Header: 11px uppercase muted text, letter-spacing 0.8px
+- Rows: 13px, border-top #1F1730
+- Numbers: tabular-nums, right-aligned
+- Links: #8B5CF6, no underline
+- Row hover: subtle background lighten
+
+### Charts (recharts)
+- Dark background, no outer border
+- Grid lines: very subtle (#1F1730)
+- Line charts: gradient fill under curve (purple → transparent)
+- Bar charts: solid bars with category colors, rounded top corners
+- Donut/pie: category colors with dark center
+- Axis labels: 11px muted text
+- Tooltip: dark card style with border
+- Legend: colored dots + 12px muted text
 
 ### Status Badges
-- Pill shape (border-radius: 9999px)
-- Active: green-50 bg, green-700 text
-- Paused: yellow-50 bg, yellow-700 text
-- Draft: neutral-100 bg, neutral-500 text
-- 12px medium weight
+- Pill shape (border-radius: 9999px), 11px font-weight 600
+- Active/运行中: rgba(34,197,94,0.15) bg, #22C55E text
+- Paused/已暂停: rgba(234,179,8,0.15) bg, #EAB308 text
+- Draft/草稿: rgba(107,107,128,0.15) bg, #6B6B80 text
+- Type badges (搜索广告/展示广告): rgba(139,92,246,0.15) bg, #A78BFA text
 
 ### Buttons
-- Primary: #2563EB bg, white text, 6px radius, 8px 16px padding
-- Ghost: transparent bg, secondary text, 1px border
-- 14px medium weight
+- Primary: #8B5CF6 bg, white text, 10px radius, 10px 20px padding, hover → #7C3AED
+- Secondary/Ghost: transparent bg, #A0A0B0 text, 1px border #2A2035, hover → border #8B5CF6
+- Icon button: 36px circle, transparent bg, #6B6B80 icon, hover → #A0A0B0
+- 14px font-weight 600
+
+### Filter Tabs
+- Pill-style tab bar with options: 全部 / 运行中 / 已暂停 / 草稿
+- Active: #8B5CF6 bg, white text
+- Inactive: transparent bg, #A0A0B0 text, hover → card background
+- Plus: 筛选 button with filter icon
+
+### Search Input
+- Dark background (#1A1225), 1px border #2A2035, 10px radius
+- Magnifying glass icon left, 13px placeholder text (#6B6B80)
+- Focus: border → #8B5CF6
 
 ### Empty States
-- Centered text block with icon or illustration
-- Primary heading (16px medium)
-- Secondary description (14px, secondary color)
+- Centered text block
+- Primary heading (16px medium white)
+- Secondary description (14px secondary)
 - Primary action button below
 
+### Trend Indicators
+- Arrow icon (↑ or ↓) + percentage text
+- Positive: #22C55E
+- Negative: #EF4444
+- Neutral: #6B6B80
+- Font: 13px font-weight 600
+
+## Data Visualization
+
+### Chart Library
+- **Use:** recharts (React charting library)
+- **Theme:** All charts use dark background, matching card style
+
+### Chart Types by Page
+- **仪表板:** 面积折线图 (投放趋势) + 柱状图 (预算分配)
+- **数据分析:** 多线折线图 (综合表现) + 环形图 (设备分布) + 表格 (渠道分析)
+- **受众管理:** 无图表，卡片式数据展示
+
+### Chart Styling
+- Background: transparent (inherits card background)
+- Grid: #1F1730, dashed
+- Axis text: #6B6B80, 11px
+- Tooltip: #231830 bg, 1px #2A2035 border, 12px radius
+- Area fill: linear gradient from chart color (opacity 0.3) to transparent
+- Bar radius: 4px top corners
+
 ## Accessibility
-- Focus ring: 2px solid #2563EB, 2px offset
+- Focus ring: 2px solid #8B5CF6, 2px offset
 - Touch targets: 44px minimum (nav links, buttons)
 - Skip-to-content link for keyboard navigation
 - ARIA landmarks on nav, main content
 - Reduced motion: respect prefers-reduced-motion
-- Color contrast: all text meets WCAG AA (4.5:1 for body, 3:1 for large)
+- Color contrast: all text meets WCAG AA on dark backgrounds (checked: white on #0F0A1A = 15.4:1, #A0A0B0 on #0F0A1A = 7.2:1)
+- Status not conveyed by color alone (always pair with text label or icon)
+
+## Responsive Behavior
+- **Desktop (≥1280px):** Full sidebar + content area
+- **Tablet (768-1279px):** Collapsed sidebar (icons only, 64px) + content area
+- **Mobile (<768px):** Bottom tab navigation + full-width content
+- Stat cards: 4-col → 2-col → 1-col
+- Campaign cards: full-width always
+- Charts: maintain aspect ratio, reduce padding
 
 ## Decisions Log
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-03-30 | Initial design system | Created by /design-consultation. Industrial/utilitarian for B2B ad platform |
-| 2026-03-30 | Geist for display/data | Modern, excellent tabular-nums, differentiates from Inter/Roboto |
-| 2026-03-30 | No-border cards | Cleaner, more professional than bordered cards |
-| 2026-03-30 | IBM Plex Sans body | Already in use, proven Chinese/English rendering |
+| 2026-03-30 | Initial design system | Created by /design-consultation. Industrial/utilitarian |
+| 2026-04-17 | V2 redesign: dark purple theme | User wanted brand-first redesign. Figma Make generated dark theme with #8B5CF6 purple accent. Differentiates from all competitors. |
+| 2026-04-17 | Card-based campaigns (not table) | Figma design uses campaign cards with inline metrics instead of table rows. Richer data display per campaign. |
+| 2026-04-17 | recharts for visualization | Figma design spec calls for recharts. React-native, supports dark theme well. |
+| 2026-04-17 | Inter as sole typeface | Clean, widely available, excellent CJK rendering, tabular-nums support. Replaces Geist + IBM Plex Sans. |
