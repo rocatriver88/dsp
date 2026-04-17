@@ -116,7 +116,11 @@ func (d *Deps) HandleListRegistrations(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} object{advertiser_id=integer,api_key=string,message=string}
 // @Router /admin/registrations/{id}/approve [post]
 func (d *Deps) HandleApproveRegistration(w http.ResponseWriter, r *http.Request) {
-	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid registration id")
+		return
+	}
 	actor, _ := audit.ActorFromRequest(r)
 	advID, apiKey, err := d.RegSvc.Approve(r.Context(), id, actor)
 	if err != nil {
@@ -390,7 +394,10 @@ func (d *Deps) HandleCreateInviteCode(w http.ResponseWriter, r *http.Request) {
 		MaxUses   int        `json:"max_uses"`
 		ExpiresAt *time.Time `json:"expires_at,omitempty"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
 	if req.MaxUses <= 0 {
 		req.MaxUses = 1
 	}
