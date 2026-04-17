@@ -9,19 +9,19 @@ interface StatCardProps {
   trend?: { value: string; positive: boolean };
   icon?: LucideIcon;
   iconColor?: string;
+  stagger?: number;
   className?: string;
 }
 
-export function StatCard({ label, value, trend, icon: Icon, iconColor = "#8B5CF6", className }: StatCardProps) {
-  const iconBg = iconColor + "26";
+export function StatCard({ label, value, trend, icon: Icon, iconColor = "#8B5CF6", stagger = 1, className }: StatCardProps) {
+  const iconBg = iconColor + "26"; // ~15% opacity
   return (
-    <div className={`rounded-[14px] p-5 ${className || ""}`}
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+    <div className={`glass-card p-5 animate-fade-in-up stagger-${stagger} ${className || ""}`}>
       <div className="flex items-start justify-between mb-3">
         {Icon && (
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center"
+          <div className="w-9 h-9 rounded-[10px] flex items-center justify-center"
             style={{ background: iconBg }}>
-            <Icon size={20} style={{ color: iconColor }} />
+            <Icon size={18} style={{ color: iconColor }} />
           </div>
         )}
         {trend && (
@@ -33,18 +33,7 @@ export function StatCard({ label, value, trend, icon: Icon, iconColor = "#8B5CF6
         )}
       </div>
       <p className="text-2xl font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{value}</p>
-      <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{label}</p>
-    </div>
-  );
-}
-
-export function HeroStatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="col-span-2 rounded-[14px] p-6"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
-      <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <p className="text-4xl font-bold tracking-tight tabular-nums" style={{ color: "var(--text-primary)" }}>{value}</p>
-      {sub && <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{sub}</p>}
+      <p className="text-[11px] font-medium uppercase tracking-wider mt-1" style={{ color: "var(--text-muted)" }}>{label}</p>
     </div>
   );
 }
