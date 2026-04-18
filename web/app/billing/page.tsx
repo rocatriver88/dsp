@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { ErrorState } from "../_components/LoadingState";
+import PageHeader from "../_components/PageHeader";
 
 interface Transaction {
   id: number;
@@ -47,7 +48,7 @@ export default function BillingPage() {
   if (loading) {
     return (
       <div>
-        <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>账户</h2>
+        <PageHeader title="账户" subtitle="管理账户余额和查看交易记录" />
         <div className="animate-pulse"><div className="h-24 rounded-[14px] mb-4" style={{ background: "var(--bg-card)" }} /><div className="h-40 rounded-[14px]" style={{ background: "var(--bg-card)" }} /></div>
       </div>
     );
@@ -56,7 +57,7 @@ export default function BillingPage() {
   if (error) {
     return (
       <div>
-        <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>账户</h2>
+        <PageHeader title="账户" subtitle="管理账户余额和查看交易记录" />
         <ErrorState message={error} onRetry={load} />
       </div>
     );
@@ -64,8 +65,7 @@ export default function BillingPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>账户</h2>
-      <p className="text-[13px] mb-6" style={{ color: "var(--text-secondary)" }}>管理账户余额和查看交易记录</p>
+      <PageHeader title="账户" subtitle="管理账户余额和查看交易记录" />
 
       {/* Balance card */}
       <div className="glass-card-static p-6 mb-6">

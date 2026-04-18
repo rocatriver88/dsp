@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { adminApi, CircuitStatus, SystemHealth } from "@/lib/admin-api";
 import { StatCard } from "../_components/StatCard";
+import PageHeader from "../_components/PageHeader";
 import { Building2, Target, DollarSign, Wallet } from "lucide-react";
 
 interface Stats {
@@ -91,7 +92,7 @@ export default function AdminOverviewPage() {
 
   return (
     <div className="">
-      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>概览</h2>
+      <PageHeader title="概览" />
 
       {error && (
         <div className="mb-4 px-4 py-3 rounded text-sm flex items-center justify-between" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>

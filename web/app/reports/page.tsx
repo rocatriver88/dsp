@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
 import { LoadingSkeleton, ErrorState } from "../_components/LoadingState";
+import PageHeader from "../_components/PageHeader";
 
 export default function ReportsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -32,8 +33,7 @@ export default function ReportsPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>报表</h2>
-      <p className="text-[13px] mb-6" style={{ color: "var(--text-secondary)" }}>选择一个广告系列查看详细报表和竞价透明度数据</p>
+      <PageHeader title="报表" subtitle="选择一个广告系列查看详细报表和竞价透明度数据" />
 
       {loading ? (
         <LoadingSkeleton rows={3} />

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { adminApi, AdminCreative } from "@/lib/admin-api";
+import PageHeader from "../../_components/PageHeader";
 
 function CreativeCard({
   creative,
@@ -146,14 +147,13 @@ export default function CreativesPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>素材审核</h2>
-        {!loading && creatives.length > 0 && (
+      <PageHeader title="素材审核" action={
+        !loading && creatives.length > 0 ? (
           <span className="px-2.5 py-1 text-xs font-medium rounded-full" style={{ background: "rgba(234,179,8,0.15)", color: "#EAB308" }}>
             {creatives.length} 待审核
           </span>
-        )}
-      </div>
+        ) : undefined
+      } />
 
       {error && (
         <div className="mb-4 px-4 py-3 rounded text-sm flex items-center justify-between" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>

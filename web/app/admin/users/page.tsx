@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { adminApi, UserResponse } from "@/lib/admin-api";
+import PageHeader from "../../_components/PageHeader";
 
 function CreateUserModal({
   onClose,
@@ -221,16 +222,11 @@ export default function UsersPage() {
 
   return (
     <div className="">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>用户管理</h2>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="px-4 py-2 text-sm font-medium text-white rounded-md transition-colors"
-          style={{ background: "var(--primary)" }}
-        >
+      <PageHeader title="用户管理" action={
+        <button onClick={() => setShowCreate(true)} className="btn-primary px-4 py-2 text-sm">
           创建用户
         </button>
-      </div>
+      } />
 
       {error && (
         <div className="mb-4 px-4 py-3 rounded text-sm flex items-center justify-between" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>

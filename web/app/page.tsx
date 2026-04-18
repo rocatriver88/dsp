@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
 import { StatCard } from "./_components/StatCard";
 import { StatusBadge } from "./_components/StatusBadge";
+import PageHeader from "./_components/PageHeader";
 import { Eye, MousePointer, Target, DollarSign } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
@@ -35,7 +36,7 @@ export default function OverviewPage() {
   if (loading) {
     return (
       <div>
-        <h2 className="text-2xl font-bold mb-6" style={{ color: "var(--text-primary)" }}>仪表板</h2>
+        <PageHeader title="仪表板" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="glass-card-static p-5 animate-pulse">
@@ -62,8 +63,7 @@ export default function OverviewPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>仪表板</h2>
-      <p className="text-[13px] mb-6" style={{ color: "var(--text-secondary)" }}>实时监控广告投放表现和预算使用</p>
+      <PageHeader title="仪表板" subtitle="实时监控广告投放表现和预算使用" />
 
       {isLowBalance && (
         <div className="mb-4 px-4 py-3 rounded-[14px] text-sm"

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { api, Campaign } from "@/lib/api";
 import { LoadingSkeleton, ErrorState, EmptyState } from "../_components/LoadingState";
+import PageHeader from "../_components/PageHeader";
 import { StatusBadge, TypeBadge } from "../_components/StatusBadge";
 import { Pause, Play, Copy, Pencil, Trash2, MoreHorizontal, Plus, Filter } from "lucide-react";
 
@@ -80,20 +81,12 @@ export default function CampaignsPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>广告系列管理</h2>
-          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>管理和监控广告系列的投放表现</p>
-        </div>
-        <Link
-          href="/campaigns/new"
-          className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-sm"
-        >
+      <PageHeader title="广告系列管理" subtitle="管理和监控广告系列的投放表现" action={
+        <Link href="/campaigns/new" className="btn-primary inline-flex items-center gap-1.5 px-4 py-2 text-sm">
           <Plus size={16} />
           创建广告系列
         </Link>
-      </div>
+      } />
 
       {/* Filter tabs */}
       <div className="flex items-center gap-2 mb-5">

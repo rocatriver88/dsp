@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import PageHeader from "../../_components/PageHeader";
 
 const billingModels = [
   { value: "cpm", label: "CPM", desc: "按千次曝光计费，适合品牌曝光", field: "bid_cpm_cents", placeholder: "8.00" },
@@ -114,8 +115,7 @@ export default function NewCampaignPage() {
 
   return (
     <div className="max-w-2xl">
-      <h2 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>创建广告系列</h2>
-      <p className="text-[13px] mb-6" style={{ color: "var(--text-secondary)" }}>配置广告系列的基本信息、定向和素材</p>
+      <PageHeader title="创建广告系列" subtitle="配置广告系列的基本信息、定向和素材" />
 
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-8">

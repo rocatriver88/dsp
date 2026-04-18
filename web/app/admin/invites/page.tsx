@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { adminApi, InviteCode } from "@/lib/admin-api";
+import PageHeader from "../../_components/PageHeader";
 
 export default function InvitesPage() {
   const [codes, setCodes] = useState<InviteCode[]>([]);
@@ -43,7 +44,7 @@ export default function InvitesPage() {
 
   return (
     <div className="">
-      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>邀请码管理</h2>
+      <PageHeader title="邀请码管理" />
 
       {error && (
         <div className="mb-4 px-4 py-3 rounded text-sm flex items-center justify-between" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { adminApi, AuditEntry } from "@/lib/admin-api";
+import PageHeader from "../../_components/PageHeader";
 
 const PAGE_SIZE = 50;
 
@@ -91,7 +92,7 @@ export default function AuditPage() {
 
   return (
     <div className="">
-      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>审计日志</h2>
+      <PageHeader title="审计日志" />
 
       {error && (
         <div className="mb-4 px-4 py-3 rounded text-sm flex items-center justify-between" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>

@@ -5,6 +5,7 @@ import { LoadingSkeleton, ErrorState, EmptyState } from "../_components/LoadingS
 import { StatCard } from "../_components/StatCard";
 import { getAccessToken } from "@/lib/api";
 import { Eye, MousePointer, DollarSign, TrendingUp } from "lucide-react";
+import PageHeader from "../_components/PageHeader";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 
@@ -177,11 +178,7 @@ export default function AnalyticsPage() {
 
   return (
     <main>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>数据分析</h1>
-          <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>实时监控竞价投放数据</p>
-        </div>
+      <PageHeader title="数据分析" subtitle="实时监控竞价投放数据" action={
         <div className="flex items-center gap-2 text-sm">
           <span className={`inline-block w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`} />
           <span style={{ color: "var(--text-secondary)" }}>
@@ -191,7 +188,7 @@ export default function AnalyticsPage() {
             {new Date(data.timestamp).toLocaleTimeString()}
           </span>
         </div>
-      </div>
+      } />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
