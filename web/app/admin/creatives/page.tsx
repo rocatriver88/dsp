@@ -145,7 +145,7 @@ export default function CreativesPage() {
   }
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>素材审核</h2>
         {!loading && creatives.length > 0 && (

@@ -97,7 +97,7 @@ export default function AdminOverviewPage() {
   const healthOk = health?.status === "ok" || health?.status === "healthy";
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="">
       <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>概览</h2>
 
       {error && (

@@ -220,7 +220,7 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>用户管理</h2>
         <button

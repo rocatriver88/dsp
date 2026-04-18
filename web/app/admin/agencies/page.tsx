@@ -158,7 +158,7 @@ export default function AgenciesPage() {
   }
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="">
       <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>代理商管理</h2>
 
       {error && (
