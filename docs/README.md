@@ -5,7 +5,6 @@
 - [模块架构说明](./module-architecture.md):服务划分、模块职责与数据流
 - [biz↔engine 跨系统契约](./contracts/biz-engine.md):业务系统和投放引擎之间的数据流、effective_delivery 聚合规则、三码返回码规范
 - [运行时失败策略 & shutdown 不变量](./runtime.md):每个依赖的 fail-open / fail-closed 判断、Producer.Go / WaitInflight 使用规范、五步 shutdown 顺序
-- [手工 QA checklist](./qa-checklist.md):前端回归验证清单(web/ 无自动化测试框架时的兜底)
 - [项目概览](./OVERVIEW.md):顶层定位、形态与能力总览
 - [评审工作流](./REVIEW_WORKFLOW.md):Codex 与 Claude Code 的评审闭环
 - [发布检查清单](./RELEASE_CHECKLIST.md):合并与发版检查门槛
@@ -26,6 +25,7 @@
 - [`archive/browse-reports/`](./archive/browse-reports/):归档的浏览器验证报告
 - [`archive/superpowers/`](./archive/superpowers/):归档的 plans / specs / reports,约定见该目录下 README
 - [`archive/2026-04-13-completion-report.md`](./archive/2026-04-13-completion-report.md):历史完成度快照
+- [`archive/qa-checklist.md`](./archive/qa-checklist.md):V5 §P2 前端回归手工 QA 清单(保留作为参考,web/ 已接入自动化测试后不再作为核心门槛)
 
 ## 当期规划 (`superpowers/`)
 - [`superpowers/plans/`](./superpowers/):当期实现计划(完成后会移入 archive)
