@@ -601,11 +601,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            advertiser_id?: number;
-                            api_key?: string;
-                            message?: string;
-                        };
+                        "application/json": components["schemas"]["internal_handler.RegistrationApprovedResponse"];
                     };
                 };
             };
@@ -2960,6 +2956,13 @@ export interface components {
             circuit_breaker?: string;
             global_spend_today_cents?: number;
             reason?: string;
+        };
+        "internal_handler.RegistrationApprovedResponse": {
+            advertiser_id?: number;
+            api_key?: string;
+            message?: string;
+            temp_password?: string;
+            user_email?: string;
         };
         "internal_handler.SystemHealthResponse": {
             active_campaigns?: number;

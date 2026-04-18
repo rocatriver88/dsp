@@ -7,6 +7,8 @@ export type InviteCode = Required<components['schemas']['github_com_heartgryphon
 export type AdminCreative = Required<components['schemas']['github_com_heartgryphon_dsp_internal_campaign.Creative']>;
 export type AuditEntry = Required<components['schemas']['github_com_heartgryphon_dsp_internal_audit.Entry']>;
 export type Registration = Required<components['schemas']['github_com_heartgryphon_dsp_internal_registration.Request']>;
+// One-time disclosure on admin approve; temp_password is plaintext and must NOT be persisted client-side.
+export type RegistrationApproved = Required<components['schemas']['internal_handler.RegistrationApprovedResponse']>;
 
 const ADMIN_API_BASE = process.env.NEXT_PUBLIC_ADMIN_API_URL || "http://localhost:8182";
 
@@ -68,8 +70,11 @@ export const adminApi = {
     return adminRequest<Registration[]>(`/api/v1/admin/registrations${params}`);
   },
 
+  // Returns the one-time disclosure (advertiser_id, api_key, user_email, temp_password).
+  // temp_password is plaintext — UI layer should show it in a dismissible modal and
+  // NOT persist it to localStorage. TODO(ui): add the modal in a follow-up PR.
   approveRegistration: (id: number) =>
-    adminRequest<{ status: string }>(`/api/v1/admin/registrations/${id}/approve`, { method: "POST" }),
+    adminRequest<RegistrationApproved>(`/api/v1/admin/registrations/${id}/approve`, { method: "POST" }),
 
   rejectRegistration: (id: number, reason?: string) =>
     adminRequest<{ status: string }>(`/api/v1/admin/registrations/${id}/reject`, {

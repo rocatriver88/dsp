@@ -9,7 +9,7 @@
 #   POST /api/v1/register                          -> HandleRegister (201)
 #   GET  /api/v1/admin/registrations               -> HandleListRegistrations
 #   POST /api/v1/admin/registrations/{id}/approve  -> HandleApproveRegistration
-#     response shape: {advertiser_id, api_key, message}
+#     response shape: {advertiser_id, api_key, user_email, temp_password, message}
 set -euo pipefail
 source "$(dirname "$0")/e2e-env.sh"
 source "$(dirname "$0")/lib.sh"
@@ -60,7 +60,10 @@ approve_body=$(assert_status 200 "$approve_resp") || fail "approve registration 
 
 # Read advertiser_id + api_key directly from the approve response.
 # internal/handler/admin.go:HandleApproveRegistration returns
-#   {"advertiser_id": <int>, "api_key": "<string>", "message": "..."}
+#   {"advertiser_id": <int>, "api_key": "<string>",
+#    "user_email": "<string>", "temp_password": "<string>", "message": "..."}
+# The QA chain only needs advertiser_id + api_key (the user seeding /
+# temp_password path is covered by test/e2e/test_e2e_flow.py Step 3/4).
 adv_id=$(json_field "$approve_body" advertiser_id)
 api_key=$(json_field "$approve_body" api_key)
 
