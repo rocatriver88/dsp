@@ -67,7 +67,7 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
     return (
       <div className="min-h-screen w-full flex" style={{ background: "var(--bg-page)" }}>
         {/* Left brand side */}
-        <div className="hidden md:flex flex-1 flex-col justify-center px-12 lg:px-16 relative overflow-hidden"
+        <div className="hidden md:flex flex-[2] flex-col justify-center px-12 lg:px-16 relative overflow-hidden"
           style={{ background: "#0F0A1A" }}>
           {/* Animated gradient orbs */}
           <div className="absolute top-[-20%] left-[-20%] w-[70%] h-[70%] rounded-full pointer-events-none"
@@ -138,7 +138,7 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
         </div>
 
         {/* Right form side */}
-        <div className="w-full md:w-[440px] flex-shrink-0 flex items-center justify-center px-8"
+        <div className="w-full md:flex-1 md:min-w-[360px] flex items-center justify-center px-8"
           style={{ background: "var(--bg-card)", borderLeft: "1px solid var(--border)" }}>
           <div className="w-full max-w-xs">
             {/* Mobile logo (only shown on small screens) */}
@@ -247,7 +247,7 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar />
         <main id="main-content" className="flex-1 overflow-auto ambient-glow" role="main">
-          <div className="relative z-10 max-w-6xl mx-auto px-4 py-4 md:px-8 md:py-7">
+          <div className="relative z-10 max-w-6xl mx-auto px-6 py-6 md:px-8 md:py-7">
             {children}
           </div>
         </main>

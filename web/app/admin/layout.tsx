@@ -254,7 +254,7 @@ function AdminAuthGate({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <TopBar />
         <main className="flex-1 overflow-auto ambient-glow">
-          <div className="relative z-10 max-w-6xl mx-auto px-4 py-4 md:px-8 md:py-7">
+          <div className="relative z-10 max-w-6xl mx-auto px-6 py-6 md:px-8 md:py-7">
             {children}
           </div>
         </main>

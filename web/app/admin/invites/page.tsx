@@ -53,26 +53,39 @@ export default function InvitesPage() {
       )}
 
       {/* Create Section */}
-      <div className="glass-card-static p-6 mb-6">
+      <div className="glass-card-static p-6 mb-6 max-w-lg">
         <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text-primary)" }}>生成邀请码</h3>
 
-        <div className="flex items-end gap-3">
-          <div>
-            <label className="block text-xs mb-1" style={{ color: "var(--text-secondary)" }}>最大使用次数</label>
-            <input
-              type="number"
-              min={1}
-              value={maxUses}
-              onChange={(e) => setMaxUses(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              className="w-24 text-sm rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-500"
-              style={{ background: "var(--bg-input)", borderColor: "var(--border)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
-            />
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs mb-1.5" style={{ color: "var(--text-secondary)" }}>最大使用次数</label>
+              <input
+                type="number"
+                min={1}
+                value={maxUses}
+                onChange={(e) => setMaxUses(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                className="w-full text-sm rounded-lg px-3 py-2 focus:outline-none transition-colors"
+                style={{ background: "var(--bg-input)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+                onFocus={(e) => e.currentTarget.style.borderColor = "var(--primary)"}
+                onBlur={(e) => e.currentTarget.style.borderColor = "var(--border)"}
+              />
+            </div>
+            <div>
+              <label className="block text-xs mb-1.5" style={{ color: "var(--text-secondary)" }}>过期时间（可选）</label>
+              <input
+                type="date"
+                className="w-full text-sm rounded-lg px-3 py-2 focus:outline-none transition-colors"
+                style={{ background: "var(--bg-input)", color: "var(--text-primary)", border: "1px solid var(--border)", colorScheme: "dark" }}
+                onFocus={(e) => e.currentTarget.style.borderColor = "var(--primary)"}
+                onBlur={(e) => e.currentTarget.style.borderColor = "var(--border)"}
+              />
+            </div>
           </div>
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="px-4 py-2 text-sm font-medium rounded text-white disabled:cursor-not-allowed transition-colors disabled:opacity-50"
-            style={{ background: generating ? "var(--border)" : "var(--primary)" }}
+            className="btn-primary px-4 py-2 text-sm w-full"
           >
             {generating ? "生成中..." : "生成邀请码"}
           </button>

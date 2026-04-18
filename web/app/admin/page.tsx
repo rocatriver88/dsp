@@ -2,21 +2,14 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { adminApi, CircuitStatus, SystemHealth } from "@/lib/admin-api";
+import { StatCard } from "../_components/StatCard";
+import { Building2, Target, DollarSign, Wallet } from "lucide-react";
 
 interface Stats {
   agencyCount: number;
   activeCampaigns: number;
   todaySpend: number;
   totalBalance: number;
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="glass-card-static p-5">
-      <p className="text-xs font-medium mb-2" style={{ color: "var(--text-secondary)" }}>{label}</p>
-      <p className="text-2xl font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>{value}</p>
-    </div>
-  );
 }
 
 function StatCardSkeleton() {
@@ -118,10 +111,10 @@ export default function AdminOverviewPage() {
           </>
         ) : (
           <>
-            <StatCard label="广告主数" value={stats.agencyCount.toLocaleString()} />
-            <StatCard label="活跃 Campaign" value={stats.activeCampaigns.toLocaleString()} />
-            <StatCard label="今日全局花费" value={`¥${(stats.todaySpend / 100).toLocaleString()}`} />
-            <StatCard label="平台总余额" value={`¥${(stats.totalBalance / 100).toLocaleString()}`} />
+            <StatCard label="广告主数" value={stats.agencyCount.toLocaleString()} icon={Building2} iconColor="#8B5CF6" stagger={1} />
+            <StatCard label="活跃 Campaign" value={stats.activeCampaigns.toLocaleString()} icon={Target} iconColor="#3B82F6" stagger={2} />
+            <StatCard label="今日全局花费" value={`¥${(stats.todaySpend / 100).toLocaleString()}`} icon={DollarSign} iconColor="#F97316" stagger={3} />
+            <StatCard label="平台总余额" value={`¥${(stats.totalBalance / 100).toLocaleString()}`} icon={Wallet} iconColor="#22C55E" stagger={4} />
           </>
         )}
       </div>

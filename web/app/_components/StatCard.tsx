@@ -33,7 +33,7 @@ export function StatCard({ label, value, trend, icon: Icon, iconColor = "#8B5CF6
         )}
       </div>
       <p className="text-2xl font-bold tabular-nums" style={{ color: "var(--text-primary)" }}>{value}</p>
-      <p className="text-[11px] font-medium uppercase tracking-wider mt-1" style={{ color: "var(--text-muted)" }}>{label}</p>
+      <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{label}</p>
     </div>
   );
 }

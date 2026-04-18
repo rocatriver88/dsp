@@ -12,7 +12,7 @@ export default function TopBar() {
         borderBottom: "1px solid var(--border)",
       }}>
       {/* Search */}
-      <div className="flex items-center gap-2 px-4 py-2 rounded-[10px] w-80 text-[13px]"
+      <div className="flex items-center gap-2 px-4 py-2 rounded-[10px] max-w-xs flex-1 text-[13px]"
         style={{ background: "var(--bg-card)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
         <Search size={14} />
         <span>搜索广告系列、受众...</span>
