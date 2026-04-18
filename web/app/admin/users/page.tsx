@@ -256,7 +256,7 @@ export default function UsersPage() {
           <p className="text-sm" style={{ color: "var(--text-secondary)" }}>暂无用户</p>
         </div>
       ) : (
-        <div className="glass-card-static p-0 overflow-hidden">
+        <div className="glass-card-static p-0 overflow-x-auto">
           <table className="w-full text-sm" aria-label="用户列表">
             <thead style={{ background: "var(--bg-card-elevated)" }}>
               <tr>
@@ -273,8 +273,8 @@ export default function UsersPage() {
                 const status = statusStyles[u.status] || { text: u.status, bg: "var(--bg-card-elevated)", color: "var(--text-primary)" };
                 return (
                   <tr key={u.id} className="transition-colors" style={{ borderTop: "1px solid var(--border-subtle)" }} onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }} onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "transparent"; }}>
-                    <td className="py-3 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{u.name}</td>
-                    <td className="py-3 px-4 text-xs" style={{ color: "var(--text-secondary)" }}>{u.email}</td>
+                    <td className="py-3 px-4 font-medium max-w-[200px] truncate" style={{ color: "var(--text-primary)" }} title={u.name}>{u.name}</td>
+                    <td className="py-3 px-4 text-xs max-w-[240px] truncate" style={{ color: "var(--text-secondary)" }} title={u.email}>{u.email}</td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap"

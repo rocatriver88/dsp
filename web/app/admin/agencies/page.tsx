@@ -183,7 +183,7 @@ export default function AgenciesPage() {
               {registrations.length}
             </span>
           </h3>
-          <div className="glass-card-static p-0 overflow-hidden">
+          <div className="glass-card-static p-0 overflow-x-auto">
             <table className="w-full text-sm" aria-label="待审核注册">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
@@ -197,8 +197,8 @@ export default function AgenciesPage() {
               <tbody>
                 {registrations.map((reg) => (
                   <tr key={reg.id} className="transition-colors" style={{ borderTop: "1px solid var(--border-subtle)" }} onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }} onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "transparent"; }}>
-                    <td className="py-3 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{reg.company_name}</td>
-                    <td className="py-3 px-4" style={{ color: "var(--text-secondary)" }}>{reg.contact_email}</td>
+                    <td className="py-3 px-4 font-medium max-w-[200px] truncate" style={{ color: "var(--text-primary)" }} title={reg.company_name}>{reg.company_name}</td>
+                    <td className="py-3 px-4 max-w-[240px] truncate" style={{ color: "var(--text-secondary)" }} title={reg.contact_email}>{reg.contact_email}</td>
                     <td className="py-3 px-4 font-mono text-xs" style={{ color: "var(--text-muted)" }}>{reg.invite_code}</td>
                     <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {new Date(reg.created_at).toLocaleString("zh-CN")}
@@ -245,7 +245,7 @@ export default function AgenciesPage() {
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>暂无广告主</p>
           </div>
         ) : (
-          <div className="glass-card-static p-0 overflow-hidden">
+          <div className="glass-card-static p-0 overflow-x-auto">
             <table className="w-full text-sm" aria-label="广告主列表">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
@@ -261,8 +261,8 @@ export default function AgenciesPage() {
                 {advertisers.map((adv) => (
                   <tr key={adv.id} className="transition-colors" style={{ borderTop: "1px solid var(--border-subtle)" }} onMouseEnter={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }} onMouseLeave={(e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "transparent"; }}>
                     <td className="py-3 px-4 tabular-nums text-xs" style={{ color: "var(--text-muted)" }}>{adv.id}</td>
-                    <td className="py-3 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{adv.company_name}</td>
-                    <td className="py-3 px-4 text-xs" style={{ color: "var(--text-secondary)" }}>{adv.contact_email}</td>
+                    <td className="py-3 px-4 font-medium max-w-[200px] truncate" style={{ color: "var(--text-primary)" }} title={adv.company_name}>{adv.company_name}</td>
+                    <td className="py-3 px-4 text-xs max-w-[240px] truncate" style={{ color: "var(--text-secondary)" }} title={adv.contact_email}>{adv.contact_email}</td>
                     <td className="py-3 px-4 text-right tabular-nums" style={{ color: "var(--text-primary)" }}>
                       {topUpSuccess === adv.id && (
                         <span className="mr-2 text-xs" style={{ color: "#22C55E" }}>✓ 已充值</span>

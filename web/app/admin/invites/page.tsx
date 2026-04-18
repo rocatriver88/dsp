@@ -106,7 +106,7 @@ export default function InvitesPage() {
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>暂无邀请码，点击上方按钮生成</p>
           </div>
         ) : (
-          <div className="glass-card-static p-0 overflow-hidden">
+          <div className="glass-card-static p-0 overflow-x-auto">
             <div className="overflow-x-auto">
             <table className="w-full text-sm table-fixed" aria-label="邀请码列表">
               <thead style={{ background: "var(--bg-card-elevated)" }}>

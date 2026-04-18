@@ -112,7 +112,7 @@ export default function AuditPage() {
         </div>
       ) : (
         <>
-          <div className="glass-card-static p-0 overflow-hidden mb-4">
+          <div className="glass-card-static p-0 overflow-x-auto mb-4">
             <table className="w-full text-sm" aria-label="审计日志">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
