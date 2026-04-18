@@ -116,7 +116,7 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
               智能投放<br />精准触达
             </h2>
             <p className="text-[15px] leading-relaxed max-w-sm" style={{ color: "var(--text-secondary)" }}>
-              面向中国中小广告代理商的程序化广告投放管理平台。实时竞价、智能优化、全链路归因。
+              面向中国中小广告主的程序化广告投放管理平台。实时竞价、智能优化、全链路归因。
             </p>
 
             {/* Stats strip */}

@@ -12,7 +12,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8181";
 
 const adminNavItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin", label: "概览", icon: LayoutDashboard },
-  { href: "/admin/agencies", label: "代理商", icon: Building2 },
+  { href: "/admin/agencies", label: "广告主", icon: Building2 },
   { href: "/admin/users", label: "用户", icon: Users },
   { href: "/admin/creatives", label: "素材审核", icon: FileCheck },
   { href: "/admin/invites", label: "邀请码", icon: Ticket },

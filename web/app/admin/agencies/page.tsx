@@ -159,7 +159,7 @@ export default function AgenciesPage() {
 
   return (
     <div className="">
-      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>代理商管理</h2>
+      <h2 className="text-2xl font-semibold mb-6" style={{ color: "var(--text-primary)" }}>广告主管理</h2>
 
       {error && (
         <div className="mb-4 px-4 py-3 rounded text-sm flex items-center justify-between" style={{ background: "rgba(239,68,68,0.15)", color: "#EF4444" }}>

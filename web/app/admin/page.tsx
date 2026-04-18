@@ -118,7 +118,7 @@ export default function AdminOverviewPage() {
           </>
         ) : (
           <>
-            <StatCard label="代理商数" value={stats.agencyCount.toLocaleString()} />
+            <StatCard label="广告主数" value={stats.agencyCount.toLocaleString()} />
             <StatCard label="活跃 Campaign" value={stats.activeCampaigns.toLocaleString()} />
             <StatCard label="今日全局花费" value={`¥${(stats.todaySpend / 100).toLocaleString()}`} />
             <StatCard label="平台总余额" value={`¥${(stats.totalBalance / 100).toLocaleString()}`} />
