@@ -31,7 +31,7 @@
 - SDK 分发与更完整的生态工具
 
 ## 仓库入口文档
-- 功能与能力总览:[`project-feature-inventory.md`](./project-feature-inventory.md)
+- 功能与能力总览:[`feature-inventory.md`](./feature-inventory.md)
 - 架构说明:[`module-architecture.md`](./module-architecture.md)
 - OpenAPI 契约:[`generated/openapi3.yaml`](./generated/openapi3.yaml)
 - 历史完成度快照:[`archive/`](./archive/)
