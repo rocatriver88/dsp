@@ -3,9 +3,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "Regenerating OpenAPI + TS types..."
-# stdout silenced (swag/npm are chatty on success); stderr kept so real failures surface in CI logs.
-swag init -g cmd/api/main.go -o docs/generated --parseDependency --parseInternal >/dev/null
-(cd web && npm run generate:api >/dev/null)
+# Keep full output so real failures surface in CI (chatty success output is acceptable cost).
+swag init -g cmd/api/main.go -o docs/generated --parseDependency --parseInternal
+(cd web && npm run generate:api)
 
 if ! git diff --quiet -- docs/generated web/lib/api-types.ts; then
     echo "ERROR: generated contract is out of date."
