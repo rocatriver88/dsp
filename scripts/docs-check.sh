@@ -3,6 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "Regenerating OpenAPI + TS types..."
+# Pre-download deps so swag's --parseDependency doesn't race go-module fetches and exit mid-stream on cold caches.
+go mod download
 # Keep full output so real failures surface in CI (chatty success output is acceptable cost).
 swag init -g cmd/api/main.go -o docs/generated --parseDependency --parseInternal
 (cd web && npm run generate:api)
