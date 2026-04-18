@@ -80,6 +80,22 @@
 
 **Depends on:** Nothing.
 
+### Review SetNX dedup fail-open policy under Redis outage
+
+**What:** `cmd/bidder/main.go:423,592` and `internal/budget/budget.go:124` currently fail-open on Redis `SetNX` error (log and proceed). Codex flagged this as a real policy question during Phase Final: if the system invariant is "never double-debit under Redis faults," this path should fail-closed (reject the callback) instead. Today's code preserves callback availability at the cost of strict idempotency.
+
+**Why deferred:** Policy decision, not a bug. Needs product/eng alignment on the idempotency vs availability trade-off during Redis outage.
+
+**Depends on:** SLO conversation on billing accuracy under degraded infra.
+
+### `scripts/docs-check.sh` can mask future `go.sum` drift
+
+**What:** Codex observed during Phase Final: the new `go mod download` call (added in PR #13 to avoid cold-cache swag races) will happily fetch missing deps at CI time. If a developer bumps `go.mod` but forgets to commit `go.sum`, `docs-check.sh` will now *succeed* (deps downloaded on the fly) where previously it would have failed earlier. The diff check only covers `docs/generated/` and `web/lib/api-types.ts`, not `go.sum`.
+
+**Fix:** Add `git diff --quiet -- go.sum` check after `go mod download` (or pass `-mod=readonly` where feasible).
+
+**Depends on:** Nothing. ~5 LOC in `scripts/docs-check.sh`.
+
 ## P2 — Deferred
 
 ### PIPL compliance
