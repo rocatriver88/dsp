@@ -67,7 +67,7 @@ export default function ApiKeyGate({ children, sidebar }: { children: React.Reac
     return (
       <div className="min-h-screen w-full flex" style={{ background: "var(--bg-page)" }}>
         {/* Left brand side */}
-        <div className="hidden md:flex flex-[2] flex-col justify-center px-12 lg:px-16 relative overflow-hidden"
+        <div className="hidden md:flex flex-1 flex-col justify-center px-12 lg:px-16 relative overflow-hidden"
           style={{ background: "#0F0A1A" }}>
           {/* Animated gradient orbs */}
           <div className="absolute top-[-20%] left-[-20%] w-[70%] h-[70%] rounded-full pointer-events-none"
