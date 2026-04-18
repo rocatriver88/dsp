@@ -191,7 +191,7 @@ func (d *Deps) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 // @Tags auth
 // @Security BearerAuth
 // @Produce json
-// @Success 200 {object} user.UserResponse
+// @Success 200 {object} github_com_heartgryphon_dsp_internal_user.UserResponse
 // @Failure 401 {object} object{error=string}
 // @Router /auth/me [get]
 func (d *Deps) HandleMe(w http.ResponseWriter, r *http.Request) {

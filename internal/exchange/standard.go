@@ -36,7 +36,8 @@ func (a *StandardAdapter) FormatBidResponse(resp *openrtb2.BidResponse) ([]byte,
 // DefaultRegistry creates a registry with the self-owned exchange pre-registered.
 func DefaultRegistry(selfEndpoint string) *Registry {
 	r := NewRegistry()
-	r.Register(NewStandardAdapter(ExchangeConfig{
+	// Fresh registry cannot collide on the "self" id; ignore the duplicate-id error.
+	_ = r.Register(NewStandardAdapter(ExchangeConfig{
 		ID:                "self",
 		Name:              "自有 Exchange",
 		Endpoint:          selfEndpoint,

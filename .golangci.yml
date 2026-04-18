@@ -1,0 +1,32 @@
+run:
+  timeout: 5m
+  go: '1.26'
+
+linters-settings:
+  errcheck:
+    exclude-functions:
+      - (database/sql.Tx).Rollback
+      - (github.com/jackc/pgx/v5.Tx).Rollback
+      - crypto/rand.Read
+      - math/rand.Read
+      - fmt.Sscanf
+      - (*encoding/csv.Writer).Write
+      - (*encoding/json.Encoder).Encode
+      - (net/http.ResponseWriter).Write
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - unused
+    - path: cmd/autopilot/
+      linters:
+        - errcheck
+    - path: cmd/exchange-sim/
+      linters:
+        - errcheck
+        - staticcheck
+    - path: cmd/simulate/
+      linters:
+        - unused

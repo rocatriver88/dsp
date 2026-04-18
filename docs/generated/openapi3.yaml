@@ -423,6 +423,144 @@ paths:
       summary: Admin top-up advertiser balance
       tags:
         - admin
+  /admin/users:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_user.UserRespo\
+                    nse"
+                type: array
+      security:
+        - BearerAuth: []
+      summary: List all users (admin only)
+      tags:
+        - admin
+    post:
+      description: >-
+        Creates a user account. For role=advertiser, also creates an advertiser
+
+        row and generates an API key. For role=platform_admin, creates user only.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                email:
+                  type: string
+                name:
+                  type: string
+                password:
+                  type: string
+                role:
+                  type: string
+              type: object
+        description: User data
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                properties:
+                  api_key:
+                    type: string
+                  user:
+                    type: object
+                type: object
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+      security:
+        - BearerAuth: []
+      summary: Create a new user (admin only)
+      tags:
+        - admin
+  "/admin/users/{id}":
+    put:
+      description: Update user status and/or name. Suspending a user clears their
+        refresh token.
+      parameters:
+        - description: User ID
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  type: string
+                status:
+                  type: string
+              type: object
+        description: Fields to update
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                type: object
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "404":
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+      security:
+        - BearerAuth: []
+      summary: Update a user (admin only)
+      tags:
+        - admin
   "/advertisers/{id}":
     get:
       parameters:
@@ -579,6 +717,169 @@ paths:
       summary: Get my audit log
       tags:
         - audit
+  /auth/change-password:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                new_password:
+                  type: string
+                old_password:
+                  type: string
+              type: object
+        description: Password change
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                type: object
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+      security:
+        - BearerAuth: []
+      summary: Change current user's password
+      tags:
+        - auth
+  /auth/login:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              type: object
+        description: Credentials
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  user:
+                    type: object
+                type: object
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+      summary: Login with email + password
+      tags:
+        - auth
+  /auth/me:
+    get:
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/github_com_heartgryphon_dsp_internal_user.UserRespo\
+                  nse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+      security:
+        - BearerAuth: []
+      summary: Get current user info
+      tags:
+        - auth
+  /auth/refresh:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                refresh_token:
+                  type: string
+              type: object
+        description: Refresh token
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                properties:
+                  access_token:
+                    type: string
+                type: object
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                properties:
+                  error:
+                    type: string
+                type: object
+      summary: Refresh access token
+      tags:
+        - auth
   /billing-models:
     get:
       responses:
@@ -1572,6 +1873,8 @@ components:
           type: integer
         resource_type:
           type: string
+        user_id:
+          type: integer
       type: object
     github_com_heartgryphon_dsp_internal_billing.Transaction:
       properties:
@@ -1899,6 +2202,25 @@ components:
         request_id:
           type: string
         time:
+          type: string
+      type: object
+    github_com_heartgryphon_dsp_internal_user.UserResponse:
+      properties:
+        advertiser_id:
+          type: integer
+        created_at:
+          type: string
+        email:
+          type: string
+        id:
+          type: integer
+        last_login_at:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        status:
           type: string
       type: object
     internal_handler.AdvertiserResponse:

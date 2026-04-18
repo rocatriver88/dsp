@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -337,7 +338,9 @@ func (d *Deps) HandleStartCampaign(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if d.BudgetSvc != nil {
-		d.BudgetSvc.InitDailyBudget(r.Context(), id, c.BudgetDailyCents)
+		if err := d.BudgetSvc.InitDailyBudget(r.Context(), id, c.BudgetDailyCents); err != nil {
+			log.Printf("[CAMPAIGN] InitDailyBudget campaign=%d error: %v (continuing activation)", id, err)
+		}
 	}
 
 	if d.Redis != nil {

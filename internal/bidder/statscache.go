@@ -77,7 +77,8 @@ func (sc *StatsCache) Get(ctx context.Context, campaignID int64) CachedStats {
 	pipe := sc.rdb.Pipeline()
 	ctrCmd := pipe.Get(ctx, fmt.Sprintf("stats:ctr:%d", campaignID))
 	cvrCmd := pipe.Get(ctx, fmt.Sprintf("stats:cvr:%d", campaignID))
-	pipe.Exec(ctx)
+	// Exec errors surface via individual cmd results below; safe to ignore here.
+	_, _ = pipe.Exec(ctx)
 
 	ctr, err1 := ctrCmd.Float64()
 	cvr, err2 := cvrCmd.Float64()
@@ -134,7 +135,8 @@ func (sc *StatsCache) refresh(ctx context.Context) {
 		pipe.Set(ctx, fmt.Sprintf("stats:ctr:%d", c.ID), strconv.FormatFloat(cached.CTR, 'f', 6, 64), 10*time.Minute)
 		pipe.Set(ctx, fmt.Sprintf("stats:cvr:%d", c.ID), strconv.FormatFloat(cached.CVR, 'f', 6, 64), 10*time.Minute)
 		pipe.Set(ctx, fmt.Sprintf("stats:winrate:%d", c.ID), strconv.FormatFloat(cached.WinRate, 'f', 6, 64), 10*time.Minute)
-		pipe.Exec(ctx)
+		// Exec errors surface via individual cmd results below; safe to ignore here.
+	_, _ = pipe.Exec(ctx)
 
 		updated++
 	}

@@ -76,7 +76,9 @@ func NewProducer(brokers []string, bufferDir string) *Producer {
 		}
 	}
 
-	os.MkdirAll(bufferDir, 0755)
+	if err := os.MkdirAll(bufferDir, 0755); err != nil {
+		log.Printf("[EVENTS] buffer dir create error: %v", err)
+	}
 	return p
 }
 
@@ -172,8 +174,13 @@ func (p *Producer) bufferToDisk(topic string, data []byte) {
 	}
 	defer f.Close()
 
-	f.Write(data)
-	f.Write([]byte("\n"))
+	if _, err := f.Write(data); err != nil {
+		log.Printf("[EVENTS] buffer append error: %v", err)
+		return
+	}
+	if _, err := f.Write([]byte("\n")); err != nil {
+		log.Printf("[EVENTS] buffer newline error: %v", err)
+	}
 }
 
 // SendToDeadLetter publishes a failed event to the dead-letter topic for retry.
@@ -246,7 +253,9 @@ func (p *Producer) ReplayBuffer(ctx context.Context) error {
 			}
 			lines++
 		}
-		os.Rename(path, path+".replayed")
+		if err := os.Rename(path, path+".replayed"); err != nil {
+			log.Printf("[REPLAY] rename %s failed: %v", path, err)
+		}
 		log.Printf("[REPLAY] replayed %d events from %s", lines, entry.Name())
 	}
 	return nil

@@ -116,7 +116,8 @@ func (s *Service) RunHourly(ctx context.Context, thresholdPercent float64) ([]Re
 		for _, a := range alerts {
 			msg += "- " + a + "\n"
 		}
-		s.alerter.Send("Reconciliation Drift Detected", msg)
+		// Alert send failures are logged inside the alerter; don't block reconciliation.
+		_ = s.alerter.Send("Reconciliation Drift Detected", msg)
 		log.Printf("[RECONCILIATION] %s", msg)
 	}
 
@@ -188,7 +189,7 @@ func (s *Service) RunDaily(ctx context.Context, date time.Time) error {
 		}
 	}
 
-	s.alerter.Send("Daily Reconciliation Complete",
+	_ = s.alerter.Send("Daily Reconciliation Complete",
 		fmt.Sprintf("Date: %s\nCampaigns: %d\nTotal adjustment: %d cents",
 			date.Format("2006-01-02"), len(campaigns), totalAdjustment))
 

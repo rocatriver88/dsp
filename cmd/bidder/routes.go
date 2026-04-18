@@ -64,7 +64,7 @@ func RegisterInternalRoutes(mux *http.ServeMux, d *Deps) {
 	mux.Handle("/internal/", bidderAdminAuth(adminMux))
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"status":"ok","port":"bidder-internal"}`))
+		_, _ = w.Write([]byte(`{"status":"ok","port":"bidder-internal"}`))
 	})
 	mux.Handle("GET /metrics", promhttp.Handler())
 }
