@@ -249,7 +249,7 @@ function AdminAuthGate({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-1">
+    <div className="flex min-h-screen flex-1 w-full overflow-hidden">
       <AdminSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <TopBar />
