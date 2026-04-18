@@ -159,6 +159,69 @@ gstack /canary                               线上监控
 - /browse screenshots at the end confirm visual compliance with DESIGN.md
 - Do NOT skip any step
 
+## TDD Evidence Rule
+
+`superpowers:test-driven-development` 的铁律是 **"没有先失败的测试就不写生产代码"**。
+这条规矩口头喊没用 — 必须留下**可审计的证据**证明你先看过红。
+本项目落地如下硬规则（reviewer 和 CI 都会卡）：
+
+### 规则 1：Bug fix 必须先提交 failing test commit（硬性）
+
+所有 `fix(...)` 类改动（不含纯 docs/ci/scripts）必须两个 commit：
+
+```
+commit A: test(<scope>): add failing regression test for <bug>
+commit B: fix(<scope>): <actual fix>
+```
+
+- **Commit A 单独可 push / 单独可跑**：在 A 上跑 `go test ./<pkg> -run <TestName>` 必须 FAIL，且失败原因是"功能缺失/行为错误"不是"编译错误/拼写错误"
+- **Commit B 让它绿**：在 B 上跑同一条命令必须 PASS
+- **不允许把 A 和 B squash**：审查要看到红的那一刻。PR merge 时用 "Rebase and merge" 或 "Create a merge commit"，**禁止 "Squash and merge"** 对 bug fix PR
+- CI 可加一个可选 job：对 PR 的每个 commit 独立跑测试，commit A 失败是期望结果（用 label / commit trailer `Expect-Fail: <TestName>` 声明）
+
+**豁免**：
+- 纯文档 / CI / 构建脚本修复（无 `.go` / `.ts` / `.tsx` 变更）
+- 明确声明"无法写回归测试"的修复（例：外部 API 行为变更）— 需在 PR body 写清为什么不能测，reviewer 要认可
+
+### 规则 2：Feature 的 TDD 证据由开发者自证 + reviewer 抽查
+
+Feature commit（`feat(...)`）不强制两 commit（太重），但：
+
+- PR 描述里加一段 **"TDD Evidence"**：
+  - 至少一个新增 `_test.go` 的 Test 名
+  - 该 Test 在本地哪次 commit 前确实红过（开发者自述 / reflog 截图 / git stash 过程）
+- Reviewer 随机抽查：`git log --follow <test_file>` 看提交顺序是否合理（测试不能总是和实现同一 commit，除非 PR 非常小）
+
+### 规则 3：测试必须打真实依赖（租户隔离 / 权限 / 边界）
+
+这条是 V5 教训的延伸（见 memory `feedback_per_phase_review.md`）：
+
+- **租户隔离测试**：必须打真 Store 或集成环境。用 nil Store / mock DB 无法覆盖 "WHERE clause 返回 0 行 → handler 错误地返回 500/409 而不是 404" 这类 bug — 这恰恰是 tenant-leak 的典型形态
+- **权限 / RBAC 测试**：至少一条 case 走真实中间件 + 真实 JWT
+- **跨切面审计**（例 "每个 `producer.Send(...)` 是否都包 inflight helper"）：靠 grep 审查，不靠实现者的心智模型
+
+Reviewer 看到新增 `_test.go` 只用 `nil` / `&fakeStore{}` 覆盖关键路径，**直接 block**，要求改打真 Store（`pgtest.NewDB` 或 docker-compose.test.yml 起的 pg）。
+
+### 规则 4：前端 TDD 空白的最小补救
+
+前端目前 `feat(web)` / `fix(web)` 几乎 0 单测，依赖 `test/e2e/test_e2e_flow.py` 兜底。
+E2E 循环太慢（分钟级），不能做红绿重构。短期补救：
+
+- **纯函数优先**（formatter / schema validator / API 客户端 / 权限判断 / 金额计算）必须单测，用 vitest + `web/__tests__/`
+- 组件级暂不强制 TDD，但涉及业务逻辑的 hook（`useXxx` 里做数据转换 / 状态机 / 缓存）落单测
+- 纯视觉 / 布局改动豁免单测，但必须走 `/browse` 四维验证 + `/qa`
+
+### Reviewer Checklist（接入 `superpowers:requesting-code-review`）
+
+每个 task / PR 审查时额外核对：
+
+- [ ] 若是 bug fix：是否有 test commit 在 fix commit 之前？
+- [ ] 若是 feature：PR body 是否填了 TDD Evidence？随机抽一个 Test 名，问开发者当时 RED 长什么样
+- [ ] 新增 `_test.go` 是否避开了 nil-store / mock-only 反模式？涉及租户/权限/边界的，是否打了真 Store？
+- [ ] 前端改动：是否对应有单测（纯函数 / 业务 hook），还是能豁免（纯视觉）？
+
+以上任一项不达标 → reviewer 在 PR 上 request changes，不走"小事一桩"放水。
+
 ## /browse Verification Standard
 
 /browse 不是"截图+目视"，是四维度系统验证。每个页面必须完成以下四项：
@@ -190,3 +253,11 @@ Always read DESIGN.md before making any visual or UI decisions.
 All font choices, colors, spacing, and aesthetic direction are defined there.
 Do not deviate without explicit user approval.
 In QA mode, flag any code that doesn't match DESIGN.md.
+
+## Health Stack
+
+- typecheck: go vet ./...
+- lint: golangci-lint run
+- test: go test ./... -short
+- deadcode: skip (no tool installed)
+- shell: skip (shellcheck not installed)
