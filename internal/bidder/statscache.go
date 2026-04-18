@@ -136,7 +136,7 @@ func (sc *StatsCache) refresh(ctx context.Context) {
 		pipe.Set(ctx, fmt.Sprintf("stats:cvr:%d", c.ID), strconv.FormatFloat(cached.CVR, 'f', 6, 64), 10*time.Minute)
 		pipe.Set(ctx, fmt.Sprintf("stats:winrate:%d", c.ID), strconv.FormatFloat(cached.WinRate, 'f', 6, 64), 10*time.Minute)
 		// Exec errors surface via individual cmd results below; safe to ignore here.
-	_, _ = pipe.Exec(ctx)
+		_, _ = pipe.Exec(ctx)
 
 		updated++
 	}
