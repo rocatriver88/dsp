@@ -110,7 +110,8 @@ func (l *Logger) Query(ctx context.Context, advertiserID int64, limit, offset in
 			return nil, err
 		}
 		if detailsJSON != nil {
-			json.Unmarshal(detailsJSON, &e.Details)
+			// Corrupt details is non-fatal — leave Details empty and continue.
+			_ = json.Unmarshal(detailsJSON, &e.Details)
 		}
 		entries = append(entries, e)
 	}
@@ -140,7 +141,8 @@ func (l *Logger) QueryAll(ctx context.Context, limit, offset int) ([]Entry, erro
 			return nil, err
 		}
 		if detailsJSON != nil {
-			json.Unmarshal(detailsJSON, &e.Details)
+			// Corrupt details is non-fatal — leave Details empty and continue.
+			_ = json.Unmarshal(detailsJSON, &e.Details)
 		}
 		entries = append(entries, e)
 	}

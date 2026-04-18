@@ -119,8 +119,9 @@ func (s *Service) InitTotalBudget(ctx context.Context, campaignID int64, budgetC
 		return nil // no total budget constraint
 	}
 	key := totalBudgetKey(campaignID)
-	// SetNX: only set if not already present, so reloads don't reset spent budget
-	return s.rdb.SetNX(ctx, key, budgetCents, 0).Err()
+	// SetNX: only set if not already present, so reloads don't reset spent budget.
+	// TODO: migrate to SetArgs{Mode:"NX"}; semantic-equivalent replacement requires care.
+	return s.rdb.SetNX(ctx, key, budgetCents, 0).Err() //nolint:staticcheck // SA1019: SetNX deprecated, migration tracked separately
 }
 
 // GetTotalBudgetRemaining returns remaining total (lifetime) budget in cents.

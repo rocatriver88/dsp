@@ -419,7 +419,8 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 
 	// Win dedup: prevent double budget deduction from exchange retries
 	dedupKey := fmt.Sprintf("win:dedup:%s", requestID)
-	wasNew, dedupErr := d.RDB.SetNX(r.Context(), dedupKey, 1, 5*time.Minute).Result()
+	// TODO: migrate to SetArgs{Mode:"NX"}; semantic-equivalent replacement requires care (SetNX returns BoolCmd, SetArgs returns StatusCmd with different error handling)
+	wasNew, dedupErr := d.RDB.SetNX(r.Context(), dedupKey, 1, 5*time.Minute).Result() //nolint:staticcheck // SA1019: SetNX deprecated, migration tracked separately
 	if dedupErr != nil {
 		log.Printf("[WIN-DEDUP] Redis error (proceeding): %v", dedupErr)
 	} else if !wasNew {
@@ -587,7 +588,8 @@ func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 	// from duplicate click callbacks (ad network retries, multi-click
 	// fraud, accidental page reloads). Same 5-minute TTL as the win dedup.
 	dedupKey := fmt.Sprintf("click:dedup:%s", requestID)
-	wasNew, dedupErr := d.RDB.SetNX(r.Context(), dedupKey, 1, 5*time.Minute).Result()
+	// TODO: migrate to SetArgs{Mode:"NX"}; see sibling win-dedup comment
+	wasNew, dedupErr := d.RDB.SetNX(r.Context(), dedupKey, 1, 5*time.Minute).Result() //nolint:staticcheck // SA1019: SetNX deprecated, migration tracked separately
 	if dedupErr != nil {
 		log.Printf("[CLICK-DEDUP] Redis error (proceeding): %v", dedupErr)
 	} else if !wasNew {

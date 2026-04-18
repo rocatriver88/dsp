@@ -33,7 +33,8 @@ func (d *Deps) HandleCircuitBreak(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
+	// Body is optional — admin may POST with no body to trigger with default reason.
+	_ = json.NewDecoder(r.Body).Decode(&req)
 	if req.Reason == "" {
 		req.Reason = "manual: admin triggered at " + time.Now().Format(time.RFC3339)
 	}

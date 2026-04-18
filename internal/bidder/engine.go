@@ -78,12 +78,8 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 		requireSecure = true
 	}
 
-	// OpenRTB 2.5: respect bidfloor
+	// OpenRTB 2.5: respect bidfloor (we only bid in CNY; skip currency conversion for now)
 	bidFloor := imp.BidFloor
-	bidFloorCur := imp.BidFloorCur
-	if bidFloorCur == "" {
-		bidFloorCur = "USD"
-	}
 
 	// OpenRTB 2.5: extract site/app categories for contextual targeting
 	var siteCategories []string
@@ -175,12 +171,9 @@ func (e *Engine) Bid(ctx context.Context, req *openrtb2.BidRequest) (*openrtb2.B
 			}
 		}
 
-		// OpenRTB 2.5: enforce bidfloor
+		// OpenRTB 2.5: enforce bidfloor (we only support CNY for now)
 		if bidFloor > 0 {
 			bidPricePerImp := float64(bidCPM) * 0.90 / 100.0 / 1000.0
-			if bidFloorCur == "CNY" || bidFloorCur == "" {
-				// bidfloor in CNY, our price in CNY
-			}
 			if bidPricePerImp < bidFloor {
 				continue // below floor, skip
 			}
@@ -312,9 +305,7 @@ func matchesTargeting(c *LoadedCampaign, geo, os, ua string, now time.Time) bool
 		}
 	}
 
-	if len(t.Device) > 0 {
-		// Device targeting checked at impression level if needed
-	}
+	// Device targeting (t.Device) handled at impression level, not in this gate.
 
 	// Time schedule: check if current hour (CST) is in any schedule entry
 	if len(t.TimeSchedule) > 0 {
