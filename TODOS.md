@@ -33,6 +33,53 @@
 - ~~Add Redis/ClickHouse auth~~ → requirepass + user/password (PR1a)
 - ~~Full observability~~ → slog JSON + Prometheus /metrics + request_id (PR3 + final)
 
+## Infra — Completed 2026-04-18
+
+> CI/tooling/workspace cleanup pass. Three PRs merged (#13, #12, #14).
+
+- ~~CI stuck red for 3 days~~ → pinned `golangci-lint@v1.64.8` with `install-mode: goinstall` + `swag@v1.16.4` + Go `1.26.1` (PR #13)
+- ~~60+ `golangci-lint` violations masked by broken tool~~ → new `.golangci.yml` (33 lines of per-path / per-function exclusions) + real I/O error logging in `internal/events/producer.go`, targeted `_ =` / `//nolint` annotations elsewhere (PR #13)
+- ~~`scripts/docs-check.sh` silently hid `swag` failures~~ → released stderr + stdout, added `go mod download` before `swag init` to avoid cold-cache module race (PR #13)
+- ~~`user.UserResponse` swagger annotation fatal on Linux CI~~ → fully-qualified path `github_com_heartgryphon_dsp_internal_user.UserResponse`; `/admin/users` schema now correctly emitted in OpenAPI (PR #13)
+- ~~`docs/` sprawl at top level (15 items)~~ → archived V5 remediation (6 files) + QA screenshots (29) + qa-checklist to `docs/archive/`; renamed `PROJECT_OVERVIEW.md` → `OVERVIEW.md`, `project-feature-inventory.md` → `feature-inventory.md`; inlined `docs/templates/` into `docs/README.md` appendices (PR #12, #14)
+- ~~Workspace noise: 30 AI-tool skill-mirror dirs + build artifacts + skills bundle~~ → added to `.gitignore` (PR #14)
+- ~~Docker WSL2 vhdx bloated to 470 GB on C:~~ → reset vhdx + enabled `sparseVhd` in `.wslconfig` + BuildKit GC in `daemon.json`; released 467 GB back to Windows
+
+## P2 — Tech debt (identified 2026-04-18)
+
+### Redis `SetNX` deprecation (SA1019) migration
+
+**What:** 3 callsites use `//nolint:staticcheck` + TODO pending migration to `SetArgs{Mode:"NX"}`:
+- `cmd/bidder/main.go:423` (win dedup)
+- `cmd/bidder/main.go:592` (click dedup)
+- `internal/budget/budget.go:124` (InitTotalBudget)
+
+**Why deferred:** `SetNX(...).Result()` returns `(bool, error)` whereas `SetArgs(...).Result()` returns `(string, error)`. The `wasNew bool` → `err == nil vs redis.Nil` mapping requires careful semantic review in the bidder hot path — dedup failure → double budget deduction.
+
+**Depends on:** Dedicated eng-review with test coverage for both win/click duplicate-detection paths.
+
+### `HandleMe` DTO drift risk
+
+**What:** `internal/handler/auth_handlers.go:197+` writes `map[string]any{id, email, name, role, advertiser_id, status, last_login_at, created_at}` inline, but the swagger annotation (as of PR #13) declares `user.UserResponse`. A future field rename on the typed DTO won't flag the handler.
+
+**Fix:** Replace inline map with `user.NewUserResponse(dbUser)` (constructor already exists at `internal/user/model.go:36`).
+
+**Depends on:** Nothing. ~30 LOC change.
+
+### `cmd/autopilot/` errcheck exclusion
+
+**What:** `.golangci.yml` currently excludes the whole `cmd/autopilot/` directory from `errcheck`. 5 `alerter.Send(...)` callsites silently ignore the error return (notifier failures go undetected).
+
+**Why deferred:** Autopilot is a dev-only automation harness today. If it ever becomes a production/on-call path, tighten back.
+
+**Depends on:** Productionization decision for autopilot.
+
+### Open GitHub issues for the three tech-debt items above
+
+**What:** The TODO comments in code today don't link to tracked issues; they'll rot. Create GH issues with labels `tech-debt` and `infra`.
+
+**Depends on:** Nothing.
+
 ## P2 — Deferred
 
 ### PIPL compliance
