@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, Campaign, CampaignStats, Creative } from "@/lib/api";
 import { StatCard } from "../../_components/StatCard";
+import PageHeader from "../../_components/PageHeader";
 import { StatusBadge } from "../../_components/StatusBadge";
 
 export default function CampaignDetailPage() {
@@ -65,25 +66,27 @@ export default function CampaignDetailPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/campaigns" className="hover:opacity-80 transition-opacity" style={{ color: "var(--text-muted)" }}>← Campaigns</Link>
-        <h2 className="text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>{campaign.name}</h2>
-        <StatusBadge status={campaign.status} />
-        {campaign.status === "paused" && campaign.pause_reason && (
-          <span className="text-xs px-2 py-1 rounded" style={{ color: "var(--warning)", background: "rgba(234, 179, 8, 0.12)" }}>
-            自动暂停: {campaign.pause_reason}
-          </span>
-        )}
-        {campaign.status === "draft" && (
-          <button onClick={() => handleAction("start")} className="ml-auto text-sm px-4 py-1.5 rounded hover:opacity-80 transition-opacity" style={{ background: "rgba(34, 197, 94, 0.12)", color: "var(--success)" }}>启动</button>
-        )}
-        {campaign.status === "active" && (
-          <button onClick={() => handleAction("pause")} className="ml-auto text-sm px-4 py-1.5 rounded hover:opacity-80 transition-opacity" style={{ background: "rgba(234, 179, 8, 0.12)", color: "var(--warning)" }}>暂停</button>
-        )}
-        {campaign.status === "paused" && (
-          <button onClick={() => handleAction("start")} className="ml-auto text-sm px-4 py-1.5 rounded hover:opacity-80 transition-opacity" style={{ background: "rgba(34, 197, 94, 0.12)", color: "var(--success)" }}>恢复</button>
-        )}
+      <div className="mb-2">
+        <Link href="/campaigns" className="text-sm hover:opacity-80 transition-opacity inline-link" style={{ color: "var(--text-muted)" }}>← 广告系列</Link>
       </div>
+      <PageHeader
+        title={campaign.name}
+        subtitle={campaign.status === "paused" && campaign.pause_reason ? `自动暂停: ${campaign.pause_reason}` : undefined}
+        action={
+          <div className="flex items-center gap-3">
+            <StatusBadge status={campaign.status} />
+            {campaign.status === "draft" && (
+              <button onClick={() => handleAction("start")} className="text-sm px-4 py-1.5 rounded hover:opacity-80 transition-opacity" style={{ background: "rgba(34, 197, 94, 0.12)", color: "var(--success)" }}>启动</button>
+            )}
+            {campaign.status === "active" && (
+              <button onClick={() => handleAction("pause")} className="text-sm px-4 py-1.5 rounded hover:opacity-80 transition-opacity" style={{ background: "rgba(234, 179, 8, 0.12)", color: "var(--warning)" }}>暂停</button>
+            )}
+            {campaign.status === "paused" && (
+              <button onClick={() => handleAction("start")} className="text-sm px-4 py-1.5 rounded hover:opacity-80 transition-opacity" style={{ background: "rgba(34, 197, 94, 0.12)", color: "var(--success)" }}>恢复</button>
+            )}
+          </div>
+        }
+      />
 
       {actionError && (
         <div className="mb-4 p-3 rounded-[14px] text-sm flex items-center justify-between" style={{ background: "rgba(239, 68, 68, 0.12)", color: "var(--error)" }}>

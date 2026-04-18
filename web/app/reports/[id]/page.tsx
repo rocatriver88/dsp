@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, Campaign, CampaignStats, HourlyStats, GeoStats, BidDetail } from "@/lib/api";
 import { StatCard } from "../../_components/StatCard";
-import { EventBadge } from "../../_components/StatusBadge";
+import { EventBadge, StatusBadge } from "../../_components/StatusBadge";
+import PageHeader from "../../_components/PageHeader";
 
 export default function CampaignReportPage() {
   const params = useParams();
@@ -63,17 +64,10 @@ export default function CampaignReportPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/reports" style={{ color: "var(--text-muted)" }}>← 报表</Link>
-        <h2 className="text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>{campaign.name}</h2>
-        <span className="px-2 py-0.5 text-xs font-medium rounded-full"
-          style={
-            campaign.status === "active" ? { background: "rgba(34,197,94,0.15)", color: "#22C55E" } :
-            campaign.status === "paused" ? { background: "rgba(234,179,8,0.15)", color: "#EAB308" } :
-            { background: "var(--bg-card-elevated)", color: "var(--text-secondary)" }
-          }>{campaign.status}</span>
+      <div className="mb-2">
+        <Link href="/reports" className="text-sm hover:opacity-80 transition-opacity inline-link" style={{ color: "var(--text-muted)" }}>← 报表</Link>
       </div>
+      <PageHeader title={campaign.name} action={<StatusBadge status={campaign.status} />} />
 
       {/* Stats cards */}
       {stats ? (
