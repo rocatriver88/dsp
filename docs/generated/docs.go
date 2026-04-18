@@ -560,18 +560,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "properties": {
-                                "advertiser_id": {
-                                    "type": "integer"
-                                },
-                                "api_key": {
-                                    "type": "string"
-                                },
-                                "message": {
-                                    "type": "string"
-                                }
-                            }
+                            "$ref": "#/definitions/internal_handler.RegistrationApprovedResponse"
                         }
                     }
                 }
@@ -3298,6 +3287,26 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.RegistrationApprovedResponse": {
+            "type": "object",
+            "properties": {
+                "advertiser_id": {
+                    "type": "integer"
+                },
+                "api_key": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "temp_password": {
+                    "type": "string"
+                },
+                "user_email": {
                     "type": "string"
                 }
             }

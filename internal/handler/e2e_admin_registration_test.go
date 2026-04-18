@@ -25,7 +25,7 @@ import (
 //
 //   POST /api/v1/admin/registrations/{id}/approve
 //     Request:  (none)
-//     Success:  200 {advertiser_id int64, api_key string, message string}
+//     Success:  200 {advertiser_id int64, api_key string, user_email string, temp_password string, message string}
 //
 // The public Register handler is used as a setup step for the approve
 // flow. P2.3 flagged that the handler returns 409 for every Submit
@@ -138,6 +138,8 @@ func TestAdmin_Registrations_ApproveFlow(t *testing.T) {
 	var approved struct {
 		AdvertiserID int64  `json:"advertiser_id"`
 		APIKey       string `json:"api_key"`
+		UserEmail    string `json:"user_email"`
+		TempPassword string `json:"temp_password"`
 	}
 	decodeJSON(t, approveW, &approved)
 	if approved.AdvertiserID == 0 {
@@ -146,6 +148,13 @@ func TestAdmin_Registrations_ApproveFlow(t *testing.T) {
 	}
 	if approved.APIKey == "" {
 		t.Fatalf("approve response missing api_key (body=%s)",
+			approveW.Body.String())
+	}
+	if approved.UserEmail != email {
+		t.Fatalf("approve response user_email=%q want %q", approved.UserEmail, email)
+	}
+	if approved.TempPassword == "" {
+		t.Fatalf("approve response missing temp_password (body=%s)",
 			approveW.Body.String())
 	}
 
@@ -161,6 +170,28 @@ func TestAdmin_Registrations_ApproveFlow(t *testing.T) {
 	if advID != approved.AdvertiserID {
 		t.Fatalf("advertiser id mismatch: approve said %d, db has %d",
 			approved.AdvertiserID, advID)
+	}
+
+	// 6. Verify an advertiser-role user row was seeded for this email with a
+	// password hash. Plaintext only lives in the approve response.
+	var userRole string
+	var userAdvID *int64
+	var passwordHash string
+	err = pool.QueryRow(ctx,
+		`SELECT role, advertiser_id, password_hash FROM users WHERE email = $1`,
+		email,
+	).Scan(&userRole, &userAdvID, &passwordHash)
+	if err != nil {
+		t.Fatalf("lookup seeded user by email %q: %v", email, err)
+	}
+	if userRole != "advertiser" {
+		t.Fatalf("seeded user role=%q want advertiser", userRole)
+	}
+	if userAdvID == nil || *userAdvID != advID {
+		t.Fatalf("seeded user advertiser_id mismatch: user=%v adv=%d", userAdvID, advID)
+	}
+	if passwordHash == "" {
+		t.Fatalf("seeded user has empty password_hash")
 	}
 }
 

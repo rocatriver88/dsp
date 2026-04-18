@@ -401,6 +401,19 @@ definitions:
       reason:
         type: string
     type: object
+  internal_handler.RegistrationApprovedResponse:
+    properties:
+      advertiser_id:
+        type: integer
+      api_key:
+        type: string
+      message:
+        type: string
+      temp_password:
+        type: string
+      user_email:
+        type: string
+    type: object
   internal_handler.SystemHealthResponse:
     properties:
       active_campaigns:
@@ -768,14 +781,7 @@ paths:
         "200":
           description: OK
           schema:
-            properties:
-              advertiser_id:
-                type: integer
-              api_key:
-                type: string
-              message:
-                type: string
-            type: object
+            $ref: '#/definitions/internal_handler.RegistrationApprovedResponse'
       security:
       - AdminAuth: []
       summary: Approve registration

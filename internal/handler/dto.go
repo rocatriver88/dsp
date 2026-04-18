@@ -66,10 +66,17 @@ type AdvertiserCreatedResponse struct {
 }
 
 // RegistrationApprovedResponse is the one-time response for admin approval
-// of a registration request. It returns the new advertiser id and its
-// fresh api key, and nothing else — no read path ever returns this shape.
+// of a registration request. It returns the new advertiser id, its fresh
+// api key, and the temp login credentials for the auto-seeded advertiser
+// user. No read path ever returns this shape.
+//
+// user_email and temp_password are disclosed exactly once at approval time.
+// The admin is expected to relay them to the advertiser out-of-band; the
+// plaintext password is never retrievable after this response is sent.
 type RegistrationApprovedResponse struct {
 	AdvertiserID int64  `json:"advertiser_id"`
 	APIKey       string `json:"api_key"`
+	UserEmail    string `json:"user_email"`
+	TempPassword string `json:"temp_password"`
 	Message      string `json:"message,omitempty"`
 }

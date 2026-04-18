@@ -384,6 +384,9 @@ func (c *DSPClient) Register(companyName, email, inviteCode string) (int64, erro
 }
 
 // AdminApproveRegistration approves a registration and returns advertiser ID + API key.
+// The approve response also carries user_email + temp_password for the auto-seeded
+// advertiser user; autopilot does not use those fields today (it continues with
+// API-key auth), so they are intentionally dropped here.
 func (c *DSPClient) AdminApproveRegistration(adminURL string, registrationID int64) (*AdvertiserResponse, error) {
 	req, _ := http.NewRequest("POST",
 		fmt.Sprintf("%s/api/v1/admin/registrations/%d/approve", adminURL, registrationID), nil)

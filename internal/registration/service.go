@@ -4,12 +4,19 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/heartgryphon/dsp/internal/user"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// ErrRequestNotFound is returned by Approve/Reject when the referenced
+// registration_requests row does not exist. Handlers map it to HTTP 404.
+var ErrRequestNotFound = errors.New("registration request not found")
 
 // Service handles self-service advertiser registration with review workflow.
 //
@@ -110,11 +117,21 @@ func (s *Service) Submit(ctx context.Context, req *Request) (int64, error) {
 	return id, err
 }
 
-// Approve approves a registration request and creates the advertiser account.
-func (s *Service) Approve(ctx context.Context, requestID int64, reviewedBy string) (advertiserID int64, apiKey string, err error) {
+// Approve approves a registration request and creates the advertiser account
+// plus its initial advertiser-role user. Returns:
+//
+//	advertiserID  — new advertisers.id
+//	apiKey        — one-time API key disclosure (same shape as before)
+//	userEmail     — contact email, now also the user login email
+//	tempPassword  — one-time plaintext password for the new user; hash is
+//	                persisted, plaintext is only ever returned here
+//
+// The whole operation runs in a single transaction so the advertiser row and
+// its matching users row always land together.
+func (s *Service) Approve(ctx context.Context, requestID int64, reviewedBy string) (advertiserID int64, apiKey string, userEmail string, tempPassword string, err error) {
 	tx, errTx := s.db.Begin(ctx)
 	if errTx != nil {
-		return 0, "", errTx
+		return 0, "", "", "", errTx
 	}
 	defer tx.Rollback(ctx)
 
@@ -124,11 +141,14 @@ func (s *Service) Approve(ctx context.Context, requestID int64, reviewedBy strin
 		`SELECT id, company_name, contact_email, status FROM registration_requests WHERE id = $1`,
 		requestID,
 	).Scan(&req.ID, &req.CompanyName, &req.ContactEmail, &req.Status)
+	if errors.Is(errTx, pgx.ErrNoRows) {
+		return 0, "", "", "", ErrRequestNotFound
+	}
 	if errTx != nil {
-		return 0, "", fmt.Errorf("request not found: %w", errTx)
+		return 0, "", "", "", fmt.Errorf("lookup request: %w", errTx)
 	}
 	if req.Status != "pending" {
-		return 0, "", fmt.Errorf("request already %s", req.Status)
+		return 0, "", "", "", fmt.Errorf("request already %s", req.Status)
 	}
 
 	// Update request status
@@ -138,7 +158,7 @@ func (s *Service) Approve(ctx context.Context, requestID int64, reviewedBy strin
 		requestID, reviewedBy,
 	)
 	if errTx != nil {
-		return 0, "", errTx
+		return 0, "", "", "", errTx
 	}
 
 	// Create advertiser
@@ -149,10 +169,25 @@ func (s *Service) Approve(ctx context.Context, requestID int64, reviewedBy strin
 		req.CompanyName, req.ContactEmail, apiKey,
 	).Scan(&advertiserID)
 	if errTx != nil {
-		return 0, "", errTx
+		return 0, "", "", "", errTx
 	}
 
-	return advertiserID, apiKey, tx.Commit(ctx)
+	// Seed advertiser-role user with a temp password. The plaintext is returned
+	// to the caller once (admin hand-off); only the hash is stored.
+	plain, hash, errTx := user.GenerateTempPassword(16)
+	if errTx != nil {
+		return 0, "", "", "", fmt.Errorf("generate temp password: %w", errTx)
+	}
+	_, errTx = tx.Exec(ctx,
+		`INSERT INTO users (email, password_hash, name, role, advertiser_id)
+		 VALUES ($1, $2, $3, 'advertiser', $4)`,
+		req.ContactEmail, hash, req.CompanyName, advertiserID,
+	)
+	if errTx != nil {
+		return 0, "", "", "", fmt.Errorf("seed advertiser user: %w", errTx)
+	}
+
+	return advertiserID, apiKey, req.ContactEmail, plain, tx.Commit(ctx)
 }
 
 // Reject rejects a registration request.

@@ -54,6 +54,8 @@ class FlowState:
     reg_email = None
     advertiser_id = None
     api_key = None
+    user_email = None       # from approve response (same as reg_email, echoed back)
+    temp_password = None    # one-time plaintext disclosed only in approve response
     campaign_id = None
 
 
@@ -184,31 +186,54 @@ def step3_admin_approve(browser):
     assert approve_btn is not None, \
         f"Could not find pending registration for {state.reg_email}"
 
-    approve_btn.click()
-    page.wait_for_timeout(2000)
+    # Capture the approve response so we can pick up the one-time temp_password
+    # (plaintext is never persisted; only this response carries it). Filter on
+    # method=POST and status=200 so a CORS OPTIONS preflight on cross-origin
+    # setups doesn't bind expect_response to an empty preflight reply.
+    with page.expect_response(
+        lambda r: (
+            "/api/v1/admin/registrations/" in r.url
+            and r.url.endswith("/approve")
+            and r.request.method == "POST"
+            and r.status == 200
+        )
+    ) as resp_info:
+        approve_btn.click()
+    approve_body = resp_info.value.json()
+
+    page.wait_for_timeout(1000)
     screenshot(page, "03b_agencies_after_approve")
 
-    # [db] get advertiser_id and api_key
-    state.advertiser_id = pg(
-        f"SELECT id FROM advertisers WHERE contact_email = '{state.reg_email}'"
-    )
-    state.api_key = pg(
-        f"SELECT api_key FROM advertisers WHERE contact_email = '{state.reg_email}'"
-    )
+    state.advertiser_id = str(approve_body.get("advertiser_id") or "")
+    state.api_key = approve_body.get("api_key") or ""
+    state.user_email = approve_body.get("user_email") or ""
+    state.temp_password = approve_body.get("temp_password") or ""
 
-    assert state.advertiser_id and state.advertiser_id != "", \
-        "advertiser_id not found after approval"
+    assert state.advertiser_id and state.advertiser_id != "0", \
+        f"approve response missing advertiser_id: {approve_body}"
     assert state.api_key and state.api_key.startswith("dsp_"), \
         f"api_key invalid: {state.api_key}"
+    assert state.user_email == state.reg_email, \
+        f"user_email mismatch: got {state.user_email}, expected {state.reg_email}"
+    assert state.temp_password and len(state.temp_password) >= 16, \
+        f"temp_password invalid: {state.temp_password}"
 
-    # [db] verify advertiser balance is 0
+    # [db] verify advertiser balance is 0 + a users row was seeded
     balance = pg(
         f"SELECT balance_cents FROM advertisers WHERE id = {state.advertiser_id}"
     )
     assert balance == "0", f"New advertiser balance should be 0, got {balance}"
 
+    user_role = pg(
+        f"SELECT role FROM users WHERE email = '{state.reg_email}'"
+    )
+    assert user_role == "advertiser", \
+        f"Seeded user role should be 'advertiser', got {user_role!r}"
+
     record("Step 3: Admin approves registration",
-           True, f"advertiser_id={state.advertiser_id}, api_key={state.api_key[:16]}...")
+           True,
+           f"advertiser_id={state.advertiser_id}, api_key={state.api_key[:16]}..., "
+           f"temp_password={state.temp_password[:8]}...")
     page.close()
 
 
@@ -216,35 +241,38 @@ def step3_admin_approve(browser):
 # STEP 4: Tenant logs in with real API key
 # ============================================================================
 def step4_tenant_login(browser):
+    """Tenant logs in via the primary email+password JWT path using the
+    temp_password handed back by the approve response. The old API-key entry
+    is still supported (see /auth/apikey-login) but the main login page
+    switched to JWT, so that is what we exercise here."""
     page = new_page(browser)
     page.goto(FRONTEND_URL)
     page.wait_for_load_state("networkidle")
 
-    # [interaction] Type API key and click login
-    api_input = page.locator('input[placeholder="dsp_..."]')
-    api_input.fill(state.api_key)
+    # [interaction] Fill email + password on the primary login form.
+    page.locator('input[placeholder="your@email.com"]').fill(state.user_email)
+    page.locator('input[placeholder="输入密码"]').fill(state.temp_password)
 
-    login_btn = page.locator("button", has_text="登录")
+    login_btn = page.locator("button", has_text="登录").first
     expect(login_btn).to_be_enabled()
     login_btn.click()
 
-    # Wait for login to complete — should see the dashboard
+    # Wait for login to complete — should see the dashboard.
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(1000)
 
-    # [interaction] Should see the main app, not the login form
+    # [interaction] Should see the authed shell, not the login form.
     expect(page.locator("#main-content")).to_be_visible(timeout=5000)
     expect(page.locator("h2", has_text="DSP Platform")).not_to_be_visible()
 
+    # Sidebar is only rendered post-login — use the logout button as the
+    # authed-state anchor (it only exists post-login, not in the login form).
+    # "账户余额" lives on /billing (asserted by Step 6); don't couple Step 4 to it.
+    expect(page.get_by_role("button", name="退出登录").first).to_be_visible(timeout=10000)
+
     screenshot(page, "04_tenant_dashboard")
 
-    # [interaction] Balance should show ¥0 (not NaN!)
-    balance_text = page.locator("text=账户余额").first.evaluate(
-        'el => el.closest("div").parentElement.textContent'
-    )
-    assert "NaN" not in balance_text, f"Balance shows NaN: {balance_text}"
-
-    record("Step 4: Tenant login with real API key", True)
+    record("Step 4: Tenant login with email + temp password (JWT)", True)
     page.close()
 
 

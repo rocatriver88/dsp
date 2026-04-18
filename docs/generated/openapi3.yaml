@@ -355,14 +355,7 @@ paths:
           content:
             application/json:
               schema:
-                properties:
-                  advertiser_id:
-                    type: integer
-                  api_key:
-                    type: string
-                  message:
-                    type: string
-                type: object
+                $ref: "#/components/schemas/internal_handler.RegistrationApprovedResponse"
       security:
         - AdminAuth: []
       summary: Approve registration
@@ -2258,6 +2251,19 @@ components:
         global_spend_today_cents:
           type: integer
         reason:
+          type: string
+      type: object
+    internal_handler.RegistrationApprovedResponse:
+      properties:
+        advertiser_id:
+          type: integer
+        api_key:
+          type: string
+        message:
+          type: string
+        temp_password:
+          type: string
+        user_email:
           type: string
       type: object
     internal_handler.SystemHealthResponse:

@@ -113,7 +113,7 @@ func (d *Deps) HandleListRegistrations(w http.ResponseWriter, r *http.Request) {
 // @Security AdminAuth
 // @Produce json
 // @Param id path int true "Registration ID"
-// @Success 200 {object} object{advertiser_id=integer,api_key=string,message=string}
+// @Success 200 {object} handler.RegistrationApprovedResponse
 // @Router /admin/registrations/{id}/approve [post]
 func (d *Deps) HandleApproveRegistration(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
@@ -122,15 +122,21 @@ func (d *Deps) HandleApproveRegistration(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	actor, _ := audit.ActorFromRequest(r)
-	advID, apiKey, err := d.RegSvc.Approve(r.Context(), id, actor)
+	advID, apiKey, userEmail, tempPass, err := d.RegSvc.Approve(r.Context(), id, actor)
 	if err != nil {
+		if errors.Is(err, registration.ErrRequestNotFound) {
+			WriteError(w, http.StatusNotFound, err.Error())
+			return
+		}
 		WriteError(w, http.StatusConflict, err.Error())
 		return
 	}
 	WriteJSON(w, http.StatusOK, RegistrationApprovedResponse{
 		AdvertiserID: advID,
 		APIKey:       apiKey,
-		Message:      "Registration approved. Advertiser account created.",
+		UserEmail:    userEmail,
+		TempPassword: tempPass,
+		Message:      "Registration approved. Advertiser account created. User seeded with temp password — relay out-of-band.",
 	})
 }
 
