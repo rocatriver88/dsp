@@ -107,15 +107,16 @@ export default function InvitesPage() {
           </div>
         ) : (
           <div className="glass-card-static p-0 overflow-hidden">
-            <table className="w-full text-sm" aria-label="邀请码列表">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm table-fixed" aria-label="邀请码列表">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>邀请码</th>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>状态</th>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>使用量</th>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>创建人</th>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>创建时间</th>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>过期时间</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>邀请码</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>状态</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>使用量</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>创建人</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>创建时间</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>过期时间</th>
                 </tr>
               </thead>
               <tbody>
@@ -155,6 +156,7 @@ export default function InvitesPage() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

@@ -260,13 +260,11 @@ export default function UsersPage() {
           <table className="w-full text-sm" aria-label="用户列表">
             <thead style={{ background: "var(--bg-card-elevated)" }}>
               <tr>
-                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>姓名</th>
-                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>邮箱</th>
-                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>角色</th>
-                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>状态</th>
-                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>广告主 ID</th>
-                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>最后登录</th>
-                <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>创建时间</th>
+                <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>姓名</th>
+                <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>邮箱</th>
+                <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>角色 / 状态</th>
+                <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>广告主 ID</th>
+                <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>最后登录</th>
                 <th className="py-3 px-4" />
               </tr>
             </thead>
@@ -278,24 +276,18 @@ export default function UsersPage() {
                     <td className="py-3 px-4 font-medium" style={{ color: "var(--text-primary)" }}>{u.name}</td>
                     <td className="py-3 px-4 text-xs" style={{ color: "var(--text-secondary)" }}>{u.email}</td>
                     <td className="py-3 px-4">
-                      <span
-                        className="px-2 py-0.5 text-xs font-medium rounded-full"
-                        style={
-                          u.role === "platform_admin"
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap"
+                          style={u.role === "platform_admin"
                             ? { background: "rgba(139,92,246,0.15)", color: "#8B5CF6" }
-                            : { background: "rgba(59,130,246,0.15)", color: "#3B82F6" }
-                        }
-                      >
-                        {roleLabels[u.role] || u.role}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className="px-2 py-0.5 text-xs font-medium rounded-full"
-                        style={{ background: status.bg, color: status.color }}
-                      >
-                        {status.text}
-                      </span>
+                            : { background: "rgba(59,130,246,0.15)", color: "#3B82F6" }}>
+                          {roleLabels[u.role] || u.role}
+                        </span>
+                        <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap"
+                          style={{ background: status.bg, color: status.color }}>
+                          {status.text}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
                       {u.advertiser_id ?? "-"}
@@ -304,9 +296,6 @@ export default function UsersPage() {
                       {u.last_login_at
                         ? new Date(u.last_login_at).toLocaleString("zh-CN")
                         : "从未登录"}
-                    </td>
-                    <td className="py-3 px-4 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
-                      {new Date(u.created_at).toLocaleDateString("zh-CN")}
                     </td>
                     <td className="py-3 px-4">
                       <button

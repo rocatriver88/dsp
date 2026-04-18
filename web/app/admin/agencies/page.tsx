@@ -187,10 +187,10 @@ export default function AgenciesPage() {
             <table className="w-full text-sm" aria-label="待审核注册">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>公司名称</th>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>邮箱</th>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>邀请码</th>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>申请时间</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>公司名称</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>邮箱</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>邀请码</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>申请时间</th>
                   <th className="py-3 px-4" />
                 </tr>
               </thead>
@@ -249,11 +249,11 @@ export default function AgenciesPage() {
             <table className="w-full text-sm" aria-label="广告主列表">
               <thead style={{ background: "var(--bg-card-elevated)" }}>
                 <tr>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>ID</th>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>公司</th>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>邮箱</th>
-                  <th className="text-right py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>余额 (CNY)</th>
-                  <th className="text-left py-3 px-4 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>注册时间</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>ID</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>公司</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>邮箱</th>
+                  <th className="text-right py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>余额 (CNY)</th>
+                  <th className="text-left py-3 px-4 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>注册时间</th>
                   <th className="py-3 px-4" />
                 </tr>
               </thead>

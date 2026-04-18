@@ -15,7 +15,7 @@ function CreativeCard({
   actionLoading: boolean;
 }) {
   return (
-    <div className="glass-card p-5">
+    <div className="glass-card p-5 w-full">
       <div className="flex items-start justify-between gap-4 mb-3">
         <div>
           <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{creative.name}</p>
