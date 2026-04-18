@@ -31,7 +31,7 @@
 - 评审重点放在行为正确性、配置风险、API 漂移和缺失测试，不纠结纯样式问题
 
 ## 文档地图
-- 功能与能力总览：[docs/project-feature-inventory.md](./docs/project-feature-inventory.md)
+- 功能与能力总览:[docs/feature-inventory.md](./docs/feature-inventory.md)
 - 历史完成度快照:[docs/archive/](./docs/archive/)
 - 架构说明：[docs/module-architecture.md](./docs/module-architecture.md)
 - 文档索引：[docs/README.md](./docs/README.md)

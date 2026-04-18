@@ -75,12 +75,12 @@ docker compose up --build
 ```
 
 ## 文档入口
-- [项目概览](./docs/PROJECT_OVERVIEW.md)
+- [项目概览](./docs/OVERVIEW.md)
 - [贡献指南](./CONTRIBUTING.md)
 - [评审工作流](./docs/REVIEW_WORKFLOW.md)
 - [发布检查清单](./docs/RELEASE_CHECKLIST.md)
 - [文档索引](./docs/README.md)
-- [功能清单](./docs/project-feature-inventory.md)
+- [功能清单](./docs/feature-inventory.md)
 - [模块架构说明](./docs/module-architecture.md)
 - [历史完成度快照](./docs/archive/)
 - [OpenAPI 契约](./docs/generated/openapi3.yaml)
