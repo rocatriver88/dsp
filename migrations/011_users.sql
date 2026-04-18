@@ -14,11 +14,19 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- advertiser role requires advertiser_id; platform_admin must NOT have one
-ALTER TABLE users ADD CONSTRAINT users_role_advertiser_check
-    CHECK ((role = 'advertiser' AND advertiser_id IS NOT NULL) OR
-           (role = 'platform_admin' AND advertiser_id IS NULL));
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'users_role_advertiser_check' AND conrelid = 'users'::regclass
+    ) THEN
+        ALTER TABLE users ADD CONSTRAINT users_role_advertiser_check
+            CHECK ((role = 'advertiser' AND advertiser_id IS NOT NULL) OR
+                   (role = 'platform_admin' AND advertiser_id IS NULL));
+    END IF;
+END $$;
 
-CREATE INDEX idx_users_advertiser_id ON users(advertiser_id);
+CREATE INDEX IF NOT EXISTS idx_users_advertiser_id ON users(advertiser_id);
 
 -- Add user_id tracking to audit_log
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS user_id BIGINT REFERENCES users(id);
