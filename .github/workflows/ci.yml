@@ -45,7 +45,8 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v1.64.8
+          install-mode: goinstall
 
       - name: Test
         run: go test ./internal/... -v -count=1 -race
@@ -115,7 +116,7 @@ jobs:
           node-version: '22'
 
       - name: Install swag
-        run: go install github.com/swaggo/swag/cmd/swag@latest
+        run: go install github.com/swaggo/swag/cmd/swag@v1.16.4
 
       - name: Install npm deps
         working-directory: web
