@@ -625,6 +625,10 @@ func TestExchangeBid_InjectsClickTracker(t *testing.T) {
 	// targeting (geo=CN, os=iOS) and the 320x50 banner slot that the
 	// default SeedCreative inserts. Using "self" because that's the
 	// one adapter registered by exchange.DefaultRegistry.
+	//
+	// NB: anti-fraud filter rejects empty UA as suspicious, so a
+	// realistic UA string is required for the engine to reach the
+	// bid-emit path. See internal/antifraud/filter.go:152.
 	reqID := fmt.Sprintf("qa-exchange-click-%d", time.Now().UnixNano())
 	bidReq := map[string]any{
 		"id": reqID,
@@ -638,6 +642,7 @@ func TestExchangeBid_InjectsClickTracker(t *testing.T) {
 		"site": map[string]any{"id": "s", "domain": "example.com"},
 		"device": map[string]any{
 			"os":  "iOS",
+			"ua":  "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)",
 			"geo": map[string]any{"country": "CN"},
 		},
 	}

@@ -47,9 +47,14 @@ func decorateBidResponse(resp *openrtb2.BidResponse, req *openrtb2.BidRequest, b
 		"%s/win?campaign_id=%s&price=${AUCTION_PRICE}&request_id=%s&creative_id=%s&bid_price_cents=%s&geo=%s&os=%s&token=%s",
 		baseURL, bid.CID, req.ID, creativeID, bidPriceCents, geo, osName, token,
 	)
+	// Click URL carries bid_price_cents so handleClick can round-trip the
+	// HMAC-signed value for validation. Without it the token (which is
+	// signed over creative_id + bid_price_cents) cannot be verified against
+	// the click URL's parameters — every click would 403. See Task 4 plan
+	// correction note.
 	clickURL := fmt.Sprintf(
-		"%s/click?campaign_id=%s&request_id=%s&creative_id=%s&token=%s",
-		baseURL, bid.CID, req.ID, creativeID, token,
+		"%s/click?campaign_id=%s&request_id=%s&creative_id=%s&bid_price_cents=%s&token=%s",
+		baseURL, bid.CID, req.ID, creativeID, bidPriceCents, token,
 	)
 	bid.AdM = injectClickTracker(bid.AdM, clickURL)
 }
