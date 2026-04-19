@@ -63,6 +63,52 @@ jobs:
           go build -o bin/api ./cmd/api
           go build -o bin/consumer ./cmd/consumer
 
+  integration:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.1'
+
+      # Spin up the real backing services via the project's docker-compose.
+      # We reuse the production compose file (not docker-compose.test.yml) so
+      # qaharness defaults (ports 15432 / 16380 / 19001 / 19094, passwords
+      # dsp_dev_password) match without any override. The trade-off is a heavier
+      # image pull on first run; subsequent runs benefit from layer caching.
+      - name: Start backing services
+        run: docker compose up -d postgres redis kafka clickhouse
+
+      # migrate depends_on postgres+clickhouse healthy, so this blocks until
+      # both are ready. Exits non-zero if any migration fails.
+      - name: Apply migrations
+        run: docker compose run --rm migrate
+
+      # Scope: only ./internal/bidder/... for now. Expanding to ./cmd/... and
+      # other integration-tagged packages is a follow-up PR (docs/testing-
+      # strategy-bidder.md §8.3).
+      - name: Integration tests
+        run: go test -tags=integration -count=1 -timeout 10m ./internal/bidder/...
+        env:
+          QA_POSTGRES_DSN: postgres://dsp:dsp_dev_password@localhost:15432/dsp?sslmode=disable
+          QA_REDIS_ADDR: localhost:16380
+          QA_REDIS_PASSWORD: dsp_dev_password
+          QA_REDIS_DB: 15
+          QA_CLICKHOUSE_ADDR: localhost:19001
+          QA_CLICKHOUSE_USER: default
+          QA_CLICKHOUSE_PASSWORD: dsp_dev_password
+          QA_KAFKA_BROKERS: localhost:19094
+
+      - name: Service logs on failure
+        if: failure()
+        run: docker compose logs --tail 200
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
   docker:
     needs: test
     runs-on: ubuntu-latest
