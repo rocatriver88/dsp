@@ -880,3 +880,121 @@ func TestHandleWin_CapsClearingPriceByBidPrice(t *testing.T) {
 			evt.ClearPrice, expectedCappedPrice)
 	}
 }
+
+// TestHandleClick_AcceptsLegacyToken verifies handleClick's transitional
+// HMAC validation: a 4-param legacy token (signed with just campaign_id +
+// request_id, as pre-Phase-2 binaries issued) must validate successfully
+// and increment bidder_token_legacy_accepted_total{handler="click"}.
+// Locks in the deploy-window transition behavior for the click handler.
+//
+// Mirrors TestHandleWin_AcceptsLegacyToken_RecomputesFromCampaign — we
+// intentionally put BOGUS creative_id / bid_price_cents in the URL, because
+// the legacy token doesn't sign them; the handler must accept via the
+// fallback branch AND clear those untrusted values (handleClick then logs
+// and emits a click event regardless of their content).
+func TestHandleClick_AcceptsLegacyToken(t *testing.T) {
+	f := newHandlerFixture(t)
+	advID := f.SeedAdvertiser("click-legacy-token")
+	campID := f.SeedCampaign(qaharness.CampaignSpec{
+		AdvertiserID:     advID,
+		Name:             "qa-click-legacy-token",
+		BidCPMCents:      2000,
+		BudgetDailyCents: 1_000_000,
+	})
+	f.SeedCreative(campID, "", "")
+	f.Start(t)
+
+	reqID := fmt.Sprintf("qa-clicklegacy-%d", time.Now().UnixNano())
+	campIDStr := fmt.Sprintf("%d", campID)
+	// 4-param legacy token (pre-deploy binary shape): signs only
+	// (campaign_id, request_id). Does NOT cover creative_id or
+	// bid_price_cents — so URL values for those are untrusted.
+	legacyToken := auth.GenerateToken(qaHMACSecret, campIDStr, reqID)
+
+	// Put BOGUS creative_id/bid_price_cents in the URL. The legacy
+	// path MUST NOT trust these — the 6-param ValidateToken will fail
+	// (HMAC mismatch) and the 4-param fallback must accept.
+	q := url.Values{}
+	q.Set("campaign_id", campIDStr)
+	q.Set("request_id", reqID)
+	q.Set("creative_id", "99999")     // bogus — legacy path must NOT trust
+	q.Set("bid_price_cents", "99999") // bogus — legacy path must NOT trust
+	q.Set("geo", "CN")
+	q.Set("os", "iOS")
+	q.Set("token", legacyToken)
+
+	before := testutil.ToFloat64(observability.BidderTokenLegacyAccepted.WithLabelValues("click"))
+	httpResp, err := http.Get(f.srv.URL + "/click?" + q.Encode())
+	if err != nil {
+		t.Fatalf("GET /click: %v", err)
+	}
+	body := readBody(t, httpResp)
+	if httpResp.StatusCode != http.StatusOK {
+		t.Fatalf("legacy token should validate during deploy window: got %d body=%s",
+			httpResp.StatusCode, body)
+	}
+	if !strings.Contains(body, "clicked") {
+		t.Errorf("/click body: want contains \"clicked\", got %s", body)
+	}
+	after := testutil.ToFloat64(observability.BidderTokenLegacyAccepted.WithLabelValues("click"))
+	if after != before+1 {
+		t.Fatalf("expected legacy-accepted metric +1, got %v -> %v", before, after)
+	}
+}
+
+// TestHandleConvert_AcceptsLegacyToken verifies handleConvert's transitional
+// HMAC validation: a 4-param legacy token (signed with just campaign_id +
+// request_id, as pre-Phase-2 binaries issued) must validate successfully
+// and increment bidder_token_legacy_accepted_total{handler="convert"}.
+// Locks in the deploy-window transition behavior for the convert handler.
+//
+// Same BOGUS-metadata probe as the click/win variants: the 6-param
+// ValidateToken must fail on the untrusted creative_id/bid_price_cents,
+// and the 4-param fallback must accept.
+func TestHandleConvert_AcceptsLegacyToken(t *testing.T) {
+	f := newHandlerFixture(t)
+	advID := f.SeedAdvertiser("convert-legacy-token")
+	campID := f.SeedCampaign(qaharness.CampaignSpec{
+		AdvertiserID:     advID,
+		Name:             "qa-convert-legacy-token",
+		BidCPMCents:      2000,
+		BudgetDailyCents: 1_000_000,
+	})
+	f.SeedCreative(campID, "", "")
+	f.Start(t)
+
+	reqID := fmt.Sprintf("qa-convlegacy-%d", time.Now().UnixNano())
+	campIDStr := fmt.Sprintf("%d", campID)
+	// 4-param legacy token (pre-deploy binary shape): signs only
+	// (campaign_id, request_id). Does NOT cover creative_id or
+	// bid_price_cents — so URL values for those are untrusted.
+	legacyToken := auth.GenerateToken(qaHMACSecret, campIDStr, reqID)
+
+	// Bogus URL metadata: legacy path must ignore.
+	q := url.Values{}
+	q.Set("campaign_id", campIDStr)
+	q.Set("request_id", reqID)
+	q.Set("creative_id", "99999")     // bogus — legacy path must NOT trust
+	q.Set("bid_price_cents", "99999") // bogus — legacy path must NOT trust
+	q.Set("geo", "CN")
+	q.Set("os", "iOS")
+	q.Set("token", legacyToken)
+
+	before := testutil.ToFloat64(observability.BidderTokenLegacyAccepted.WithLabelValues("convert"))
+	httpResp, err := http.Get(f.srv.URL + "/convert?" + q.Encode())
+	if err != nil {
+		t.Fatalf("GET /convert: %v", err)
+	}
+	body := readBody(t, httpResp)
+	if httpResp.StatusCode != http.StatusOK {
+		t.Fatalf("legacy token should validate during deploy window: got %d body=%s",
+			httpResp.StatusCode, body)
+	}
+	if !strings.Contains(body, "converted") {
+		t.Errorf("/convert body: want contains \"converted\", got %s", body)
+	}
+	after := testutil.ToFloat64(observability.BidderTokenLegacyAccepted.WithLabelValues("convert"))
+	if after != before+1 {
+		t.Fatalf("expected legacy-accepted metric +1, got %v -> %v", before, after)
+	}
+}
