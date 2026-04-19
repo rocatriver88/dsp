@@ -33,7 +33,11 @@ if err == nil && balance < c.BudgetDailyCents { // err 被静默吞掉
 ```
 账务库抖动 → `err != nil` → 条件为 false → 直接放行启动。资金/合规 blocker。
 
-**决策**：fail-closed。`err != nil` 返回 `503 Service Unavailable`，提示 retry；记 log。
+**决策**：fail-closed 覆盖两种失败模式：
+1. `err != nil` → 返回 `503 Service Unavailable`
+2. 非 sandbox campaign 且 `d.BillingSvc == nil` → 返回 `503`（CEO Finding #2 — 堵 fail-open 的另一面：配置遗漏导致 BillingSvc 为 nil 时当前是静默跳过余额检查）
+
+**可测性前置条件**（CEO Finding #1）：必须先把 `Deps.BillingSvc` 从 `*billing.Service` 抽为 `BillingService` interface，否则 F2 测试无法注入 failing stub（FK 无 `ON DELETE CASCADE`，DELETE advertisers 行会因 campaign 引用而失败）。作为 Phase 1 第 0 个 task 落地，`billing.Service` 自动实现 interface，prod 零行为变化。
 
 ### F3 — Activation 链不原子（Medium）
 
@@ -59,10 +63,17 @@ if err == nil && balance < c.BudgetDailyCents { // err 被静默吞掉
 **契约对齐（用户选 A）**：URL 携带真实值，HMAC 覆盖防篡改。
 
 **决策**：
-- NURL 扩成 `...&creative_id=<CrID>&bid_price_cents=<price*100>&...`
+- NURL 扩成 `...&creative_id=<CrID>&bid_price_cents=<math.Round(price*100)>&...`（CEO Finding #4 — 用 `math.Round` 不 `int64()` 截断，避免 $0.00495 → 0 cents 的精度 bug）
 - `auth.GenerateToken` 的签名参数从 `(campaignID, requestID)` 扩成 `(campaignID, requestID, creativeID, bidPriceCents)`
-- `handleWin` 从 URL 解析，不再重算
+- `handleWin`/`handleClick` 从 URL 解析，不再重算
 - `bid.CrID` 已由 [internal/bidder/engine.go:250](../../../internal/bidder/engine.go) 正确填入真实 `creative.ID`，无需额外改动
+
+**HMAC token deploy 过渡**（CEO Finding #3）：`handleWin`/`handleClick` 的 token 验证走 try-6-then-4 过渡模式：
+1. 先用 6 参数签名（`campID, reqID, creativeID, bidPriceCents`）验证——新 token 命中
+2. 失败则退回 4 参数签名（`campID, reqID`）验证——老 token 命中，走重算 fallback，记 metric `bidder_token_legacy_accepted_total{handler}` + warn log
+3. 两者都失败 → 403
+
+一个 deploy 窗口稳定后（token TTL = 5min，保守等 ≥ 10min），开 follow-up PR 删掉 legacy 分支。这样消除"旧 binary 发 token、新 binary 验 token"的 403 spike 风险。
 
 ## 3. Phase Breakdown
 
@@ -70,18 +81,22 @@ if err == nil && balance < c.BudgetDailyCents { // err 被静默吞掉
 
 ### Phase 1 — 小修 bug fix（F2 + F4）
 
-- F2：`HandleStartCampaign` 余额查询 fail-closed → 503
-- F4：直接 `/bid` 加 `http.MaxBytesReader`
+- **T0**：refactor `Deps.BillingSvc` 从 `*billing.Service` 抽为 `BillingService` interface（F2 可测性前置 + 未来 mock 基础设施）
+- **F2**：`HandleStartCampaign` 余额查询 fail-closed → 503（覆盖 `err != nil` 和 `BillingSvc == nil` 两种 fail-open）
+- **F4**：直接 `/bid` 加 `http.MaxBytesReader`
 
-**规模**：±30 行 prod + 2 个 failing test commit + 2 个 fix commit（共 4 commit）
+**规模**：±60 行 prod + 2 个 failing test commit + 2 个 fix commit + 1 个 refactor commit（共 5 commit）
 
 **TDD commit 序列**：
 ```
-c1: test(handler): add failing test for start campaign fail-open on balance error
-c2: fix(handler): return 503 when billing.GetBalance errors  [closes F2]
-c3: test(bidder): add failing test for oversized /bid body rejection
-c4: fix(bidder): enforce 1MB body limit on direct /bid  [closes F4]
+c1: refactor(handler): extract BillingService interface for testability (non-functional)
+c2: test(handler): add failing test for start campaign fail-open (err + nil paths)
+c3: fix(handler): return 503 when BillingSvc errors or is nil  [closes F2]
+c4: test(bidder): add failing test for oversized /bid body rejection
+c5: fix(bidder): enforce 1MB body limit on direct /bid  [closes F4]
 ```
+
+`c1` 是纯 refactor 无 TDD（行为不变），但 `c2` 的 test 依赖 `c1` 抽出的 interface 注入 `&failingBillingStub{}`。
 
 ### Phase 2 — bid 响应装饰统一 + win 元数据（F1 + F5）
 
@@ -170,9 +185,10 @@ c3: docs(api): document 30s activation eventual consistency contract
 
 ## 7. Risk & Open Questions
 
-- **HMAC token 向后兼容**：Phase 2 扩展签名参数后，旧 token 立即失效。若 exchange 有回调延迟（bid 和 win 跨部署），会出现短暂 token 验证失败。评估：token 只用于 /win 和 /click，从 bid 到 win 通常 <1s，部署窗口内几乎无影响；但部署时应做灰度或维护窗口说明。
+- **HMAC token deploy 过渡**（已在 CEO Finding #3 消化）：Phase 2 采用 try-6-then-4 过渡验证，旧 token 在 5min TTL 内仍能被新 binary 验通并走重算 fallback。deploy 窗口稳定 ≥10min 后开 follow-up PR 删 legacy 分支。`bidder_token_legacy_accepted_total` metric 监控过渡期。
 - **Finding 3 的"30s 契约"是否被前端依赖**：如前端有"创建 campaign → 立即启动 → 立即看到投放"的工作流，30s 延迟可能 surface 成 UX 问题。Phase 3 前需要 grep 前端对 campaign status 的轮询策略，必要时加 `bidder_ready` 字段（留到后续 Phase）。
-- **MaxBytesReader 的 error 路径**：Go 的 `http.MaxBytesReader` 超限时 `Decode` 返回 `http.MaxBytesError`，handler 应返回 413（Payload Too Large）而非 400。实现时确认。
+- **MaxBytesReader 的 error 路径**：Go 的 `http.MaxBytesReader` 超限时 `Decode` 返回 `*http.MaxBytesError`，handler 用 `errors.As` 判类型后返回 413（Payload Too Large）；其他 decode 错误仍返回 400。
+- **`BillingSvc` prod 初始化**（CEO Finding #2 衍生）：本 Phase 1 T0 把 `BillingSvc` 抽 interface 后，prod 初始化代码应在 `cmd/api/main.go` 的 wiring 层 assert 非 nil（`if deps.BillingSvc == nil { log.Fatal("BillingSvc required in non-sandbox mode") }`）。handler 层的 `nil → 503` 是纵深防御，不能替代启动校验。Phase 1 T0 commit 建议顺带加这个 assert。
 
 ## 8. Not In Scope
 
