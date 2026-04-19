@@ -7,6 +7,14 @@ import (
 	"testing"
 )
 
+// TestBufferToDisk_WritesJSONL + TestBufferToDisk_AppendsMultiple (below)
+// are the unit-level half of the P2-9 Kafka replay buffer sentinel
+// (docs/testing-strategy-bidder.md §3 P2). They guard the on-disk JSONL
+// format that TestProducer_AsyncFailureBuffers writes and
+// TestProducer_ReplayBuffer consumes during integration tests — a format
+// change here would break the full lifecycle.
+//
+// REGRESSION SENTINEL: P2-9 on-disk buffer format.
 func TestBufferToDisk_WritesJSONL(t *testing.T) {
 	dir := t.TempDir()
 	p := &Producer{bufferDir: dir}
