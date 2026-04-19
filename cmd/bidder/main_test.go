@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -64,15 +65,26 @@ func TestInjectClickTracker_EmptyClickURL(t *testing.T) {
 // to drain during the first-connect handshake — see the comment
 // there for the full story.
 //
-// Requires a reachable Redis at localhost:7380 (dsp-test stack). If
-// Redis is unavailable, the test skips instead of false-positiving.
+// Requires a reachable Redis. Defaults to localhost:7380 (dsp-test
+// stack from scripts/test-env.sh), but honours the REDIS_ADDR /
+// REDIS_PASSWORD env vars so the same test can run against the main
+// docker-compose stack (localhost:16380 / dsp_dev_password) in CI.
+// If Redis is unavailable, the test skips instead of false-positiving.
 func TestHandleClick_RejectsArbitraryDest_NoRedirect(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
+	redisAddr := "localhost:7380"
+	if v := os.Getenv("REDIS_ADDR"); v != "" {
+		redisAddr = v
+	}
+	redisPassword := "dsp_test_password"
+	if v := os.Getenv("REDIS_PASSWORD"); v != "" {
+		redisPassword = v
+	}
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     "localhost:7380",
-		Password: "dsp_test_password",
+		Addr:     redisAddr,
+		Password: redisPassword,
 	})
 	defer rdb.Close()
 	if err := rdb.Ping(ctx).Err(); err != nil {
