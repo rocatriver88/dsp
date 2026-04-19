@@ -218,16 +218,20 @@ func (cl *CampaignLoader) fullLoad(ctx context.Context) error {
 	cl.mu.Unlock()
 
 	// Initialize total + daily budget counters in Redis for all loaded
-	// campaigns. Total uses SetNX semantics so reloads don't reset
-	// partially spent counters; Daily is TTL-bound (25h) and the Set is
-	// tolerated because the periodic refresh window (30s) is much shorter
-	// than the daily reset window and the handler path is the source of
-	// truth for initial daily value.
+	// campaigns using NX (set-if-not-exists) semantics on both so reloads
+	// and periodic refreshes NEVER reset partially spent counters.
 	//
-	// The DailyBudget reinit here is a fallback recovery path for F3 /
-	// Codex Finding #3: if the handler-side InitDailyBudget briefly
-	// failed (returning 503 to the client) and Redis recovered later,
-	// this periodic pass ensures the bidder still serves the campaign.
+	// This is a recovery path for F3 / Codex Finding #3: if the handler-side
+	// InitDailyBudgetNX at /start briefly failed (503 to the client) and
+	// Redis recovered later, the next periodic refresh (30s) or the next
+	// pub/sub activated/updated message populates the missing daily key.
+	//
+	// It MUST be NX, not SET. periodicRefresh runs ~2880 times per day; a
+	// SET here would overwrite every running spent counter back to the full
+	// daily cap on each tick, functionally disabling daily budget enforcement.
+	// The daily cap reset happens at midnight via cmd/bidder/main.go's
+	// dedicated reset goroutine (which legitimately uses InitDailyBudget /
+	// SET), not here.
 	if cl.budgetSvc != nil {
 		for _, lc := range newMap {
 			if lc.BudgetTotalCents > 0 {
@@ -236,9 +240,11 @@ func (cl *CampaignLoader) fullLoad(ctx context.Context) error {
 				}
 			}
 			if lc.BudgetDailyCents > 0 {
-				if err := cl.budgetSvc.InitDailyBudget(ctx, lc.ID, lc.BudgetDailyCents); err != nil {
-					log.Printf("[LOADER] init daily budget for campaign %d: %v", lc.ID, err)
+				if _, err := cl.budgetSvc.InitDailyBudgetNX(ctx, lc.ID, lc.BudgetDailyCents); err != nil {
+					log.Printf("[LOADER] init daily budget NX for campaign %d: %v", lc.ID, err)
 				}
+				// Ignore the bool — "already existed" is the expected steady
+				// state once /start has successfully initialized the key.
 			}
 		}
 	}
@@ -342,14 +348,21 @@ func (cl *CampaignLoader) listenPubSub(ctx context.Context, sub *redis.PubSub) {
 							log.Printf("[LOADER] init total budget for campaign %d: %v", loaded.ID, err)
 						}
 					}
-					// Re-init DailyBudget as a fallback for /start pub/sub
-					// that arrived AFTER a transient Redis outage — ensures
-					// bidder serves the campaign even if the handler-side
-					// InitDailyBudget briefly failed and was retried later.
-					// F3 / Codex Finding #3.
+					// Re-init DailyBudget with NX (set-if-not-exists) semantics
+					// as a fallback for /start pub/sub that arrived AFTER a
+					// transient Redis outage — ensures the bidder serves the
+					// campaign even if the handler-side InitDailyBudgetNX
+					// briefly failed and Redis recovered later.
+					//
+					// MUST be NX, not SET. A pause→resume within the same day
+					// triggers action=activated, and a SET here would refill
+					// the running spent counter back to the full daily cap —
+					// a trivial budget-enforcement bypass. The midnight reset
+					// cron in cmd/bidder/main.go is the sole SET path for
+					// daily counters. F3 / Codex Finding #3.
 					if cl.budgetSvc != nil && loaded.BudgetDailyCents > 0 {
-						if err := cl.budgetSvc.InitDailyBudget(ctx, loaded.ID, loaded.BudgetDailyCents); err != nil {
-							log.Printf("[LOADER] reinit daily budget for campaign %d: %v", loaded.ID, err)
+						if _, err := cl.budgetSvc.InitDailyBudgetNX(ctx, loaded.ID, loaded.BudgetDailyCents); err != nil {
+							log.Printf("[LOADER] reinit daily budget NX for campaign %d: %v", loaded.ID, err)
 						}
 					}
 				}

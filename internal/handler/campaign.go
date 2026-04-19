@@ -349,19 +349,28 @@ func (d *Deps) HandleStartCampaign(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Prep Redis-side state BEFORE committing DB active. If InitDailyBudget
+	// Prep Redis-side state BEFORE committing DB active. If InitDailyBudgetNX
 	// fails, we bail with 503 and never transition — the campaign stays
 	// in its pre-start state, no orphan "active but 0 daily budget" row.
 	// Prepare-then-commit ordering eliminates the race where a crash
-	// between TransitionStatus and InitDailyBudget would leave the DB
+	// between TransitionStatus and InitDailyBudgetNX would leave the DB
 	// saying "active" with the bidder unable to serve (missing daily key
 	// = 0 budget). Codex Finding #3.
+	//
+	// MUST be NX, not SET. A pause→resume flow within the same day would
+	// otherwise refill the running spent counter back to the full daily cap,
+	// letting an advertiser bypass daily budget enforcement by toggling
+	// pause/resume. The midnight reset cron in cmd/bidder/main.go is the
+	// sole SET path that legitimately resets the daily counter.
 	if d.BudgetSvc != nil {
-		if err := d.BudgetSvc.InitDailyBudget(r.Context(), id, c.BudgetDailyCents); err != nil {
-			log.Printf("[CAMPAIGN] InitDailyBudget failed campaign=%d adv=%d: %v", id, advID, err)
+		if _, err := d.BudgetSvc.InitDailyBudgetNX(r.Context(), id, c.BudgetDailyCents); err != nil {
+			log.Printf("[CAMPAIGN] InitDailyBudgetNX failed campaign=%d adv=%d: %v", id, advID, err)
 			WriteError(w, http.StatusServiceUnavailable, "unable to initialize daily budget, please retry")
 			return
 		}
+		// Ignore the bool — "already existed" is a legitimate pause→resume
+		// resumption path; the midnight cron resets the key, /start only
+		// needs to guarantee the key exists.
 	}
 
 	if err := d.Store.TransitionStatus(r.Context(), id, advID, campaign.StatusActive); err != nil {

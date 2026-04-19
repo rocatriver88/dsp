@@ -89,13 +89,39 @@ func (s *Service) CheckAndDeductBudget(ctx context.Context, campaignID int64, am
 	return result, nil
 }
 
-// InitDailyBudget sets the daily budget for a campaign. Called at midnight or campaign start.
+// InitDailyBudget sets the daily budget for a campaign. Called by the midnight
+// reset cron (cmd/bidder/main.go) where a full reset back to the configured
+// daily cap IS the desired semantics.
+//
+// Callers that want to ensure-the-key-exists-without-clobbering running
+// counters (loader periodic refresh, loader pub/sub activated/updated, handler
+// /start) must use InitDailyBudgetNX instead. Using SET on those paths caused
+// the Phase 3 T5 regression where the 30s refresh overwrote the running daily
+// counter back to the full cap, functionally disabling daily budget
+// enforcement.
 func (s *Service) InitDailyBudget(ctx context.Context, campaignID int64, budgetCents int64) error {
 	key := dailyBudgetKey(campaignID)
 	pipe := s.rdb.Pipeline()
 	pipe.Set(ctx, key, budgetCents, 25*time.Hour) // TTL slightly over 24h
 	_, err := pipe.Exec(ctx)
 	return err
+}
+
+// InitDailyBudgetNX initializes the daily budget key ONLY if it doesn't exist.
+// Used by the loader's periodic refresh, the loader's activated/updated
+// pub/sub handlers, and the handler's /start flow to ensure the bidder has
+// a daily key even after a transient Redis outage, WITHOUT resetting the
+// running counter of already-spent amounts. Mirrors InitTotalBudget's SetNX
+// semantics (internal/budget/budget.go:InitTotalBudget).
+//
+// Returns true if the key was set (it didn't exist), false if it already
+// existed (no-op). Callers typically ignore the bool — "already existed" is
+// the expected steady-state outcome once a /start has succeeded.
+func (s *Service) InitDailyBudgetNX(ctx context.Context, campaignID int64, budgetCents int64) (bool, error) {
+	key := dailyBudgetKey(campaignID)
+	// SetNX: only set if not already present, so reloads/reinits don't reset
+	// partially spent budget. TTL slightly over 24h mirrors InitDailyBudget.
+	return s.rdb.SetNX(ctx, key, budgetCents, 25*time.Hour).Result() //nolint:staticcheck // SA1019: SetNX deprecated, migration tracked with InitTotalBudget
 }
 
 // GetDailyBudgetRemaining returns remaining daily budget in cents.
