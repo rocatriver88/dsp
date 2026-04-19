@@ -86,6 +86,21 @@ jobs:
       - name: Apply migrations
         run: docker compose run --rm migrate
 
+      # Kafka doesn't define a healthcheck in docker-compose.yml (apache/kafka
+      # doesn't ship a built-in healthcheck command). Poll the admin API until
+      # Kafka is ready to accept metadata requests, so producer-using tests
+      # don't race startup.
+      - name: Wait for Kafka
+        run: |
+          timeout 180 bash -c '
+            until docker exec kafka-main /opt/kafka/bin/kafka-topics.sh \
+              --bootstrap-server kafka:19094 --list >/dev/null 2>&1; do
+              echo "Waiting for Kafka..."
+              sleep 2
+            done
+            echo "Kafka is ready"
+          '
+
       # Scope: only ./internal/bidder/... for now. Expanding to ./cmd/... and
       # other integration-tagged packages is a follow-up PR (docs/testing-
       # strategy-bidder.md §8.3).
