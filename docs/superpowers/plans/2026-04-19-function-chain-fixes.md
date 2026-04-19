@@ -4,7 +4,7 @@
 
 **Goal:** Fix 5 codex-reported issues on the `POST /campaigns/{id}/start → bidder 生效` and `POST /bid → ClickHouse 入库` chains: exchange bid missing click tracker, fail-open on balance error, non-atomic activation, no body size limit on direct /bid, win events using recalculated values.
 
-**Architecture:** 3 sequential phases, each shipping as its own PR. Phase 1 = `BillingService` interface refactor + small bug fixes (F2 covering err + nil, F4 body limit). Phase 2 = shared bid response decorator + win URL metadata with transitional HMAC validation (F1 + F5). Phase 3 = activation pub/sub metric + contract docs (F3). CEO review added Task 0 (BillingService interface), nil-path fail-closed, transitional token validation, and `math.Round` for bid price cents. Every bug fix follows the TDD Evidence Rule — failing test commit BEFORE fix commit, no squash.
+**Architecture:** 3 sequential phases, each shipping as its own PR. Phase 1 = `BillingService` interface refactor (covers GetBalance + TopUp + GetTransactions) + small bug fixes (F2 err + nil + startup assert, F4 body limit direct + exchange). Phase 2 = shared bid response decorator + win URL metadata with transitional HMAC validation (F1 + F5) + `handleConvert` transitional validation + clearing-price cap defense. Phase 3 = activation contract hardening: InitDailyBudget fail-closed + reorder before TransitionStatus + loader reinit DailyBudget + pub/sub metric across all 7 NotifyCampaignUpdate sites + contract docs. Every bug fix follows the TDD Evidence Rule — failing test commit BEFORE fix commit, no squash.
 
 **Tech Stack:** Go 1.22+, PostgreSQL (via pgx), Redis (go-redis/v9), Kafka, ClickHouse, OpenRTB 2.5, HMAC-SHA256.
 
@@ -58,14 +58,24 @@ Create `internal/handler/billing_iface.go`:
 ```go
 package handler
 
-import "context"
+import (
+	"context"
 
-// BillingService is the narrow handler-facing view of billing.Service.
-// Defining it consumer-side (here) lets tests inject minimal stubs
-// without pulling the full service + its DB. billing.Service satisfies
-// this interface automatically — no changes needed to the concrete type.
+	"github.com/heartgryphon/dsp/internal/billing"
+)
+
+// BillingService is the handler-facing view of billing.Service. Must cover
+// every method currently called through d.BillingSvc — `GetBalance` by
+// HandleBalance + HandleStartCampaign, `TopUp` by HandleTopUp,
+// `GetTransactions` by HandleTransactions. Narrowing below this set
+// breaks compilation (Codex Finding #1).
+//
+// billing.Service satisfies this interface automatically — no changes
+// needed to the concrete type.
 type BillingService interface {
 	GetBalance(ctx context.Context, advertiserID int64) (balanceCents int64, billingType string, err error)
+	TopUp(ctx context.Context, advertiserID int64, amountCents int64, description string) (*billing.Transaction, error)
+	GetTransactions(ctx context.Context, advertiserID int64, limit, offset int) ([]billing.Transaction, error)
 }
 ```
 
@@ -293,11 +303,13 @@ exempt. Defense-in-depth: cmd/api/main.go asserts BillingSvc non-nil
 on startup (Task 0)."
 ```
 
-### Task 2 — F4: Direct `/bid` body size limit
+### Task 2 — F4: Direct `/bid` body size limit + exchange path parity
 
 **Files:**
 - Test: `cmd/bidder/bid_body_limit_test.go` (new)
-- Modify: `cmd/bidder/main.go:270-275`
+- Modify: `cmd/bidder/main.go:270-275` (direct /bid) + `cmd/bidder/main.go:343` (exchange /bid)
+
+**Scope note (Eng Review Finding D):** exchange path uses `io.LimitReader(r.Body, 1<<20)` which silently truncates — oversized bodies produce parse failures + 400. Direct path under this fix uses `http.MaxBytesReader` → 413. To keep client contract consistent, also upgrade the exchange path to `MaxBytesReader`. Low cost (~5 lines).
 
 - [ ] **Step 2.1: Write the failing test**
 
@@ -353,9 +365,9 @@ git commit -m "test(bidder): add failing regression test for oversized /bid body
 Expect-Fail: TestHandleBid_RejectsOversizedBody"
 ```
 
-- [ ] **Step 2.4: Implement the fix**
+- [ ] **Step 2.4: Implement the fix in both paths**
 
-Edit `cmd/bidder/main.go:269-275`:
+**Direct path** — edit `cmd/bidder/main.go:269-275`:
 
 Replace:
 ```go
@@ -382,6 +394,38 @@ With:
 			return
 		}
 		http.Error(w, `{"error":"invalid bid request"}`, http.StatusBadRequest)
+		return
+	}
+```
+
+**Exchange path** — edit `cmd/bidder/main.go:342-348`:
+
+Replace:
+```go
+	// Read raw body and parse via exchange-specific adapter
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1MB limit
+	if err != nil {
+		observability.BidRequestsTotal.WithLabelValues(exchangeID, "rejected").Inc()
+		http.Error(w, `{"error":"read body failed"}`, http.StatusBadRequest)
+		return
+	}
+```
+
+With:
+```go
+	// Enforce 1MB body cap via MaxBytesReader (was io.LimitReader, which
+	// silently truncated — caused partial bodies to parse-fail as 400
+	// instead of the 413 clients expect).
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		observability.BidRequestsTotal.WithLabelValues(exchangeID, "rejected").Inc()
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, `{"error":"request body too large"}`, http.StatusRequestEntityTooLarge)
+			return
+		}
+		http.Error(w, `{"error":"read body failed"}`, http.StatusBadRequest)
 		return
 	}
 ```
@@ -589,18 +633,28 @@ go test ./internal/auth/ -v
 ```
 Expected: all PASS (no behavior change yet; token includes two extra empty-string params but URL shape identical for unchanged callers).
 
-- [ ] **Step 3.6: Commit refactor**
+- [ ] **Step 3.6: Commit the decorator extraction (combined refactor + F1 behavior change)**
+
+Note (Codex Finding #6): this commit is not purely a refactor — extracting `decorateBidResponse` and wiring both paths through it **already fixes F1** (exchange path now gets click tracker injection). It also changes the HMAC token's signed params and the NURL shape. Be honest about that in the commit message.
 
 ```bash
 git add cmd/bidder/decorator.go cmd/bidder/main.go cmd/bidder/main_test.go cmd/bidder/handlers_integration_test.go internal/auth/hmac_test.go
-git commit -m "refactor(bidder): extract decorateBidResponse shared by direct+exchange bid
+git commit -m "refactor(bidder): unify bid response decoration via decorateBidResponse [closes F1]
 
 Both handleBid and handleExchangeBid now delegate win/click URL
-construction to decorateBidResponse. Token signature extended to
-(campaignID, requestID, creativeID, bidPriceCents) — for legacy
-call sites, creativeID and bidPriceCents are signed as empty strings,
-preserving URL shape. Behavior unchanged; F1 + F5 bug fixes land in
-the next commit."
+construction to decorateBidResponse. This also fixes F1 directly:
+the exchange path previously did not inject a click tracker into
+AdM, breaking CPC billing on exchange traffic. After this commit
+both paths produce identical NURL + click URL + AdM wiring.
+
+Token signature is extended to (campaignID, requestID, creativeID,
+bidPriceCents). Existing test call sites sign creativeID and
+bidPriceCents as empty strings — tokens still validate because
+ValidateToken gets the same two extra empty params.
+
+The behavior change on the win-handler side (reading real creative_id
+and bid_price_cents from the URL instead of recomputing) lands in
+the next commit together with handleConvert + transitional validation."
 ```
 
 ### Task 4 — F1: Exchange /bid click tracker + F5: handleWin reads real bid-time values
@@ -727,21 +781,140 @@ func TestHandleWin_UsesCreativeIDAndBidPriceFromURL(t *testing.T) {
 
 Note: `f.producer.LastEventOfType` and `Flush()` may not exist in the fixture — if not, inspect how scenario 22 asserts on captured events and adapt. The pattern is "fixture wraps a fake producer that buffers events for assertion".
 
-- [ ] **Step 4.3: Run tests to verify both fail**
+- [ ] **Step 4.2b: Write failing test for legacy token transitional validation (Codex Finding #3 + Eng Review Finding C)**
+
+Append to `cmd/bidder/handlers_integration_test.go`:
+
+```go
+// TestHandleWin_AcceptsLegacyToken_RecomputesFromCampaign verifies the
+// deploy-window transition: a 4-param token issued by the pre-deploy
+// binary should validate via the legacy fallback, increment the
+// bidder_token_legacy_accepted_total metric, and force the recompute
+// path (URL creative_id/bid_price_cents cannot be trusted because they
+// weren't covered by the legacy HMAC signature).
+func TestHandleWin_AcceptsLegacyToken_RecomputesFromCampaign(t *testing.T) {
+	f := newHandlerFixture(t)
+	f.SeedCampaign(t, f.campaignID, f.creativeID, billingModelCPM, "<div>ad</div>")
+	f.Start(t)
+
+	reqID := "legacy-token-test"
+	campIDStr := fmt.Sprintf("%d", f.campaignID)
+	legacyToken := auth.GenerateToken(qaHMACSecret, campIDStr, reqID) // 4-param legacy
+
+	// Put BOGUS creative_id/bid_price_cents in the URL. Legacy path MUST ignore them.
+	q := url.Values{}
+	q.Set("campaign_id", campIDStr)
+	q.Set("price", "0.00150")
+	q.Set("request_id", reqID)
+	q.Set("creative_id", "99999")       // bogus — legacy path must NOT trust this
+	q.Set("bid_price_cents", "99999")   // bogus — legacy path must NOT trust this
+	q.Set("token", legacyToken)
+
+	before := testutil.ToFloat64(observability.BidderTokenLegacyAccepted.WithLabelValues("win"))
+	resp, err := http.Get(f.srv.URL + "/win?" + q.Encode())
+	if err != nil {
+		t.Fatalf("GET /win: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("legacy token should validate: got %d: %s", resp.StatusCode, readBody(t, resp))
+	}
+	after := testutil.ToFloat64(observability.BidderTokenLegacyAccepted.WithLabelValues("win"))
+	if after != before+1 {
+		t.Fatalf("expected legacy metric +1, got %v → %v", before, after)
+	}
+
+	f.producer.Flush()
+	evt, ok := f.producer.LastEventOfType(t, "win")
+	if !ok {
+		t.Fatalf("no win event")
+	}
+	// SECURITY assertion: legacy path used campaign state, NOT URL's bogus creative_id.
+	if evt.CreativeID == 99999 {
+		t.Fatalf("SECURITY: legacy path trusted URL creative_id=99999; must recompute from campaign")
+	}
+}
+
+// TestHandleWin_CapsClearingPriceByBidPrice verifies the Codex Finding #2
+// defense: if the unsigned URL `price` exceeds the HMAC-signed bid_price_cents,
+// cap it. An unsigned clearing-price param that inflates above the bid cap
+// is either URL tampering or an exchange bug; both should be contained.
+func TestHandleWin_CapsClearingPriceByBidPrice(t *testing.T) {
+	f := newHandlerFixture(t)
+	f.SeedCampaign(t, f.campaignID, f.creativeID, billingModelCPM, "<div>ad</div>")
+	f.Start(t)
+
+	reqID := "price-cap-test"
+	campIDStr := fmt.Sprintf("%d", f.campaignID)
+	signedBidCents := int64(150) // signed cap: 150 cents → $0.00150 CPM
+	token := auth.GenerateToken(qaHMACSecret, campIDStr, reqID, "1", fmt.Sprintf("%d", signedBidCents))
+
+	q := url.Values{}
+	q.Set("campaign_id", campIDStr)
+	q.Set("price", "0.01000") // attacker-inflated clearing price (6.6× the bid)
+	q.Set("request_id", reqID)
+	q.Set("creative_id", "1")
+	q.Set("bid_price_cents", fmt.Sprintf("%d", signedBidCents))
+	q.Set("token", token)
+
+	before := testutil.ToFloat64(observability.BidderClearingPriceCapped.WithLabelValues("win"))
+	resp, err := http.Get(f.srv.URL + "/win?" + q.Encode())
+	if err != nil {
+		t.Fatalf("GET /win: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("win should succeed with capping: got %d", resp.StatusCode)
+	}
+
+	after := testutil.ToFloat64(observability.BidderClearingPriceCapped.WithLabelValues("win"))
+	if after != before+1 {
+		t.Fatalf("expected clearing_price_capped +1, got %v → %v", before, after)
+	}
+
+	// Assert budget deduction used the CAPPED price, not the inflated URL value.
+	f.producer.Flush()
+	evt, ok := f.producer.LastEventOfType(t, "win")
+	if !ok {
+		t.Fatalf("no win event")
+	}
+	expectedCappedPrice := float64(signedBidCents) / 100.0 / 1000.0 // $0.00150
+	// Allow for small float tolerance
+	if evt.ClearPrice > expectedCappedPrice+0.0000001 {
+		t.Fatalf("SECURITY: deduct used un-capped price %.8f, expected ≤ %.8f", evt.ClearPrice, expectedCappedPrice)
+	}
+}
+```
+
+- [ ] **Step 4.3: Run all four new tests to verify they fail**
 
 ```bash
-go test ./cmd/bidder/ -run "TestExchangeBid_InjectsClickTracker|TestHandleWin_UsesCreativeIDAndBidPriceFromURL" -v
+go test ./cmd/bidder/ -run "TestExchangeBid_InjectsClickTracker|TestHandleWin_UsesCreativeIDAndBidPriceFromURL|TestHandleWin_AcceptsLegacyToken_RecomputesFromCampaign|TestHandleWin_CapsClearingPriceByBidPrice" -v
 ```
-Expected: both FAIL — Exchange test fails on "expected AdM to contain /click?" (pre-fix exchange path doesn't decorate AdM); handleWin test fails on creative_id mismatch (pre-fix recomputes from campaign state, returning "1" not "42").
+Expected: all four FAIL:
+- Exchange click: pre-fix AdM has no `/click?`
+- Win URL metadata: pre-fix uses campaign state, not URL `42`
+- Legacy token: pre-fix `ValidateToken` mismatch on 6-param call path (compile-time missing `observability.BidderTokenLegacyAccepted` OR 403 at runtime)
+- Clearing price cap: pre-fix no cap; compile-time missing `observability.BidderClearingPriceCapped` OR ClearPrice in event exceeds cap
+
+Compile errors on the two new metrics are acceptable RED evidence (same principle as Step 5.2).
 
 - [ ] **Step 4.4: Commit failing tests**
 
 ```bash
 git add cmd/bidder/handlers_integration_test.go
-git commit -m "test(bidder): add failing tests for exchange click tracker + win URL metadata
+git commit -m "test(bidder): add failing tests for F1+F5+transitional token+clearing cap
+
+Four failing tests covering the Phase 2 fix surface:
+- Exchange click tracker injection (F1)
+- handleWin reads real creative_id and bid_price_cents from URL (F5)
+- handleWin accepts legacy 4-param token + recomputes from campaign (CEO #3)
+- handleWin caps clearing price by signed bid_price_cents (Codex #2)
 
 Expect-Fail: TestExchangeBid_InjectsClickTracker
-Expect-Fail: TestHandleWin_UsesCreativeIDAndBidPriceFromURL"
+Expect-Fail: TestHandleWin_UsesCreativeIDAndBidPriceFromURL
+Expect-Fail: TestHandleWin_AcceptsLegacyToken_RecomputesFromCampaign
+Expect-Fail: TestHandleWin_CapsClearingPriceByBidPrice"
 ```
 
 - [ ] **Step 4.5: Implement F5 — parse URL params in handleWin**
@@ -849,12 +1022,29 @@ urlBidPriceCents, _ := strconv.ParseInt(urlPriceCentsStr, 10, 64)
 
 Replace the `r.URL.Query().Get("creative_id")` / `...("bid_price_cents")` parse lines in the block above with these variable reads instead.
 
-Apply the same transitional validation block to `handleClick` — `click_url` carries `creative_id` per decorator. Copy the same pattern with `"click"` as the metric label.
+Apply the same transitional validation block to **both `handleClick` and `handleConvert`** (Codex Finding #4). `handleConvert` at [cmd/bidder/main.go:669](cmd/bidder/main.go) currently only validates `(campaign_id, request_id)`. The `buildConvertURL` test helper will be updated to 5-param in Task 3.4, so `handleConvert` MUST be updated in the same commit or convert tests break. Copy the same pattern with `"click"` / `"convert"` as the metric label.
 
-Register the new counter in `internal/observability/metrics.go`:
+**Additionally (Decision I-B, Codex Finding #2): sanity-cap `clearing price` by `bid_price_cents` in `handleWin`.** The exchange fills `${AUCTION_PRICE}` — this is the clearing price and is what `handleWin` uses for budget deduction. It is unsigned URL input; an attacker with path access could inflate it to drain campaign budget faster than bids committed. With `bid_price_cents` now signed in the token, we have a cryptographic upper bound: the clearing price can never exceed the bid price. After parsing URL `price`, apply:
+
 ```go
-// BidderTokenLegacyAccepted counts win/click token validations that fell
-// back to the legacy 4-param HMAC signature during a deploy transition.
+// Cap clearing price by the signed bid price. Defense against URL tampering
+// of the unsigned `price` param (Codex Finding #2). Only applies when URL
+// carried a valid bid_price_cents (new-format token path).
+if urlBidPriceCents > 0 {
+    bidCapDollars := float64(urlBidPriceCents) / 100.0 / 1000.0  // same CPM-dollars unit as `price`
+    if price > bidCapDollars {
+        log.Printf("[WIN] clearing price %.6f exceeded signed bid cap %.6f, capping (request_id=%s)",
+            price, bidCapDollars, requestID)
+        observability.BidderClearingPriceCapped.WithLabelValues("win").Inc()
+        price = bidCapDollars
+    }
+}
+```
+
+Register both new counters in `internal/observability/metrics.go`:
+```go
+// BidderTokenLegacyAccepted counts win/click/convert token validations that
+// fell back to the legacy 4-param HMAC signature during a deploy transition.
 // Expected to spike briefly after a Phase 2 deploy, then return to zero
 // within the 5-minute token TTL. Sustained non-zero = stuck legacy path,
 // remove the legacy branch or investigate.
@@ -863,7 +1053,19 @@ var BidderTokenLegacyAccepted = promauto.NewCounterVec(
 		Name: "bidder_token_legacy_accepted_total",
 		Help: "Count of HMAC token validations accepted via legacy 4-param signature during deploy transition.",
 	},
-	[]string{"handler"}, // "win" | "click"
+	[]string{"handler"}, // "win" | "click" | "convert"
+)
+
+// BidderClearingPriceCapped counts /win requests whose unsigned URL `price`
+// exceeded the HMAC-signed bid_price_cents bound. Non-zero indicates either
+// (a) a URL-tamper attempt, or (b) an upstream exchange bug sending a
+// clearing price above our bid. Either case is suspicious.
+var BidderClearingPriceCapped = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "bidder_clearing_price_capped_total",
+		Help: "Count of /win requests where clearing price exceeded the signed bid price and was capped.",
+	},
+	[]string{"handler"}, // "win" — future: maybe "click" too
 )
 ```
 
@@ -895,39 +1097,59 @@ Expected: all PASS.
 - [ ] **Step 4.9: Commit fix**
 
 ```bash
-git add cmd/bidder/main.go
-git commit -m "fix(bidder): inject click tracker on exchange + use URL metadata in handleWin [closes F1, F5]
-
-F1: handleExchangeBid now runs decorateBidResponse, which injects the
-click tracker URL into AdM — matching direct /bid behavior. CPC
-billing on exchange traffic was previously broken because /click was
-never triggered without a tracker URL in AdM.
+git add cmd/bidder/main.go internal/observability/metrics.go
+git commit -m "fix(bidder): win/click/convert URL metadata + transitional token + price cap [closes F5, CEO #3, Codex #2, #4]
 
 F5: handleWin parses creative_id and bid_price_cents from the URL
 query (signed by HMAC token) instead of recomputing from current
 campaign state. Fixes bid_log rows that reported the wrong creative
 for multi-creative campaigns, or wrong bid_price after bid strategy
-shifts between bid and win. Falls back to the old recompute path
-with a warn log if the URL lacks the metadata, for in-flight tokens
-issued before this deploy."
+shifts between bid and win.
+
+Transitional HMAC validation (CEO Finding #3): handleWin, handleClick,
+AND handleConvert accept both new 6-param and legacy 4-param tokens
+during the deploy window. Legacy acceptance increments
+bidder_token_legacy_accepted_total{handler} and forces recompute
+fallback (URL metadata is untrusted on legacy tokens because the
+pre-deploy binary did not sign creative_id/bid_price_cents).
+
+handleConvert also gets transitional validation (Codex Finding #4) —
+previously only validated (campaign_id, request_id); without this the
+buildConvertURL test-helper update to 5-param would break all /convert
+integration tests.
+
+Clearing price cap (Codex Finding #2): handleWin now caps the unsigned
+URL \`price\` by the signed bid_price_cents. This eliminates a URL-
+tampering attack where an attacker could inflate the clearing price
+to drain campaign budget faster than committed bids. Cap events
+increment bidder_clearing_price_capped_total{handler=\"win\"}."
 ```
 
 ### Phase 2 Boundary Gate
 
-- [ ] **Step P2.G.1-8:** Same structure as Phase 1 boundary (see Step P1.G.1-P1.G.8). Phase 2 has an HMAC token signature change — pay specific attention in `/review` and Codex to whether all 10 token caller sites were updated and whether the fallback path in `handleWin` is safe during deploy.
+- [ ] **Step P2.G.1-8:** Same structure as Phase 1 boundary (see Step P1.G.1-P1.G.8). Phase 2 has an HMAC token signature change — pay specific attention in `/review` and Codex to whether all **11 token caller sites** (added handleConvert) were updated and whether the fallback path is safe during deploy. Also grep for unsigned URL → money-path uses beyond `price` to confirm the `clearing_price` cap fully closes the tampering surface.
 
 ---
 
-## Phase 3 — Activation contract + pub/sub metric (F3)
+## Phase 3 — Activation contract + pub/sub metric + InitDailyBudget fail-closed (F3)
 
-One PR, 3 commits. This IS Phase Final for the branch — `/cso` runs here.
+One PR, **5 commits** (was 3; grew for Codex Finding #3 + Eng Review Finding A). This IS Phase Final for the branch — `/cso` runs here.
 
-### Task 5 — F3: `NotifyCampaignUpdate` returns error + metric counter
+**Scope per Codex Finding #3 (Decision II-C)**: F3 can't be solved by pub/sub metric alone. The `/start` activation chain has THREE failure modes that can produce "200 OK but campaign never serves":
+
+1. **Pub/sub fails** → loader's 30s periodic refresh recovers (this is what the spec originally framed as "eventual-consistency")
+2. **`InitDailyBudget` fails** → budget.go treats missing daily key as 0 → bidder no-bids forever. Loader fullLoad only inits TOTAL, not DAILY. Loader pub/sub `listenPubSub` for `action=activated` currently does NOT re-init DailyBudget either. **Not recoverable without code change.**
+3. **Ordering race**: `TransitionStatus(active)` commits before `InitDailyBudget` is even attempted. If the process crashes between them, DB says "active" but daily budget never initialized.
+
+Phase 3 addresses all three:
+- Reorder `HandleStartCampaign`: `InitDailyBudget` BEFORE `TransitionStatus(active)`. Eliminates the crash-window race + turns InitDailyBudget failure into a natural 503 (no rollback needed, active state never committed).
+- Loader re-inits DailyBudget on `action=activated` messages (fallback for Redis recovering after start).
+- Pub/sub failure gets `campaign_activation_pubsub_failures_total{action}` metric (all 7 caller sites per Eng Review Finding A).
 
 **Files:**
-- Modify: `internal/bidder/loader.go:343-351` (`NotifyCampaignUpdate` signature)
+- Modify: `internal/bidder/loader.go:343-351` (`NotifyCampaignUpdate` signature) + `listenPubSub` activated branch (reinit DailyBudget)
 - Modify: `internal/observability/metrics.go` (new counter)
-- Modify: `internal/handler/campaign.go` (3 sites: HandleStartCampaign, HandlePauseCampaign, HandleUpdateCampaign)
+- Modify: `internal/handler/campaign.go` (all **7** NotifyCampaignUpdate sites + HandleStartCampaign reorder)
 - Test: append to `internal/handler/e2e_public_campaign_test.go`
 
 - [ ] **Step 5.1: Write failing test**
@@ -1036,9 +1258,16 @@ func NotifyCampaignUpdate(ctx context.Context, rdb *redis.Client, campaignID int
 }
 ```
 
-- [ ] **Step 5.6: Update all NotifyCampaignUpdate callers to record the metric**
+- [ ] **Step 5.6: Update ALL 7 NotifyCampaignUpdate callers to record the metric**
 
-Find callers: `grep -rn NotifyCampaignUpdate internal/ cmd/`. Expected sites: `HandleStartCampaign`, `HandlePauseCampaign`, `HandleUpdateCampaign`, plus any remove/delete paths.
+`grep -rn NotifyCampaignUpdate internal/ cmd/` returned **7 call sites** (Eng Review Finding A + Codex Finding #5):
+- `internal/handler/campaign.go:188` — creative create/update path (action=`updated`)
+- `internal/handler/campaign.go:287` — HandleUpdateCampaign (action=`updated`)
+- `internal/handler/campaign.go:347` — HandleStartCampaign (action=`activated`)
+- `internal/handler/campaign.go:375` — HandlePauseCampaign (action=`paused`)
+- `internal/handler/campaign.go:434` — budget adjustment (action=`updated`)
+- `internal/handler/campaign.go:486` — creative approval (action=`updated`)
+- `internal/handler/campaign.go:559` — budget adjustment v2 (action=`updated`)
 
 Pattern for each caller (example for Start):
 ```go
@@ -1050,14 +1279,131 @@ Pattern for each caller (example for Start):
 	}
 ```
 
-Apply the same wrap at each call site with the corresponding action label.
+Apply identically at every other call site, labeling with the matching action string (expect 5× `"updated"`, 1× `"activated"`, 1× `"paused"`). Do NOT miss one — a missed site = silent observability gap.
 
-- [ ] **Step 5.7: Run test — verify GREEN**
+- [ ] **Step 5.6b: Reorder `HandleStartCampaign` — InitDailyBudget BEFORE TransitionStatus (Codex Finding #3)**
+
+Edit `internal/handler/campaign.go:335-348`. Current sequence:
+```go
+if err := d.Store.TransitionStatus(r.Context(), id, advID, campaign.StatusActive); err != nil { ... }
+if d.BudgetSvc != nil {
+    if err := d.BudgetSvc.InitDailyBudget(r.Context(), id, c.BudgetDailyCents); err != nil {
+        log.Printf("[CAMPAIGN] InitDailyBudget campaign=%d error: %v (continuing activation)", id, err)
+    }
+}
+if d.Redis != nil { bidder.NotifyCampaignUpdate(...) }
+```
+
+Change to:
+```go
+// Prep Redis-side state BEFORE committing DB active. If InitDailyBudget
+// fails, we bail with 503 and never transition — the campaign stays
+// in its pre-start state, no orphan "active but 0 daily budget" row.
+if d.BudgetSvc != nil {
+    if err := d.BudgetSvc.InitDailyBudget(r.Context(), id, c.BudgetDailyCents); err != nil {
+        log.Printf("[CAMPAIGN] InitDailyBudget failed campaign=%d adv=%d: %v", id, advID, err)
+        WriteError(w, http.StatusServiceUnavailable, "unable to initialize daily budget, please retry")
+        return
+    }
+}
+
+if err := d.Store.TransitionStatus(r.Context(), id, advID, campaign.StatusActive); err != nil {
+    WriteError(w, http.StatusConflict, err.Error())
+    return
+}
+
+if d.Redis != nil {
+    if err := bidder.NotifyCampaignUpdate(r.Context(), d.Redis, id, "activated"); err != nil {
+        observability.CampaignActivationPubSubFailures.WithLabelValues("activated").Inc()
+    }
+}
+WriteJSON(w, http.StatusOK, map[string]string{"status": "active"})
+```
+
+Notes:
+- This order is **"prepare then commit"** — Redis side-effects first, DB commit last. Matches standard side-effect ordering.
+- If `BudgetSvc == nil` (same config mode as `BillingSvc`) we skip — consistent with Task 0 pattern. Future-work TODO: assert BudgetSvc non-nil at startup too (not this PR).
+- `HandleUpdateCampaign` budget change paths at lines 434 / 486 / 559 also call `InitDailyBudget` or similar; they should likewise propagate errors. Grep for `InitDailyBudget` and apply the same fail-closed pattern. This is an extra commit (5.6c) so the reorder commit stays focused.
+
+- [ ] **Step 5.6c: Update loader to reinit DailyBudget on `action=activated`**
+
+Edit `internal/bidder/loader.go`. Locate `listenPubSub` (handles `action=activated`). It currently re-queries Postgres, re-parses targeting+creatives, writes to in-memory map, and calls `InitTotalBudget` but NOT `InitDailyBudget`. Add:
+```go
+// Re-init DailyBudget as a fallback for /start pub/sub that arrived AFTER
+// a transient Redis outage — ensures bidder serves the campaign even if
+// the handler-side InitDailyBudget briefly failed and was retried later.
+if cl.budgetSvc != nil && lc.BudgetDailyCents > 0 {
+    if err := cl.budgetSvc.InitDailyBudget(ctx, lc.ID, lc.BudgetDailyCents); err != nil {
+        log.Printf("[LOADER] reinit daily budget for campaign %d: %v", lc.ID, err)
+    }
+}
+```
+
+Same block added to `periodicRefresh`'s `fullLoad` at [internal/bidder/loader.go:220-230](internal/bidder/loader.go) alongside existing `InitTotalBudget`. Use `SetNX`-equivalent semantics so partially-spent counters aren't reset (mirror how `InitTotalBudget` is called).
+
+- [ ] **Step 5.6d: Add two more tests — InitDailyBudget failure + loader DailyBudget reinit**
+
+Append to `e2e_public_campaign_test.go`:
+```go
+// TestCampaign_StartReturns503WhenInitDailyBudgetFails verifies the
+// InitDailyBudget fail-closed path (Codex Finding #3). Pre-fix:
+// InitDailyBudget error was log-and-continue, campaign committed active
+// with no daily key → bidder saw 0 budget → no-bids forever. Post-fix:
+// InitDailyBudget err returns 503 BEFORE TransitionStatus, no active row.
+func TestCampaign_StartReturns503WhenInitDailyBudgetFails(t *testing.T) {
+	d := mustDeps(t)
+	advID, apiKey := newAdvertiser(t, d)
+	campaignID := newCampaign(t, d, advID)
+	_ = newCreative(t, d, campaignID)
+
+	// Close the Redis client backing BudgetSvc so InitDailyBudget errors.
+	// Note: BillingSvc uses Postgres not Redis, so balance check still works.
+	d.Redis.Close()
+
+	req := authedReq(t, http.MethodPost,
+		"/api/v1/campaigns/"+strconv.FormatInt(campaignID, 10)+"/start", nil, apiKey)
+	w := execAuthed(t, d, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 on InitDailyBudget failure, got %d: %s",
+			w.Code, w.Body.String())
+	}
+
+	// Verify the campaign was NOT transitioned to active.
+	c, err := d.Store.GetCampaign(context.Background(), campaignID)
+	if err != nil {
+		t.Fatalf("get campaign: %v", err)
+	}
+	if c.Status == campaign.StatusActive {
+		t.Fatalf("CONTRACT VIOLATION: campaign committed active despite 503 response")
+	}
+}
+```
+
+- [ ] **Step 5.6e: Run the new tests to verify RED**
 
 ```bash
-go test -tags=e2e ./internal/handler/ -run TestCampaign_StartRecordsMetricOnPubSubFailure -v
+go test -tags=e2e ./internal/handler/ -run "TestCampaign_StartReturns503WhenInitDailyBudgetFails" -v
 ```
-Expected: PASS.
+Expected: FAIL (pre-reorder: returns 200, campaign transitions active). Also the existing `TestCampaign_StartRecordsMetricOnPubSubFailure` test needs re-checking — with Step 5.6b reorder, a closed Redis now trips InitDailyBudget **before** pub/sub, so that test MUST use a different failure injection mode. Update the test: replace `d.Redis.Close()` with an approach that only kills pub/sub, not InitDailyBudget. **Simplest**: inject a failing pub/sub layer into BudgetSvc wiring OR mock `rdb.Publish` to return err while keeping INCR/SET working. **Alternative**: split Redis into `d.Redis` (for pub/sub) and `d.BudgetRedis` (for INCR/GET) — larger refactor, defer.
+
+Practical choice for this plan: the existing test switches to a "new Redis client for campaign's pub/sub only". Look at how `e2e_support_test.go::mustDeps` wires Redis; if `d.Redis` is the only handle, create an inner test that swaps in a `&failingPublishRedis{Inner: d.Redis}` wrapper which proxies all commands EXCEPT `Publish`. That wrapper is ~15 lines.
+
+- [ ] **Step 5.6f: Commit failing tests**
+
+```bash
+git add internal/handler/e2e_public_campaign_test.go
+git commit -m "test(handler): InitDailyBudget failure → 503 + no active transition
+
+Expect-Fail: TestCampaign_StartReturns503WhenInitDailyBudgetFails"
+```
+
+- [ ] **Step 5.7: Run all tests — verify GREEN after implementation**
+
+```bash
+go test -tags=e2e ./internal/handler/ -run "TestCampaign_StartRecordsMetricOnPubSubFailure|TestCampaign_StartReturns503WhenInitDailyBudgetFails" -v
+```
+Expected: both PASS.
 
 - [ ] **Step 5.8: Run broader tests to check no regression**
 
@@ -1071,14 +1417,29 @@ Expected: all PASS.
 
 ```bash
 git add internal/observability/metrics.go internal/bidder/loader.go internal/handler/campaign.go
-git commit -m "feat(bidder,handler): record campaign_activation_pubsub_failures_total metric [F3]
+git commit -m "feat(bidder,handler): F3 activation contract — metric + reorder + loader reinit [closes F3]
 
-NotifyCampaignUpdate now returns the Redis Publish error; handler
-sites record campaign_activation_pubsub_failures_total{action=...}
-on failure without aborting activation. Per F3 decision (option B),
-the /start contract remains eventually-consistent — the loader's
-30s refresh catches up if pub/sub is down. The new metric surfaces
-activation-delivery degradation to dashboards."
+Three coordinated changes address the F3 activation-contract failure
+surface that the design review discovered to be larger than pub/sub alone
+(Codex Finding #3):
+
+1. NotifyCampaignUpdate now returns the Redis Publish error; all 7
+   caller sites record campaign_activation_pubsub_failures_total{action}
+   on failure without aborting the request.
+
+2. HandleStartCampaign reordered: InitDailyBudget runs BEFORE
+   TransitionStatus(active). If InitDailyBudget fails, returns 503
+   with no DB transition — eliminates the '200 OK but bidder sees 0
+   budget' silent failure mode.
+
+3. CampaignLoader now reinits DailyBudget (not just TotalBudget) on
+   action=activated pub/sub and on periodic refresh. Provides a
+   recovery path if the handler-side InitDailyBudget fails and Redis
+   comes back online later.
+
+The /start contract: bidder serves within 30s for pub/sub failures;
+with these changes, InitDailyBudget failures surface as 503 (not
+silent) and transient Redis outages auto-recover via loader retry."
 ```
 
 ### Task 6 — F3: Document 30s activation eventual-consistency contract
@@ -1100,27 +1461,46 @@ Decide which file owns the `/start` contract: `docs/contracts/campaigns.md` if e
 Append:
 
 ```markdown
-### Campaign activation eventual-consistency contract
+### Campaign activation contract
 
-`POST /api/v1/campaigns/{id}/start` returns 200 as soon as the campaign
-row in Postgres is transitioned to `active`. The bidder sees the campaign
-via two paths:
+#### Activation sequence (post-fix, 2026-04)
 
-1. **Pub/sub fast path:** `campaign:updates` message reaches the bidder's
-   `CampaignLoader.listenPubSub`, the loader re-queries Postgres and
-   updates its in-memory map. Typical latency: sub-second.
-2. **Periodic fallback:** If pub/sub delivery fails (Redis outage, network
-   blip), the bidder's `CampaignLoader.periodicRefresh` re-reads the full
-   active set every 30s and catches up.
+`POST /api/v1/campaigns/{id}/start` executes in this order:
 
-**SLA:** Clients MUST NOT assume that a 200 on `/start` means the bidder
-is immediately delivering bids for the campaign. The contract is that
-the bidder WILL be serving the campaign within **30 seconds** of the 200
-response, assuming Postgres and the bidder process are healthy.
+1. **Validate tenant + preconditions** (campaign exists, creatives approved, end_date valid, budget_total >= budget_daily).
+2. **Balance check**: sandbox → skip; else `BillingSvc.GetBalance` → 503 if error, 422 if insufficient.
+3. **`BudgetSvc.InitDailyBudget`**: 503 if error (no DB transition yet, so no orphan state).
+4. **`Store.TransitionStatus(active)`**: 409 on conflict.
+5. **`NotifyCampaignUpdate`** pub/sub: errors recorded as metric, do NOT block response.
+6. Return 200.
 
-**Monitoring:** `campaign_activation_pubsub_failures_total{action}`
-increments on pub/sub delivery failure. A sustained non-zero rate means
-users are hitting the 30s fallback path. Same applies to pause and update.
+**Why InitDailyBudget runs before TransitionStatus:** if InitDailyBudget fails and we'd committed active first, the campaign would appear active in Postgres but be no-bid forever in the bidder (missing daily key = 0 budget). Prepare-then-commit ordering eliminates this.
+
+#### Bidder visibility after 200
+
+1. **Pub/sub fast path (<1s)**: `campaign:updates action=activated` reaches `CampaignLoader.listenPubSub`; loader re-queries Postgres, updates in-memory map, **reinits DailyBudget** (recovery path if handler-side retry was needed).
+2. **Periodic fallback (≤30s)**: If pub/sub delivery fails, `CampaignLoader.periodicRefresh` picks up the campaign during the next 30s full-load cycle; also reinits DailyBudget.
+
+**SLA:** Clients MUST NOT assume a 200 on `/start` means the bidder is instantly serving. The guarantee is **bidder is serving within 30 seconds of the 200 response**, given Postgres + bidder process healthy.
+
+#### Failure-mode matrix
+
+| Failure | Response | Recovery |
+|---------|----------|----------|
+| Postgres tenant lookup | 404 | N/A (never activated) |
+| `BillingSvc.GetBalance` error | 503 | Client retry |
+| Balance insufficient | 422 | Top up + retry |
+| `BillingSvc` nil | 503 | Wiring bug — startup assert should catch |
+| `InitDailyBudget` error | 503 | Client retry (Redis-recovery dependent) |
+| `TransitionStatus` conflict | 409 | Already active or state machine mismatch |
+| `NotifyCampaignUpdate` pub/sub error | 200 + metric | Loader 30s refresh recovers |
+| Post-200 Redis outage | 200 | Loader reinit on next periodic refresh |
+
+#### Monitoring
+
+- `campaign_activation_pubsub_failures_total{action="activated"|"paused"|"updated"}` — pub/sub delivery failures
+- `bidder_token_legacy_accepted_total{handler="win"|"click"|"convert"}` — transitional token validations (should → 0 after one deploy window)
+- `bidder_clearing_price_capped_total{handler}` — URL `price` param exceeded signed bid cap (tamper indicator)
 ```
 
 - [ ] **Step 6.3: Commit**
@@ -1179,7 +1559,7 @@ campaign_activation_pubsub_failures_total metric for monitoring."
 - **Gap flagged:** `TestHandleWin_UsesCreativeIDAndBidPriceFromURL` references `f.producer.LastEventOfType` which may not exist — explicitly noted in Step 4.2 with fallback guidance. Acceptable since the exact event-inspection API is a fixture detail.
 - **CEO Finding #3 legacy-path F5 interaction:** The transitional validation explicitly clears `urlCrIDStr`/`urlPriceCentsStr` when legacy token is accepted, forcing the recompute fallback. This is correct: legacy tokens were issued by a binary that didn't put creative_id/bid_price_cents into the NURL in the first place, so those URL params (if present at all) are untrusted user input, not signed data. Without the clear, a tampered legacy-token request could inject arbitrary `creative_id` into bid_log.
 
-## CEO Plan Review — Decisions Applied
+## CEO Plan Review — Decisions Applied (Round 1)
 
 | Finding | Severity | Decision (user picked) | Plan change |
 |--------|----------|----------------------|-------------|
@@ -1187,6 +1567,19 @@ campaign_activation_pubsub_failures_total metric for monitoring."
 | #2 `nil BillingSvc` bypass | CONCERN | **2B**: nil → 503 in handler | Extra test case in Step 1.1 + code change in Step 1.4 + startup assert in Task 0.3 |
 | #3 HMAC deploy rollover | CONCERN | **3A**: transitional validation | Step 4.5 try-6-then-4 block + `bidder_token_legacy_accepted_total` metric |
 | #4 float→int cents truncation | MINOR | **4A**: `math.Round` | Task 3.1 `decorator.go` uses `math.Round(bid.Price*100)` |
+
+## Codex Adversarial Review — Decisions Applied (Round 2)
+
+All 6 Codex findings accepted per user "按推荐" (OK by recommendation):
+
+| Finding | Severity | Resolution |
+|--------|----------|-----------|
+| #1 BillingService too narrow | CRITICAL | Interface expanded to `GetBalance` + `TopUp` + `GetTransactions` in Task 0.1 |
+| #2 HMAC signs reporting but not `price` | HIGH | Decision I-B: clearing-price cap by `bid_price_cents` in `handleWin` + new `bidder_clearing_price_capped_total` metric + TestHandleWin_CapsClearingPriceByBidPrice |
+| #3 30s contract false (InitDailyBudget + ordering) | HIGH | Decision II-C: Task 5.6b reorder (InitDailyBudget before TransitionStatus, fail-closed) + Task 5.6c loader reinit DailyBudget + Task 5.6d failing tests |
+| #4 handleConvert missed | HIGH | Task 4.5 transitional validation also applied to `handleConvert` — prevents buildConvertURL test breakage |
+| #5 NotifyCampaignUpdate callers (3 vs 7) | MEDIUM | Task 5.6 enumerates all 7 sites explicitly |
+| #6 Task 3 "non-functional refactor" mislabeled | MEDIUM | Task 3.6 commit message rewritten to acknowledge combined refactor + F1 behavior change |
 
 ## Next Step
 

@@ -39,16 +39,26 @@ if err == nil && balance < c.BudgetDailyCents { // err 被静默吞掉
 
 **可测性前置条件**（CEO Finding #1）：必须先把 `Deps.BillingSvc` 从 `*billing.Service` 抽为 `BillingService` interface，否则 F2 测试无法注入 failing stub（FK 无 `ON DELETE CASCADE`，DELETE advertisers 行会因 campaign 引用而失败）。作为 Phase 1 第 0 个 task 落地，`billing.Service` 自动实现 interface，prod 零行为变化。
 
-### F3 — Activation 链不原子（Medium）
+### F3 — Activation 链不原子（升级后：Critical，Codex Finding #3）
 
-**问题**：`TransitionStatus(active)` → `InitDailyBudget` → `NotifyCampaignUpdate` 三步，pub/sub 失败时 bidder 要等 `loader.periodicRefresh()` 的 30s 周期。
+**原始问题**：`TransitionStatus(active)` → `InitDailyBudget` → `NotifyCampaignUpdate` 三步，pub/sub 失败时 bidder 要等 `loader.periodicRefresh()` 的 30s 周期。
 
-**契约对齐（用户选 B）**：接受"最终一致，承诺上限 ≤30s"。不引入 outbox。
+**Codex 追加问题**：原分析只看了 pub/sub 失败这一条路径。活的活化链实际有**三个**"200 OK 但静默坏掉"的失败面：
+1. pub/sub 失败（原分析 — 30s loader 兜底）
+2. **`InitDailyBudget` 失败**（log-and-continue → Redis daily key 永不存在 → `budget.go` 当作 0 预算 → 永久 no-bid。loader 的 fallback 只 init total 不 init daily，**不能自恢复**）
+3. **顺序竞态**：`TransitionStatus(active)` 提交 DB 后、`InitDailyBudget` 之前崩溃 → DB 是 active 但无 daily key
 
-**决策**：
-- 加 metric `campaign_activation_pubsub_failures_total{action}`
-- `NotifyCampaignUpdate` 当前 fire-and-forget，改为返回 error 并在 handler 记 metric（不阻塞响应）
-- API doc 明确契约：200 表示 DB 切 active，bidder 可投最长延迟 30s
+**契约对齐（用户：II-C = A+B 组合）**：
+1. **A - handler fail-closed**：`HandleStartCampaign` 重排顺序——`InitDailyBudget` 在 `TransitionStatus(active)` 之前。失败返 503，DB 从未 transition，无 orphan state。"prepare-then-commit" 标准做法，消除顺序竞态
+2. **B - loader 恢复路径**：`CampaignLoader.listenPubSub`（action=activated）和 `periodicRefresh` 的 fullLoad 都新增 `InitDailyBudget` 调用。如果 handler 层 transient Redis 抖动失败后 Redis 恢复了，loader 会兜底重试
+3. **metric**：`campaign_activation_pubsub_failures_total{action}` 覆盖所有 **7 处** `NotifyCampaignUpdate` 调用点（不止 start/pause/update — 还有 creative approve / budget adjust 等 5 处 `action=updated`）
+4. **API doc**：30s 契约变成**完整失败矩阵**，明确 503/422/409/200 各自的含义和恢复路径
+
+### F2.5 — clearing price 未签 HMAC，可被 URL 篡改（Codex Finding #2，Decision I-B 新增 scope）
+
+**问题**：exchange 回调 `/win?price=${AUCTION_PRICE}` 的 `price` 是 clearing price，参与 budget deduct 但未在 HMAC token 中签名。理论攻击面：有流量 MITM 能力时可以改大 price，让 win handler 多扣预算。
+
+**决策**：F5 引入 `bid_price_cents` 到签名 token 后，`handleWin` 对比 URL `price` 和签过的 `bid_price_cents`。若 `price > bid_price_cents` → 封顶到 `bid_price_cents`，记 `bidder_clearing_price_capped_total` metric + warn log。攻击者即便改了 URL 的 price 也改不出 bid 上限。
 
 ### F4 — 直接 `/bid` 无 body size 限制（Medium）
 
