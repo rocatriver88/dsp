@@ -268,18 +268,25 @@ func (d *Deps) handleBid(w http.ResponseWriter, r *http.Request) {
 		observability.BidLatency.WithLabelValues("direct").Observe(time.Since(start).Seconds())
 	}()
 
-	// Enforce 1MB body cap to match exchange path and protect against
-	// OOM on public /bid endpoint. MaxBytesReader returns *http.MaxBytesError
-	// when exceeded; the handler maps that to 413 and everything else to 400.
+	// Enforce 1MB body cap. Use io.ReadAll (NOT json.Decoder.Decode) to drain
+	// the full body through MaxBytesReader — a one-shot Decode stops at the
+	// end of the first JSON object and would leave a bypass for small-valid-
+	// JSON-plus-oversized-junk payloads. Symmetric with the exchange path.
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	var req openrtb2.BidRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
 		observability.BidRequestsTotal.WithLabelValues("direct", "rejected").Inc()
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
 			http.Error(w, `{"error":"request body too large"}`, http.StatusRequestEntityTooLarge)
 			return
 		}
+		http.Error(w, `{"error":"read body failed"}`, http.StatusBadRequest)
+		return
+	}
+	var req openrtb2.BidRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		observability.BidRequestsTotal.WithLabelValues("direct", "rejected").Inc()
 		http.Error(w, `{"error":"invalid bid request"}`, http.StatusBadRequest)
 		return
 	}
