@@ -11,6 +11,7 @@ import (
 	"github.com/heartgryphon/dsp/internal/auth"
 	"github.com/heartgryphon/dsp/internal/bidder"
 	"github.com/heartgryphon/dsp/internal/campaign"
+	"github.com/heartgryphon/dsp/internal/observability"
 )
 
 // HandleCreateAdvertiser godoc
@@ -185,7 +186,9 @@ func (d *Deps) HandleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if d.Redis != nil {
-		bidder.NotifyCampaignUpdate(r.Context(), d.Redis, id, "updated")
+		if err := bidder.NotifyCampaignUpdate(r.Context(), d.Redis, id, "updated"); err != nil {
+			observability.CampaignActivationPubSubFailures.WithLabelValues("updated").Inc()
+		}
 	}
 
 	WriteJSON(w, http.StatusCreated, map[string]any{"id": id, "status": "draft"})
@@ -284,7 +287,9 @@ func (d *Deps) HandleUpdateCampaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if d.Redis != nil {
-		bidder.NotifyCampaignUpdate(r.Context(), d.Redis, id, "updated")
+		if err := bidder.NotifyCampaignUpdate(r.Context(), d.Redis, id, "updated"); err != nil {
+			observability.CampaignActivationPubSubFailures.WithLabelValues("updated").Inc()
+		}
 	}
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
@@ -344,19 +349,32 @@ func (d *Deps) HandleStartCampaign(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Prep Redis-side state BEFORE committing DB active. If InitDailyBudget
+	// fails, we bail with 503 and never transition — the campaign stays
+	// in its pre-start state, no orphan "active but 0 daily budget" row.
+	// Prepare-then-commit ordering eliminates the race where a crash
+	// between TransitionStatus and InitDailyBudget would leave the DB
+	// saying "active" with the bidder unable to serve (missing daily key
+	// = 0 budget). Codex Finding #3.
+	if d.BudgetSvc != nil {
+		if err := d.BudgetSvc.InitDailyBudget(r.Context(), id, c.BudgetDailyCents); err != nil {
+			log.Printf("[CAMPAIGN] InitDailyBudget failed campaign=%d adv=%d: %v", id, advID, err)
+			WriteError(w, http.StatusServiceUnavailable, "unable to initialize daily budget, please retry")
+			return
+		}
+	}
+
 	if err := d.Store.TransitionStatus(r.Context(), id, advID, campaign.StatusActive); err != nil {
 		WriteError(w, http.StatusConflict, err.Error())
 		return
 	}
 
-	if d.BudgetSvc != nil {
-		if err := d.BudgetSvc.InitDailyBudget(r.Context(), id, c.BudgetDailyCents); err != nil {
-			log.Printf("[CAMPAIGN] InitDailyBudget campaign=%d error: %v (continuing activation)", id, err)
-		}
-	}
-
 	if d.Redis != nil {
-		bidder.NotifyCampaignUpdate(r.Context(), d.Redis, id, "activated")
+		if err := bidder.NotifyCampaignUpdate(r.Context(), d.Redis, id, "activated"); err != nil {
+			observability.CampaignActivationPubSubFailures.WithLabelValues("activated").Inc()
+			// Do NOT return — per F3 contract, eventual-consistency applies:
+			// the bidder's 30s periodic refresh recovers this activation.
+		}
 	}
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "active"})
 }
@@ -384,7 +402,9 @@ func (d *Deps) HandlePauseCampaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if d.Redis != nil {
-		bidder.NotifyCampaignUpdate(r.Context(), d.Redis, id, "paused")
+		if err := bidder.NotifyCampaignUpdate(r.Context(), d.Redis, id, "paused"); err != nil {
+			observability.CampaignActivationPubSubFailures.WithLabelValues("paused").Inc()
+		}
 	}
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "paused"})
 }
@@ -443,7 +463,9 @@ func (d *Deps) HandleDeleteCreative(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if d.Redis != nil {
-		bidder.NotifyCampaignUpdate(r.Context(), d.Redis, campaignID, "updated")
+		if err := bidder.NotifyCampaignUpdate(r.Context(), d.Redis, campaignID, "updated"); err != nil {
+			observability.CampaignActivationPubSubFailures.WithLabelValues("updated").Inc()
+		}
 	}
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
@@ -495,7 +517,9 @@ func (d *Deps) HandleUpdateCreative(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if d.Redis != nil {
-		bidder.NotifyCampaignUpdate(r.Context(), d.Redis, campaignID, "updated")
+		if err := bidder.NotifyCampaignUpdate(r.Context(), d.Redis, campaignID, "updated"); err != nil {
+			observability.CampaignActivationPubSubFailures.WithLabelValues("updated").Inc()
+		}
 	}
 	WriteJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
@@ -568,7 +592,9 @@ func (d *Deps) HandleCreateCreative(w http.ResponseWriter, r *http.Request) {
 		status = "approved"
 	}
 	if d.Redis != nil {
-		bidder.NotifyCampaignUpdate(r.Context(), d.Redis, req.CampaignID, "updated")
+		if err := bidder.NotifyCampaignUpdate(r.Context(), d.Redis, req.CampaignID, "updated"); err != nil {
+			observability.CampaignActivationPubSubFailures.WithLabelValues("updated").Inc()
+		}
 	}
 	WriteJSON(w, http.StatusCreated, map[string]any{"id": id, "status": status})
 }

@@ -151,4 +151,15 @@ var (
 		Name: "bidder_clearing_price_capped_total",
 		Help: "Count of /win requests where clearing price exceeded the signed bid price and was capped.",
 	}, []string{"handler"})
+
+	// CampaignActivationPubSubFailures counts pub/sub delivery failures
+	// during campaign start/pause/update. Pub/sub delivery is best-effort;
+	// on failure the bidder's periodic 30s loader refresh catches up as
+	// an eventual-consistency fallback. High rates here correlate with
+	// longer user-visible activation lag.
+	// Labels: action — {activated, paused, updated, removed}
+	CampaignActivationPubSubFailures = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "campaign_activation_pubsub_failures_total",
+		Help: "Count of Redis pub/sub publish failures during campaign activation/pause/update notifications.",
+	}, []string{"action"})
 )
