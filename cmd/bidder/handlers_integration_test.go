@@ -116,15 +116,19 @@ func (f *handlerFixture) Start(t *testing.T) {
 }
 
 // buildWinURL constructs the /win query string the way an exchange would,
-// with a valid HMAC token signing (campaign_id, request_id) — the same
-// parameter order the /win handler uses with auth.ValidateToken.
+// with a valid HMAC token. Post-decorator refactor the signature is
+// (campaignID, requestID, creativeID, bidPriceCents); existing tests that
+// don't carry creative metadata sign with empty strings and the handler's
+// ValidateToken naturally reads "" back from URL for the same params.
 func (f *handlerFixture) buildWinURL(campaignID int64, requestID string, price float64, geo, osName string) string {
 	campIDStr := fmt.Sprintf("%d", campaignID)
-	token := auth.GenerateToken(qaHMACSecret, campIDStr, requestID)
+	token := auth.GenerateToken(qaHMACSecret, campIDStr, requestID, "", "")
 	q := url.Values{}
 	q.Set("campaign_id", campIDStr)
 	q.Set("price", fmt.Sprintf("%f", price))
 	q.Set("request_id", requestID)
+	q.Set("creative_id", "")
+	q.Set("bid_price_cents", "")
 	q.Set("geo", geo)
 	q.Set("os", osName)
 	q.Set("token", token)
@@ -133,17 +137,28 @@ func (f *handlerFixture) buildWinURL(campaignID int64, requestID string, price f
 
 func (f *handlerFixture) buildClickURL(campaignID int64, requestID string) string {
 	campIDStr := fmt.Sprintf("%d", campaignID)
-	token := auth.GenerateToken(qaHMACSecret, campIDStr, requestID)
+	// Token signature matches handleClick's 4-param ValidateToken
+	// (campaignID, requestID, creativeID, bidPriceCents). creative_id
+	// is placed in the URL as "" so the handler validates against the
+	// same empty string signed here. bid_price_cents is NOT in the URL
+	// (handleClick reads "" unconditionally), and the generator above
+	// uses "" so the HMACs line up.
+	token := auth.GenerateToken(qaHMACSecret, campIDStr, requestID, "", "")
 	q := url.Values{}
 	q.Set("campaign_id", campIDStr)
 	q.Set("request_id", requestID)
+	q.Set("creative_id", "")
 	q.Set("token", token)
 	return f.srv.URL + "/click?" + q.Encode()
 }
 
 func (f *handlerFixture) buildConvertURL(campaignID int64, requestID string) string {
 	campIDStr := fmt.Sprintf("%d", campaignID)
-	token := auth.GenerateToken(qaHMACSecret, campIDStr, requestID)
+	// Convert URLs are not produced by the decorator. handleConvert
+	// validates with (campaignID, requestID, creativeID, "") — read
+	// creative_id from the URL (absent = ""), bid_price_cents hardcoded
+	// to "". Sign with empty strings on both sides.
+	token := auth.GenerateToken(qaHMACSecret, campIDStr, requestID, "", "")
 	q := url.Values{}
 	q.Set("campaign_id", campIDStr)
 	q.Set("request_id", requestID)

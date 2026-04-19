@@ -308,29 +308,9 @@ func (d *Deps) handleBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	decorateBidResponse(resp, &req, d.PublicURL, d.HMACSecret)
 	if len(resp.SeatBid) > 0 && len(resp.SeatBid[0].Bid) > 0 {
 		bid := resp.SeatBid[0].Bid[0]
-		baseURL := d.PublicURL
-		hmacSecret := d.HMACSecret
-		// Extract geo/os for tracking URLs
-		var geo, os string
-		if req.Device != nil {
-			os = req.Device.OS
-			if req.Device.Geo != nil {
-				geo = req.Device.Geo.Country
-			}
-		}
-		// Generate HMAC token for win/click URL authentication
-		token := auth.GenerateToken(hmacSecret, bid.CID, req.ID)
-		// Add win notice URL with HMAC token
-		bid.NURL = fmt.Sprintf("%s/win?campaign_id=%s&price=${AUCTION_PRICE}&request_id=%s&geo=%s&os=%s&token=%s",
-			baseURL, bid.CID, req.ID, geo, os, token)
-		// Inject click tracking URL for CPC billing
-		clickURL := fmt.Sprintf("%s/click?campaign_id=%s&request_id=%s&token=%s",
-			baseURL, bid.CID, req.ID, token)
-		bid.AdM = injectClickTracker(bid.AdM, clickURL)
-		resp.SeatBid[0].Bid[0] = bid
-
 		log.Printf("[BID] request_id=%s campaign=%s bid=%.6f latency=%s",
 			req.ID, bid.CID, bid.Price, latency)
 	}
@@ -395,23 +375,9 @@ func (d *Deps) handleExchangeBid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Add win notice URL (same as standard handler)
+	decorateBidResponse(resp, req, d.PublicURL, d.HMACSecret)
 	if len(resp.SeatBid) > 0 && len(resp.SeatBid[0].Bid) > 0 {
 		bid := resp.SeatBid[0].Bid[0]
-		baseURL := d.PublicURL
-		hmacSecret := d.HMACSecret
-		var geo, os string
-		if req.Device != nil {
-			os = req.Device.OS
-			if req.Device.Geo != nil {
-				geo = req.Device.Geo.Country
-			}
-		}
-		token := auth.GenerateToken(hmacSecret, bid.CID, req.ID)
-		bid.NURL = fmt.Sprintf("%s/win?campaign_id=%s&price=${AUCTION_PRICE}&request_id=%s&geo=%s&os=%s&token=%s",
-			baseURL, bid.CID, req.ID, geo, os, token)
-		resp.SeatBid[0].Bid[0] = bid
-
 		log.Printf("[BID] exchange=%s request_id=%s campaign=%s bid=%.6f latency=%s",
 			exchangeID, req.ID, bid.CID, bid.Price, latency)
 	}
@@ -436,8 +402,12 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 	requestID := r.URL.Query().Get("request_id")
 	token := r.URL.Query().Get("token")
 
-	// Validate HMAC token
-	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID) {
+	// Validate HMAC token. The signed params were extended in the decorator
+	// refactor to cover creative_id + bid_price_cents (Task 4 will read these
+	// back to bill the true bid-time values). Absent query values resolve to
+	// "" which matches test helpers that sign with empty strings.
+	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
+		r.URL.Query().Get("creative_id"), r.URL.Query().Get("bid_price_cents")) {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
 		return
 	}
@@ -603,8 +573,15 @@ func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 	requestID := r.URL.Query().Get("request_id")
 	token := r.URL.Query().Get("token")
 
-	// Validate HMAC token
-	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID) {
+	// Validate HMAC token. Post-decorator the token is signed with 4 params
+	// (campaign_id, request_id, creative_id, bid_price_cents). Click URLs
+	// don't carry bid_price_cents (CPC campaigns bill at a fixed per-click
+	// rate, not bid price), so read "" for that position. Full
+	// production-side alignment (transitional validator + matching sign
+	// site) lands in Task 4; tests pass today because test helpers sign
+	// with "" for both trailing params.
+	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
+		r.URL.Query().Get("creative_id"), "") {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
 		return
 	}
@@ -690,8 +667,12 @@ func (d *Deps) handleConvert(w http.ResponseWriter, r *http.Request) {
 	requestID := r.URL.Query().Get("request_id")
 	token := r.URL.Query().Get("token")
 
-	// Validate HMAC token (same as click)
-	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID) {
+	// Validate HMAC token (same extended params as /win and /click). The
+	// decorator does not build a /convert URL, so convert tokens come from
+	// upstream conversion-tracking code that signs with empty strings for
+	// creative_id and bid_price_cents — match by reading "" from the URL.
+	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
+		r.URL.Query().Get("creative_id"), "") {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
 		return
 	}

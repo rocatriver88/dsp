@@ -105,10 +105,13 @@ func TestHandleClick_RejectsArbitraryDest_NoRedirect(t *testing.T) {
 
 	// campaignID=0 means the HMAC token is signed over "" as the
 	// campaign_id string. Construct the token exactly as the handler
-	// will validate it.
+	// will validate it. Post-decorator refactor the handler validates
+	// with 4 params (campaign_id, request_id, creative_id, bid_price_cents);
+	// sign with "" for the trailing two since this test URL doesn't carry
+	// them. handleClick reads bid_price_cents as "" regardless.
 	campIDStr := "0"
 	reqID := fmt.Sprintf("p1-3-unit-%d", time.Now().UnixNano())
-	token := auth.GenerateToken(hmacSecret, campIDStr, reqID)
+	token := auth.GenerateToken(hmacSecret, campIDStr, reqID, "", "")
 
 	target := fmt.Sprintf(
 		"/click?campaign_id=%s&request_id=%s&token=%s&dest=%s",
@@ -389,7 +392,9 @@ func TestHandleWin_WarmupGuard_Returns503(t *testing.T) {
 
 	campaignIDStr := "42"
 	reqID := fmt.Sprintf("warmup-win-%d", time.Now().UnixNano())
-	token := auth.GenerateToken(hmacSecret, campaignIDStr, reqID)
+	// 4-param sign matches handleWin's 4-param ValidateToken; trailing
+	// creative_id / bid_price_cents are "" both in URL and in signature.
+	token := auth.GenerateToken(hmacSecret, campaignIDStr, reqID, "", "")
 
 	target := fmt.Sprintf("/win?campaign_id=%s&price=0.05&request_id=%s&token=%s",
 		campaignIDStr, reqID, token)
@@ -421,7 +426,8 @@ func TestHandleClick_WarmupGuard_Returns503(t *testing.T) {
 
 	campaignIDStr := "42"
 	reqID := fmt.Sprintf("warmup-click-%d", time.Now().UnixNano())
-	token := auth.GenerateToken(hmacSecret, campaignIDStr, reqID)
+	// 4-param sign matches handleClick's 4-param ValidateToken.
+	token := auth.GenerateToken(hmacSecret, campaignIDStr, reqID, "", "")
 
 	target := fmt.Sprintf("/click?campaign_id=%s&request_id=%s&token=%s",
 		campaignIDStr, reqID, token)
@@ -456,7 +462,8 @@ func TestHandleClick_WarmupGuard_CampaignIDZero_NoGuard(t *testing.T) {
 
 	campaignIDStr := "0"
 	reqID := fmt.Sprintf("warmup-click-zero-%d", time.Now().UnixNano())
-	token := auth.GenerateToken(hmacSecret, campaignIDStr, reqID)
+	// 4-param sign matches handleClick's 4-param ValidateToken.
+	token := auth.GenerateToken(hmacSecret, campaignIDStr, reqID, "", "")
 
 	target := fmt.Sprintf("/click?campaign_id=%s&request_id=%s&token=%s",
 		campaignIDStr, reqID, token)
