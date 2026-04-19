@@ -129,7 +129,7 @@ jobs:
       # REDIS_PASSWORD env vars below redirect main_test.go's
       # previously-hardcoded localhost:7380 lookup to our qaharness stack.
       - name: Integration tests
-        run: go test -tags=integration -count=1 -timeout 15m -skip '^TestHandlers_WinNormalCPM$' ./internal/bidder/... ./cmd/bidder/...
+        run: go test -tags=integration -count=1 -race -timeout 15m -skip '^TestHandlers_WinNormalCPM$' ./internal/bidder/... ./cmd/bidder/...
         env:
           QA_POSTGRES_DSN: postgres://dsp:dsp_dev_password@localhost:15432/dsp?sslmode=disable
           QA_REDIS_ADDR: localhost:16380
