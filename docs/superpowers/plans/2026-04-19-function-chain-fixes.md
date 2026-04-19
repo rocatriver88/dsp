@@ -4,7 +4,7 @@
 
 **Goal:** Fix 5 codex-reported issues on the `POST /campaigns/{id}/start → bidder 生效` and `POST /bid → ClickHouse 入库` chains: exchange bid missing click tracker, fail-open on balance error, non-atomic activation, no body size limit on direct /bid, win events using recalculated values.
 
-**Architecture:** 3 sequential phases, each shipping as its own PR. Phase 1 = small bug fixes (F2 + F4). Phase 2 = shared bid response decorator + win URL metadata (F1 + F5). Phase 3 = activation pub/sub metric + contract docs (F3). Every bug fix follows the TDD Evidence Rule — failing test commit BEFORE fix commit, no squash.
+**Architecture:** 3 sequential phases, each shipping as its own PR. Phase 1 = `BillingService` interface refactor + small bug fixes (F2 covering err + nil, F4 body limit). Phase 2 = shared bid response decorator + win URL metadata with transitional HMAC validation (F1 + F5). Phase 3 = activation pub/sub metric + contract docs (F3). CEO review added Task 0 (BillingService interface), nil-path fail-closed, transitional token validation, and `math.Round` for bid price cents. Every bug fix follows the TDD Evidence Rule — failing test commit BEFORE fix commit, no squash.
 
 **Tech Stack:** Go 1.22+, PostgreSQL (via pgx), Redis (go-redis/v9), Kafka, ClickHouse, OpenRTB 2.5, HMAC-SHA256.
 
@@ -15,19 +15,22 @@
 ## File Structure
 
 **Created:**
+- `internal/handler/billing_iface.go` — `BillingService` interface (Phase 1, Task 0 — CEO Finding #1)
 - `cmd/bidder/decorator.go` — shared `decorateBidResponse()` (Phase 2, Task 3)
-- `internal/handler/campaign_start_failclosed_test.go` (or append to `e2e_public_campaign_test.go`) — F2 test (Phase 1, Task 1)
 - `cmd/bidder/bid_body_limit_test.go` — F4 test (Phase 1, Task 2)
 
 **Modified:**
-- `internal/handler/campaign.go` — F2 fail-closed (Phase 1), F3 metric record (Phase 3)
-- `cmd/bidder/main.go` — F4 body limit (Phase 1), F1/F5 decorator wiring (Phase 2), F5 win handler URL parse (Phase 2)
+- `internal/handler/handler.go` — `Deps.BillingSvc` type `*billing.Service` → `BillingService` (Phase 1, Task 0)
+- `cmd/api/main.go` — non-nil startup assert on `BillingSvc` (Phase 1, Task 0 — CEO Finding #2 defense-in-depth)
+- `internal/handler/campaign.go` — F2 fail-closed incl. nil path (Phase 1), F3 metric record (Phase 3)
+- `internal/handler/e2e_public_campaign_test.go` — F2 tests (stub + nil) + F3 metric test
+- `cmd/bidder/main.go` — F4 body limit (Phase 1), F1/F5 decorator wiring (Phase 2), F5 win handler URL parse + transitional token validation (Phase 2)
 - `internal/auth/hmac.go` — no signature change (variadic already); `FormatTokenParams` extended (Phase 2)
 - `cmd/bidder/handlers_integration_test.go` — F1 exchange test + F5 win metadata test + token generation (Phase 2)
 - `cmd/bidder/main_test.go` — update 4 token calls (Phase 2)
 - `internal/auth/hmac_test.go` — update assertions for new params (Phase 2)
 - `internal/bidder/loader.go` — `NotifyCampaignUpdate` returns error (Phase 3)
-- `internal/observability/metrics.go` — new counter `campaign_activation_pubsub_failures_total` (Phase 3)
+- `internal/observability/metrics.go` — new counters `campaign_activation_pubsub_failures_total` (Phase 3) + `bidder_token_legacy_accepted_total` (Phase 2 — CEO Finding #3)
 - `internal/handler/campaign.go` + `HandlePauseCampaign` + `HandleUpdateCampaign` — record metric on pub/sub error (Phase 3)
 - `docs/contracts/campaigns.md` (or OpenAPI spec) — 30s eventual-consistency contract (Phase 3)
 
@@ -37,80 +40,186 @@
 
 ## Phase 1 — Small bug fixes (F2 + F4)
 
-One PR, 4 commits. No refactor. No dependency on Phase 2/3.
+One PR, 5 commits (includes 1 enabling refactor per CEO Finding #1). Task 0 is the enabler; Tasks 1-2 are the actual bug fixes.
 
-### Task 1 — F2: `HandleStartCampaign` fail-closed on balance error
+### Task 0 — Refactor `BillingSvc` to interface (CEO Finding #1)
+
+Non-functional refactor. Enables F2 testability: FK `campaigns.advertiser_id REFERENCES advertisers(id)` has no `ON DELETE CASCADE`, so `DELETE FROM advertisers` fails with `23503` when campaigns exist. Without interface we can't inject a failing stub.
 
 **Files:**
-- Test: `internal/handler/e2e_public_campaign_test.go` (append new test function)
-- Modify: `internal/handler/campaign.go:327-332`
+- Create: `internal/handler/billing_iface.go`
+- Modify: `internal/handler/handler.go` (change `BillingSvc` field type)
+- Modify: `cmd/api/main.go` (non-nil startup assert per CEO Finding #2 defense-in-depth)
 
-**Approach:** To trigger `GetBalance` error in an e2e test, delete the advertiser row between `newAdvertiser()` and the `/start` call — `GetBalance`'s `SELECT balance_cents FROM advertisers WHERE id=$1` returns `pgx.ErrNoRows`. This is the same pattern `TestCampaign_Pause_NotActive_400` uses for deterministic state manipulation.
+- [ ] **Step 0.1: Create the interface file**
 
-- [ ] **Step 1.1: Write the failing test**
+Create `internal/handler/billing_iface.go`:
+
+```go
+package handler
+
+import "context"
+
+// BillingService is the narrow handler-facing view of billing.Service.
+// Defining it consumer-side (here) lets tests inject minimal stubs
+// without pulling the full service + its DB. billing.Service satisfies
+// this interface automatically — no changes needed to the concrete type.
+type BillingService interface {
+	GetBalance(ctx context.Context, advertiserID int64) (balanceCents int64, billingType string, err error)
+}
+```
+
+- [ ] **Step 0.2: Change `Deps.BillingSvc` field type**
+
+Edit `internal/handler/handler.go`. Find the `Deps` struct (line ~23) and change:
+```go
+BillingSvc  *billing.Service
+```
+to:
+```go
+BillingSvc  BillingService
+```
+
+If the `"github.com/heartgryphon/dsp/internal/billing"` import becomes unused in handler.go after this change, remove it. Otherwise leave it.
+
+- [ ] **Step 0.3: Add startup non-nil assert in cmd/api/main.go**
+
+In `cmd/api/main.go`, locate the `handler.Deps{...}` literal. Immediately after the Deps is assembled and before the server starts, add:
+
+```go
+if deps.BillingSvc == nil {
+	log.Fatal("BillingSvc required at startup; check wiring")
+}
+```
+
+This is defense-in-depth for CEO Finding #2 — handler layer will also 503 on nil, but startup fail-fast keeps the deploy from silently launching a non-billing server.
+
+- [ ] **Step 0.4: Verify build + existing tests unchanged**
+
+```bash
+go build ./...
+go test ./... -short
+go test -tags=e2e ./internal/handler/ -v
+```
+Expected: all PASS. Interface is structurally compatible with `*billing.Service`.
+
+- [ ] **Step 0.5: Commit refactor**
+
+```bash
+git add internal/handler/billing_iface.go internal/handler/handler.go cmd/api/main.go
+git commit -m "refactor(handler): extract BillingService interface for testability
+
+Pure non-functional refactor (no behavior change). billing.Service
+already satisfies the new interface shape. Enables handler tests to
+inject failing stubs for the F2 fail-closed regression test in the
+next commit — FK constraints prevent the alternative (deleting the
+advertiser row) in integration tests.
+
+Adds a startup assert in cmd/api/main.go: if wiring produces a nil
+BillingSvc, fail fast rather than silently launch a server that will
+skip balance checks on /start (fail-open). Handler layer still 503s
+on nil as nested defense."
+```
+
+### Task 1 — F2: `HandleStartCampaign` fail-closed on balance error + nil BillingSvc
+
+**Files:**
+- Test: `internal/handler/e2e_public_campaign_test.go` (append new tests + stub)
+- Modify: `internal/handler/campaign.go:326-333`
+
+**Approach:** With the `BillingService` interface from Task 0, inject a `failingBillingStub{}` to force `GetBalance` to return an error. Separate test case mutates `d.BillingSvc = nil` to cover the nil-path fail-closed (CEO Finding #2).
+
+- [ ] **Step 1.1: Write the failing tests (two cases: errored BillingSvc + nil BillingSvc)**
 
 Append to `internal/handler/e2e_public_campaign_test.go`:
 
 ```go
-// TestCampaign_StartReturns503WhenBalanceQueryFails verifies the fail-closed
-// behavior when billing.GetBalance returns an error. Pre-fix: handler silently
-// ignored the error and fell through to activation (a fail-open). Post-fix: 503.
-//
-// We trigger the error deterministically by deleting the advertiser row
-// after newCampaign() so the SELECT balance_cents ... WHERE id=$advID in
-// GetBalance returns pgx.ErrNoRows. The campaign row survives because
-// delete cascades are disabled in the dev schema for advertisers.
-func TestCampaign_StartReturns503WhenBalanceQueryFails(t *testing.T) {
+// failingBillingStub satisfies handler.BillingService. GetBalance always
+// returns a forced error. Used to test the F2 fail-closed path without
+// tampering with the advertisers table (FK constraints forbid that).
+type failingBillingStub struct{}
+
+func (failingBillingStub) GetBalance(_ context.Context, _ int64) (int64, string, error) {
+	return 0, "", errors.New("forced billing error for test")
+}
+
+// TestCampaign_StartReturns503WhenBalanceErrors covers the first F2
+// fail-closed path: BillingSvc.GetBalance returns a non-nil error.
+// Pre-fix: the handler's `if err == nil && balance < ...` swallowed
+// the error and fell through to TransitionStatus(active) — a fail-open.
+// Post-fix: 503 Service Unavailable.
+func TestCampaign_StartReturns503WhenBalanceErrors(t *testing.T) {
 	d := mustDeps(t)
 	advID, apiKey := newAdvertiser(t, d)
 	campaignID := newCampaign(t, d, advID)
 	_ = newCreative(t, d, campaignID)
 
-	// Force GetBalance to return an error by removing the advertiser row.
-	// The campaign still exists (GetCampaignForAdvertiser passes first),
-	// but the subsequent balance check will fail.
-	if _, err := d.DB.Exec(context.Background(),
-		`DELETE FROM advertisers WHERE id=$1`, advID); err != nil {
-		t.Fatalf("delete advertiser: %v", err)
-	}
+	// Swap in the failing stub for this test only.
+	originalSvc := d.BillingSvc
+	d.BillingSvc = failingBillingStub{}
+	t.Cleanup(func() { d.BillingSvc = originalSvc })
 
 	req := authedReq(t, http.MethodPost,
 		"/api/v1/campaigns/"+strconv.FormatInt(campaignID, 10)+"/start", nil, apiKey)
 	w := execAuthed(t, d, req)
 
 	if w.Code != http.StatusServiceUnavailable {
-		t.Fatalf("expected 503 on balance check failure, got %d: %s",
+		t.Fatalf("expected 503 on GetBalance error, got %d: %s",
+			w.Code, w.Body.String())
+	}
+}
+
+// TestCampaign_StartReturns503WhenBillingSvcNil covers the second F2
+// fail-closed path (CEO Finding #2): non-sandbox campaign + BillingSvc
+// is nil. Pre-fix: the handler's `if d.BillingSvc != nil` guard silently
+// bypassed balance checking — a second fail-open surface. Post-fix: 503.
+func TestCampaign_StartReturns503WhenBillingSvcNil(t *testing.T) {
+	d := mustDeps(t)
+	advID, apiKey := newAdvertiser(t, d)
+	campaignID := newCampaign(t, d, advID)
+	_ = newCreative(t, d, campaignID)
+
+	originalSvc := d.BillingSvc
+	d.BillingSvc = nil
+	t.Cleanup(func() { d.BillingSvc = originalSvc })
+
+	req := authedReq(t, http.MethodPost,
+		"/api/v1/campaigns/"+strconv.FormatInt(campaignID, 10)+"/start", nil, apiKey)
+	w := execAuthed(t, d, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when BillingSvc is nil (non-sandbox), got %d: %s",
 			w.Code, w.Body.String())
 	}
 }
 ```
 
-Add imports as needed: `context` should already be present; confirm by running build.
+Add imports at the top of the file if not already present: `"context"`, `"errors"`.
 
-- [ ] **Step 1.2: Run test to verify it fails (RED evidence)**
+- [ ] **Step 1.2: Run tests to verify both fail (RED evidence)**
 
-Run (requires test env up: `scripts/test-env.sh up`):
 ```bash
-go test -tags=e2e ./internal/handler/ -run TestCampaign_StartReturns503WhenBalanceQueryFails -v
+go test -tags=e2e ./internal/handler/ -run "TestCampaign_StartReturns503WhenBalanceErrors|TestCampaign_StartReturns503WhenBillingSvcNil" -v
 ```
-Expected: FAIL with `expected 503 on balance check failure, got 200` (or 422 if delete races — see debug note below).
+Expected: both FAIL. `...BalanceErrors` returns 200 (pre-fix: err swallowed → fell through to TransitionStatus → 200 active). `...BillingSvcNil` returns 200 (pre-fix: nil guard silently skipped check → fell through).
 
-Debug note: If the test returns 200, pre-fix behavior is confirmed (fail-open). If it returns 404 ("campaign not found"), the advertiser delete cascaded into the campaign row — check schema and use `DELETE FROM advertisers WHERE id=$1 AND ...` carefully.
-
-- [ ] **Step 1.3: Commit failing test**
+- [ ] **Step 1.3: Commit failing tests**
 
 ```bash
 git add internal/handler/e2e_public_campaign_test.go
-git commit -m "test(handler): add failing regression test for start campaign fail-open on balance error
+git commit -m "test(handler): add failing regression tests for fail-open on balance + nil
 
-Expect-Fail: TestCampaign_StartReturns503WhenBalanceQueryFails"
+Two cases cover F2 (and CEO Finding #2):
+- GetBalance returns err → currently 200, should be 503
+- BillingSvc is nil on non-sandbox campaign → currently 200, should be 503
+
+Expect-Fail: TestCampaign_StartReturns503WhenBalanceErrors
+Expect-Fail: TestCampaign_StartReturns503WhenBillingSvcNil"
 ```
 
 - [ ] **Step 1.4: Implement the fix**
 
-Edit `internal/handler/campaign.go:326-333`:
-
-Replace:
+Edit `internal/handler/campaign.go:326-333`. Replace:
 ```go
 	// Check advertiser balance before starting (skip for sandbox campaigns)
 	if !c.Sandbox && d.BillingSvc != nil {
@@ -124,10 +233,15 @@ Replace:
 
 With:
 ```go
-	// Check advertiser balance before starting (skip for sandbox campaigns).
-	// Fail-closed: if the balance query errors, refuse activation rather than
-	// silently allowing a campaign whose advertiser may be delinquent.
-	if !c.Sandbox && d.BillingSvc != nil {
+	// Check advertiser balance before starting. Fail-closed on both
+	// surfaces: a query error and a missing BillingSvc. Sandbox
+	// campaigns are exempt from balance verification.
+	if !c.Sandbox {
+		if d.BillingSvc == nil {
+			log.Printf("[CAMPAIGN] BillingSvc nil at runtime campaign=%d adv=%d", id, advID)
+			WriteError(w, http.StatusServiceUnavailable, "unable to verify balance, please retry")
+			return
+		}
 		balance, _, err := d.BillingSvc.GetBalance(r.Context(), advID)
 		if err != nil {
 			log.Printf("[CAMPAIGN] balance check failed campaign=%d adv=%d: %v", id, advID, err)
@@ -141,34 +255,42 @@ With:
 	}
 ```
 
-Confirm `log` is imported at the top of the file (it should be — existing handler logs in the same file).
+Confirm `log` is imported at the top of `internal/handler/campaign.go` (it should be — existing handlers in the file log via the same package).
 
-- [ ] **Step 1.5: Run test to verify it passes (GREEN)**
+- [ ] **Step 1.5: Run tests to verify both pass (GREEN)**
 
 ```bash
-go test -tags=e2e ./internal/handler/ -run TestCampaign_StartReturns503WhenBalanceQueryFails -v
+go test -tags=e2e ./internal/handler/ -run "TestCampaign_StartReturns503WhenBalanceErrors|TestCampaign_StartReturns503WhenBillingSvcNil" -v
 ```
-Expected: PASS
+Expected: both PASS.
 
 - [ ] **Step 1.6: Run full handler test suite to check no regression**
 
 ```bash
 go test -tags=e2e ./internal/handler/ -v
+go test ./... -short
 ```
-Expected: all PASS (the existing `TestCampaign_StartPublishesActivated` still passes because it does NOT delete the advertiser row).
+Expected: all PASS. `TestCampaign_StartPublishesActivated` still passes because `mustDeps(t)` wires a real `BillingSvc` with the seeded 1e6 cent balance.
 
 - [ ] **Step 1.7: Commit fix**
 
 ```bash
 git add internal/handler/campaign.go
-git commit -m "fix(handler): return 503 when billing.GetBalance errors [closes F2]
+git commit -m "fix(handler): return 503 when BillingSvc errors or is nil [closes F2]
 
-Previously the handler used \`if err == nil && balance < budget_daily\`
-which silently ignored GetBalance errors and fell through to activation.
-When billing DB hiccups, every insufficient-balance campaign could start.
+Previously the handler used \`if d.BillingSvc != nil { ... if err == nil &&
+balance < budget_daily ... }\` which had two fail-open surfaces:
 
-Now: err != nil returns 503 Service Unavailable with a retryable message,
-so transient billing outages fail closed."
+1. GetBalance returning err → err was silently dropped, fell through to
+   TransitionStatus(active). Any billing DB hiccup allowed insufficient-
+   balance campaigns to start.
+2. BillingSvc being nil at runtime → the outer guard silently skipped
+   balance checks entirely, so a non-sandbox campaign could activate
+   without any balance verification at all.
+
+Now both paths 503 with a retryable message. Sandbox campaigns remain
+exempt. Defense-in-depth: cmd/api/main.go asserts BillingSvc non-nil
+on startup (Task 0)."
 ```
 
 ### Task 2 — F4: Direct `/bid` body size limit
@@ -339,10 +461,10 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/heartgryphon/dsp/internal/auth"
-	"github.com/heartgryphon/dsp/internal/observability"
 	"github.com/prebid/openrtb/v20/openrtb2"
 )
 
@@ -372,7 +494,14 @@ func decorateBidResponse(resp *openrtb2.BidResponse, req *openrtb2.BidRequest, b
 	}
 
 	creativeID := bid.CrID
-	bidPriceCents := strconv.FormatInt(int64(bid.Price*100), 10)
+	// Use math.Round, not int64() truncation (CEO Finding #4).
+	// bid.Price is in CPM dollars; e.g. $0.00495 * 100 = 0.495
+	// truncated to 0 cents, rounded to 0 cents. But $0.01495 * 100
+	// = 1.495 → truncation=1, round=1; $0.0205 * 100 = 2.05
+	// → truncation=2 (wrong, should be 2); $0.00995 * 100 = 0.995
+	// → truncation=0 (wrong), round=1. Truncation systematically
+	// under-counts pennies.
+	bidPriceCents := strconv.FormatInt(int64(math.Round(bid.Price*100)), 10)
 
 	token := auth.GenerateToken(hmacSecret, bid.CID, req.ID, creativeID, bidPriceCents)
 
@@ -385,12 +514,8 @@ func decorateBidResponse(resp *openrtb2.BidResponse, req *openrtb2.BidRequest, b
 		baseURL, bid.CID, req.ID, creativeID, token,
 	)
 	bid.AdM = injectClickTracker(bid.AdM, clickURL)
-
-	_ = observability.BidRequestsTotal // keep import if unused above
 }
 ```
-
-(Remove the last `_ =` if `observability` isn't referenced — confirm at compile.)
 
 - [ ] **Step 3.2: Replace direct /bid decoration site**
 
@@ -679,19 +804,68 @@ With:
 		}
 ```
 
-Also extend the `auth.ValidateToken` call in `handleWin` to include the new params. Search for `ValidateToken` in `cmd/bidder/main.go` handleWin block; the current call should be:
+Extend the `auth.ValidateToken` call in `handleWin` with **transitional validation** (CEO Finding #3) — try 6-param first, fall back to 4-param legacy during deploy window so old tokens issued by the pre-deploy binary still validate. Search for `ValidateToken` in `cmd/bidder/main.go` handleWin block; the current call should be:
 
 ```go
-if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID) { ... }
+if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID) {
+    // reject
+}
 ```
 
 Change to:
 ```go
-if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
-	r.URL.Query().Get("creative_id"), r.URL.Query().Get("bid_price_cents")) { ... }
+urlCrIDStr := r.URL.Query().Get("creative_id")
+urlPriceCentsStr := r.URL.Query().Get("bid_price_cents")
+
+// New-format token: signed over (campID, requestID, creativeID, bidPriceCents).
+// Legacy-format token (pre-deploy): signed over (campID, requestID) only.
+// Accept either to ride through the deploy window without 403 spikes.
+// After one deploy window (~10min past token TTL), a follow-up PR should
+// remove the legacy branch.
+validNew := auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID, urlCrIDStr, urlPriceCentsStr)
+validLegacy := !validNew && auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID)
+
+if !validNew && !validLegacy {
+    // reject with 403
+}
+if validLegacy {
+    observability.BidderTokenLegacyAccepted.WithLabelValues("win").Inc()
+    log.Printf("[WIN] legacy token accepted during deploy transition: request_id=%s", requestID)
+    // Force the fallback recompute path: legacy tokens cannot have trusted
+    // URL metadata (they were issued before creative_id/bid_price_cents
+    // were added to NURL). Clear the URL params so the `urlCreativeID > 0`
+    // and `urlBidPriceCents > 0` branches fall to the recompute path.
+    urlCrIDStr = ""
+    urlPriceCentsStr = ""
+}
 ```
 
-Apply the same ValidateToken extension to `handleClick` (click URL carries creative_id too per decorator).
+Then in the block that parses URL metadata, use the (possibly zeroed) `urlCrIDStr` and `urlPriceCentsStr` strings:
+
+```go
+urlCreativeID, _ := strconv.ParseInt(urlCrIDStr, 10, 64)
+urlBidPriceCents, _ := strconv.ParseInt(urlPriceCentsStr, 10, 64)
+```
+
+Replace the `r.URL.Query().Get("creative_id")` / `...("bid_price_cents")` parse lines in the block above with these variable reads instead.
+
+Apply the same transitional validation block to `handleClick` — `click_url` carries `creative_id` per decorator. Copy the same pattern with `"click"` as the metric label.
+
+Register the new counter in `internal/observability/metrics.go`:
+```go
+// BidderTokenLegacyAccepted counts win/click token validations that fell
+// back to the legacy 4-param HMAC signature during a deploy transition.
+// Expected to spike briefly after a Phase 2 deploy, then return to zero
+// within the 5-minute token TTL. Sustained non-zero = stuck legacy path,
+// remove the legacy branch or investigate.
+var BidderTokenLegacyAccepted = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "bidder_token_legacy_accepted_total",
+		Help: "Count of HMAC token validations accepted via legacy 4-param signature during deploy transition.",
+	},
+	[]string{"handler"}, // "win" | "click"
+)
+```
 
 - [ ] **Step 4.6: Run F5 test to verify it passes**
 
@@ -987,17 +1161,33 @@ campaign_activation_pubsub_failures_total metric for monitoring."
 
 ## Risk Register
 
-- **HMAC token rollover at deploy (Phase 2):** New signing includes `creative_id` and `bid_price_cents`. Any `nURL`/`click` URLs issued by the OLD binary but arriving at the NEW binary will fail validation — token signs (campaignID, requestID) while the new validator expects 4 params. Mitigation: handleWin/handleClick include the fallback log path for missing URL params, which recomputes. The existing `ValidateToken` will reject because param count mismatch — we may need a temporary transition mode OR accept that in-flight cross-deploy tokens fail (observably, via 403 spikes) during the deploy window (typically <5 min). Flag this in the PR body and `/cso` audit.
-- **F2 test cascade delete:** If the dev DB schema declares `ON DELETE CASCADE` on the campaigns→advertisers FK, Task 1's `DELETE FROM advertisers` will also drop the campaign, causing the handler to return 404 instead of 503. Inspect schema before running; if cascade is present, adjust the test to mock the billing service layer instead (requires Deps-level billing swap, which is a bigger refactor — prefer schema inspection first).
-- **ValidateToken backward compat:** `auth.ValidateToken` is variadic on params so adding params at call sites is safe as long as BOTH sides (generator and validator) change together. Any missed site = silent 403 on /win or /click. Phase 2 boundary gate MUST grep `GenerateToken\|ValidateToken` to verify every site updated.
+- **HMAC token rollover at deploy (Phase 2) — MITIGATED**: The transitional validation in Step 4.5 accepts both new (6-param) and legacy (4-param) tokens for one deploy window. `bidder_token_legacy_accepted_total{handler}` metric monitors the transition. Sustained non-zero reading >15 min after deploy = stuck, investigate. A follow-up PR should remove the legacy branch ≥10 min after token TTL expires (token TTL = 5 min per `auth.hmac.go`).
+- **F2 test strategy — RESOLVED via Task 0**: Task 0 introduces `BillingService` interface so tests inject stubs. No schema dependency, no FK cascade risk.
+- **ValidateToken backward compat**: `auth.ValidateToken` is variadic on params so adding params at call sites is safe as long as BOTH sides (generator and validator) change together. Any missed site = silent 403 on /win or /click. Phase 2 boundary gate MUST grep `GenerateToken\|ValidateToken` to verify every site updated.
+- **`BillingSvc` prod wiring (CEO Finding #2 residual)**: The handler layer now 503s on nil BillingSvc, but prod should never hit this branch. Task 0 adds a startup assert in `cmd/api/main.go` — if that fails, the server crashes on boot instead of launching a bypass server. Handler 503 is belt-and-braces.
+- **bid_price_cents precision (CEO Finding #4 residual)**: `math.Round` in the decorator rounds half-away-from-zero. For values ≥ $0.005 it's accurate to a cent. Sub-cent bids (< $0.005) round to 0 cents — acceptable because OpenRTB prices are CPM and sub-cent CPM is vanishingly rare in practice. If this changes, revisit.
 
-## Self-Review (performed)
+## Self-Review (performed, incl. CEO review updates)
 
-- **Spec coverage:** F1, F2, F3, F4, F5 — each has at least one task (F2→T1, F4→T2, F1+F5→T3+T4, F3→T5+T6). ✓
+- **Spec coverage:** F1, F2, F3, F4, F5 + CEO Findings #1-#4 — each has at least one task.
+  - CEO #1 → Task 0 (BillingService interface)
+  - CEO #2 → Task 0 (startup assert) + Task 1 (handler 503 on nil) + 2nd test in Step 1.1
+  - CEO #3 → Task 4 (transitional ValidateToken) + new metric
+  - CEO #4 → Task 3 decorator (math.Round)
 - **Placeholder scan:** no "TBD/TODO/implement later"; every step has concrete code or exact commands. ✓
-- **Type consistency:** `decorateBidResponse(resp *openrtb2.BidResponse, req *openrtb2.BidRequest, baseURL, hmacSecret string)` — same sig used across Task 3 steps. `CampaignActivationPubSubFailures` — same name in all 3 places it's referenced. `NotifyCampaignUpdate` returns `error` — consistent in Task 5.5 / 5.6 / test. ✓
-- **Gap flagged:** the `TestHandleWin_UsesCreativeIDAndBidPriceFromURL` test references `f.producer.LastEventOfType` which may not exist — explicitly noted in Step 4.2 with fallback guidance. Acceptable since the exact event-inspection API is a fixture detail the implementer adapts.
+- **Type consistency:** `decorateBidResponse` signature used identically in Task 3.1, 3.2, 3.3. `BillingService` interface matches `billing.Service.GetBalance` return tuple `(int64, string, error)`. `CampaignActivationPubSubFailures` / `BidderTokenLegacyAccepted` names consistent wherever referenced. `NotifyCampaignUpdate` returns `error` in Task 5.5 / 5.6 / test.
+- **Gap flagged:** `TestHandleWin_UsesCreativeIDAndBidPriceFromURL` references `f.producer.LastEventOfType` which may not exist — explicitly noted in Step 4.2 with fallback guidance. Acceptable since the exact event-inspection API is a fixture detail.
+- **CEO Finding #3 legacy-path F5 interaction:** The transitional validation explicitly clears `urlCrIDStr`/`urlPriceCentsStr` when legacy token is accepted, forcing the recompute fallback. This is correct: legacy tokens were issued by a binary that didn't put creative_id/bid_price_cents into the NURL in the first place, so those URL params (if present at all) are untrusted user input, not signed data. Without the clear, a tampered legacy-token request could inject arbitrary `creative_id` into bid_log.
+
+## CEO Plan Review — Decisions Applied
+
+| Finding | Severity | Decision (user picked) | Plan change |
+|--------|----------|----------------------|-------------|
+| #1 FK-test broken | CRITICAL | **1A**: abstract `BillingService` interface | New Task 0 in Phase 1 + rewritten Task 1 tests |
+| #2 `nil BillingSvc` bypass | CONCERN | **2B**: nil → 503 in handler | Extra test case in Step 1.1 + code change in Step 1.4 + startup assert in Task 0.3 |
+| #3 HMAC deploy rollover | CONCERN | **3A**: transitional validation | Step 4.5 try-6-then-4 block + `bidder_token_legacy_accepted_total` metric |
+| #4 float→int cents truncation | MINOR | **4A**: `math.Round` | Task 3.1 `decorator.go` uses `math.Round(bid.Price*100)` |
 
 ## Next Step
 
-Ready for `/plan-ceo-review` (scope challenge) and `/plan-eng-review + /codex` (architecture challenge), then user approval, then implementation.
+Ready for `/plan-eng-review + /codex` (architecture challenge), then user approval, then implementation.
