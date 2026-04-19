@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -267,9 +268,18 @@ func (d *Deps) handleBid(w http.ResponseWriter, r *http.Request) {
 		observability.BidLatency.WithLabelValues("direct").Observe(time.Since(start).Seconds())
 	}()
 
+	// Enforce 1MB body cap to match exchange path and protect against
+	// OOM on public /bid endpoint. MaxBytesReader returns *http.MaxBytesError
+	// when exceeded; the handler maps that to 413 and everything else to 400.
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req openrtb2.BidRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		observability.BidRequestsTotal.WithLabelValues("direct", "rejected").Inc()
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, `{"error":"request body too large"}`, http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, `{"error":"invalid bid request"}`, http.StatusBadRequest)
 		return
 	}
@@ -339,10 +349,18 @@ func (d *Deps) handleExchangeBid(w http.ResponseWriter, r *http.Request) {
 		observability.BidLatency.WithLabelValues(exchangeID).Observe(time.Since(start).Seconds())
 	}()
 
-	// Read raw body and parse via exchange-specific adapter
-	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1MB limit
+	// Enforce 1MB body cap via MaxBytesReader (was io.LimitReader, which
+	// silently truncated — caused partial bodies to parse-fail as 400
+	// instead of the 413 clients expect).
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		observability.BidRequestsTotal.WithLabelValues(exchangeID, "rejected").Inc()
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, `{"error":"request body too large"}`, http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, `{"error":"read body failed"}`, http.StatusBadRequest)
 		return
 	}
