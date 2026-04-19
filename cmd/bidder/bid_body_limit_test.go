@@ -87,3 +87,27 @@ func TestHandleExchangeBid_RejectsOversizedBody(t *testing.T) {
 		t.Fatalf("expected 413 for 2MB body, got %d: %s", w.Code, string(respBody))
 	}
 }
+
+// TestHandleBid_RejectsTrailingJunk verifies direct /bid drains the full
+// body through MaxBytesReader before attempting to parse. Pre-fix:
+// json.Decoder.Decode stops at the end of the first complete JSON object
+// and does NOT read trailing bytes, so a 1KB valid bid followed by 2MB
+// of junk passed the cap silently and reached Engine.Bid. Post-fix:
+// io.ReadAll forces MaxBytesReader to see the full body → 413.
+func TestHandleBid_RejectsTrailingJunk(t *testing.T) {
+	d := &Deps{}
+	// Small valid bid body (< 1KB) + 2MB of trailing junk after the closing `}`.
+	// A one-shot json.Decoder.Decode would stop at the `}` and never read the tail.
+	valid := `{"id":"small","imp":[{"id":"1","banner":{"w":300,"h":250}}]}`
+	junk := strings.Repeat("x", 2<<20) // 2MB
+	body := valid + junk
+	req := httptest.NewRequest(http.MethodPost, "/bid", bytes.NewReader([]byte(body)))
+	w := httptest.NewRecorder()
+
+	d.handleBid(w, req)
+
+	if w.Code != http.StatusRequestEntityTooLarge {
+		respBody, _ := io.ReadAll(w.Body)
+		t.Fatalf("expected 413 for valid-JSON-plus-junk body, got %d: %s", w.Code, string(respBody))
+	}
+}
