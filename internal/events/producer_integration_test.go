@@ -52,6 +52,15 @@ func TestProducer_NormalPublish(t *testing.T) {
 // Scenario 29 — CB4 probe: Kafka unreachable → disk buffer MUST fill.
 // If the buffer stays empty, CB4 is confirmed (kafka.Writer.Async=true silently
 // drops messages when the broker is unreachable).
+//
+// REGRESSION SENTINEL: P2-9 Kafka replay buffer reliability
+// (docs/testing-strategy-bidder.md §3 P2). Pairs with
+// TestProducer_ReplayBuffer (below) and the unit tests
+// TestBufferToDisk_WritesJSONL / TestBufferToDisk_AppendsMultiple in
+// producer_test.go to cover the full disk-buffer lifecycle: write on
+// Kafka failure (this test) → persist to JSONL (unit tests) → replay on
+// recovery (TestProducer_ReplayBuffer). The trio together is what the
+// P2-9 gap asks for.
 func TestProducer_AsyncFailureBuffers(t *testing.T) {
 	bufDir := t.TempDir()
 	// Point to a port guaranteed unreachable (nothing listens on 127.0.0.1:1).
@@ -95,6 +104,14 @@ func TestProducer_AsyncFailureBuffers(t *testing.T) {
 }
 
 // Scenario 30 — ReplayBuffer recovers buffered events once Kafka is reachable.
+//
+// REGRESSION SENTINEL: P2-9 Kafka replay buffer replay-on-recovery
+// (docs/testing-strategy-bidder.md §3 P2). Companion to
+// TestProducer_AsyncFailureBuffers (above). Verifies the second half of
+// the lifecycle: after a previous process shutdown buffered events to
+// disk, a fresh producer startup replays them to the now-healthy Kafka
+// and renames the buffer file with a `.replayed` marker to prevent
+// double-delivery.
 func TestProducer_ReplayBuffer(t *testing.T) {
 	h := qaharness.New(t)
 	bufDir := t.TempDir()

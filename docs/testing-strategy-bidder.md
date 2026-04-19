@@ -97,11 +97,11 @@
 
 ### P2（可选，体验/长尾）
 
-| # | Gap | test 名 |
-|---|-----|---------|
-| 9 | Kafka producer 挂时 replay buffer 持久化到磁盘 | `TestKafkaBuffer_SurvivesProducerDown` |
-| 10 | Campaign 过期（end_date < now）不再参与竞价 | `TestCampaignExpiry_ExcludedFromBid` |
-| 11 | Creative secure flag 不匹配（HTTP 请求要 HTTPS creative）no-bid（1fa48b9 回归哨兵） | `TestCreativeMatch_SecureFlag_Mismatch` |
+| # | Gap | Test | 状态 |
+|---|-----|------|------|
+| 9 | Kafka producer 挂时 replay buffer 持久化到磁盘 | unit: `TestBufferToDisk_WritesJSONL` + `TestBufferToDisk_AppendsMultiple`（`internal/events/producer_test.go`）<br>integration: `TestProducer_AsyncFailureBuffers` + `TestProducer_ReplayBuffer`（`internal/events/producer_integration_test.go`） | ✅ 已覆盖（2026-04-19 加 REGRESSION SENTINEL 注释；write + replay 两个方向都有） |
+| 10 | Campaign 过期（end_date < now）不再参与竞价 | `TestEngine_CampaignExpiry_ExcludedFromBid`（`internal/bidder/engine_campaign_expiry_test.go`） | ✅ 已覆盖（2026-04-19 新写 E2E 集成，defense-in-depth：loader SQL 或 engine.go:140 任一失效，其余仍守） |
+| 11 | Creative secure flag 不匹配（HTTP 请求要 HTTPS creative）no-bid（1fa48b9 回归哨兵） | `TestMatchCreativeToImp_SecureFilters` + `TestIsCreativeSecure_*`（`internal/bidder/engine_test.go`） | ✅ 已覆盖（2026-04-19 加 REGRESSION SENTINEL 注释；1fa48b9 修过） |
 
 ---
 
@@ -121,9 +121,17 @@
 
 ---
 
-### P0 覆盖总结（2026-04-19 晚）
+### P0/P1/P2 覆盖总结（2026-04-19 晚）
 
-四项 P0 全部覆盖。P0-1/P0-2/P0-3/P0-4 都附带 break-revert dance 证据（见各自 PR body + test 头部 REGRESSION SENTINEL 注释）。下一层重心转向 P1 和扩大 CI 范围（`./cmd/bidder/...`）。
+- **P0 全四项覆盖**（PR #17-#22）：P0-1 loader 租户 + P0-2 admin token + P0-3 guardrail fail-closed + P0-4 engine attribution，每项带 break-revert dance 证据
+- **P1 三/四项覆盖**（PR #24）：P1-5 CPM win annotate + P1-6 StatsCache fallback 新写 + P1-7 loader concurrent 新写；P1-8 DST budget reset 仍开放（需先抽函数）
+- **P2 全三项覆盖**（PR #25）：P2-9 producer buffer annotate 4 test + P2-10 campaign expiry E2E 新写 + P2-11 creative secure annotate
+- **CI 覆盖**：integration job 覆盖 `./internal/bidder/...` + `./cmd/bidder/...`，跳过两个 CI-specific flaky（`TestHandlers_WinNormalCPM`, 和 -race 和 Kafka-heavy 测试的交互问题）
+
+剩余 open items（全部追踪到 §8.3）：
+- P1-8 DST budget reset（需 `nextResetTime` 抽函数）
+- CI integration `-race`（现暂时关掉，等 TestEngine_MultiCandidateHighestBid -race 挂死诊断）
+- `TestHandlers_WinNormalCPM` CI scheduler pressure 问题
 
 ## 5. 测试命令矩阵
 
