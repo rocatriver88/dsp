@@ -167,6 +167,18 @@ func readBody(t *testing.T, resp *http.Response) string {
 // Scenario 22 — /win CPM happy path deducts the clear price and
 // emits exactly one win + impression event.
 // ------------------------------------------------------------
+//
+// REGRESSION SENTINEL: P1-5 CPM win billing discipline
+// (docs/testing-strategy-bidder.md §3 P1). Guards three invariants
+// at once: (a) advertiser billing math (priceCents = int64(price/0.9*100)),
+// (b) the warm-up 503 fallback when the loader hasn't materialised
+// the campaign yet (cmd/bidder/main.go:449-453), and (c) the C1
+// strategy:wins INCR via bare goroutine at cmd/bidder/main.go:505.
+//
+// Currently -skipped in CI (handlers_integration_test.go line 250 poll
+// fails in ubuntu-latest but passes locally). Annotation stays so future
+// maintainers have the context when the skip is lifted or the test is
+// re-structured.
 func TestHandlers_WinNormalCPM(t *testing.T) {
 	f := newHandlerFixture(t)
 	advID := f.SeedAdvertiser("win-cpm")

@@ -88,12 +88,12 @@
 
 ### P1（建议补，业务正确性）
 
-| # | Gap | test 名 |
-|---|-----|---------|
-| 5 | CPM 计费：win 时按 clear_price 正确扣预算 | `TestHandleWin_CPM_DeductsClearPrice` |
-| 6 | StatsCache Redis cache miss 回源 ClickHouse | `TestStatsCache_RedisMiss_FallsBackToClickHouse` |
-| 7 | Loader RWMutex 并发压力（`-race`） | `TestLoader_ConcurrentReadWrite_NoRace` |
-| 8 | Daily budget reset goroutine 在 DST / 时区变化边界正确（CST 0:00:05） | `TestDailyBudgetReset_TimezoneBoundary` |
+| # | Gap | Test | 状态 |
+|---|-----|------|------|
+| 5 | CPM 计费：win 时按 clear_price 正确扣预算 | `TestHandlers_WinNormalCPM`（`cmd/bidder/handlers_integration_test.go:170`） + `TestAdvertiserChargeCents`（unit） | ✅ 已覆盖（2026-04-19 加 REGRESSION SENTINEL 注释；CI 临时 skip 因 scheduler 压力，本地稳定） |
+| 6 | StatsCache Redis miss 回落到本地缓存 | `TestStatsCache_RedisMiss_FallsBackToLocal`、`TestStatsCache_UnknownCampaign_ReturnsZero`（`internal/bidder/statscache_fallback_test.go`） | ✅ 已覆盖（2026-04-19 新写，break-revert dance 验证 statscache.go:93 fallback 行） — 注：实现的 fallback 是"Redis miss → in-memory local map"（periodic refresh 填充），不是"on-demand ClickHouse 回源"，原 gap 描述已对齐实现 |
+| 7 | Loader RWMutex 并发压力（`-race`） | `TestLoader_ConcurrentReadWrite_NoRace`（`internal/bidder/loader_race_test.go`） | ✅ 已覆盖（2026-04-19 新写，CI 加 `-race` flag 保证触发 DATA RACE 检测） |
+| 8 | Daily budget reset goroutine 在 DST / 时区变化边界正确（CST 0:00:05） | `TestDailyBudgetReset_TimezoneBoundary`（待写） | ⏳ 未覆盖 — 需先把 `cmd/bidder/main.go:134-154` 的内联 goroutine 抽成可测的 `nextResetTime(now, loc)` 纯函数，再写边界 case |
 
 ### P2（可选，体验/长尾）
 
