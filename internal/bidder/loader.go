@@ -217,13 +217,27 @@ func (cl *CampaignLoader) fullLoad(ctx context.Context) error {
 	cl.campaigns = newMap
 	cl.mu.Unlock()
 
-	// Initialize total budget counters in Redis for all loaded campaigns.
-	// Uses SetNX so reloads don't reset partially spent counters.
+	// Initialize total + daily budget counters in Redis for all loaded
+	// campaigns. Total uses SetNX semantics so reloads don't reset
+	// partially spent counters; Daily is TTL-bound (25h) and the Set is
+	// tolerated because the periodic refresh window (30s) is much shorter
+	// than the daily reset window and the handler path is the source of
+	// truth for initial daily value.
+	//
+	// The DailyBudget reinit here is a fallback recovery path for F3 /
+	// Codex Finding #3: if the handler-side InitDailyBudget briefly
+	// failed (returning 503 to the client) and Redis recovered later,
+	// this periodic pass ensures the bidder still serves the campaign.
 	if cl.budgetSvc != nil {
 		for _, lc := range newMap {
 			if lc.BudgetTotalCents > 0 {
 				if err := cl.budgetSvc.InitTotalBudget(ctx, lc.ID, lc.BudgetTotalCents); err != nil {
 					log.Printf("[LOADER] init total budget for campaign %d: %v", lc.ID, err)
+				}
+			}
+			if lc.BudgetDailyCents > 0 {
+				if err := cl.budgetSvc.InitDailyBudget(ctx, lc.ID, lc.BudgetDailyCents); err != nil {
+					log.Printf("[LOADER] init daily budget for campaign %d: %v", lc.ID, err)
 				}
 			}
 		}
@@ -322,10 +336,20 @@ func (cl *CampaignLoader) listenPubSub(ctx context.Context, sub *redis.PubSub) {
 					cl.mu.Lock()
 					cl.campaigns[c.ID] = loaded
 					cl.mu.Unlock()
-					// Initialize total budget on activation/update
+					// Initialize total budget on activation/update.
 					if cl.budgetSvc != nil && loaded.BudgetTotalCents > 0 {
 						if err := cl.budgetSvc.InitTotalBudget(ctx, loaded.ID, loaded.BudgetTotalCents); err != nil {
 							log.Printf("[LOADER] init total budget for campaign %d: %v", loaded.ID, err)
+						}
+					}
+					// Re-init DailyBudget as a fallback for /start pub/sub
+					// that arrived AFTER a transient Redis outage — ensures
+					// bidder serves the campaign even if the handler-side
+					// InitDailyBudget briefly failed and was retried later.
+					// F3 / Codex Finding #3.
+					if cl.budgetSvc != nil && loaded.BudgetDailyCents > 0 {
+						if err := cl.budgetSvc.InitDailyBudget(ctx, loaded.ID, loaded.BudgetDailyCents); err != nil {
+							log.Printf("[LOADER] reinit daily budget for campaign %d: %v", loaded.ID, err)
 						}
 					}
 				}
@@ -340,12 +364,19 @@ func (cl *CampaignLoader) listenPubSub(ctx context.Context, sub *redis.PubSub) {
 
 // NotifyCampaignUpdate publishes a campaign change to Redis pub/sub.
 // Call this from the API server when a campaign is created/started/paused/updated.
-func NotifyCampaignUpdate(ctx context.Context, rdb *redis.Client, campaignID int64, action string) {
+//
+// Returns the Publish error so callers can record a metric / logs on
+// failure. Callers should NOT fail the overall request on pub/sub error —
+// the bidder's periodic refresh (~30s) catches up as an eventual-consistency
+// fallback.
+func NotifyCampaignUpdate(ctx context.Context, rdb *redis.Client, campaignID int64, action string) error {
 	payload, _ := json.Marshal(map[string]any{
 		"campaign_id": campaignID,
 		"action":      action,
 	})
 	if err := rdb.Publish(ctx, "campaign:updates", payload).Err(); err != nil {
 		log.Printf("[NOTIFY] pub/sub error: %v", err)
+		return err
 	}
+	return nil
 }
