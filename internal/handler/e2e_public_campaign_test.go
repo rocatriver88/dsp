@@ -4,11 +4,15 @@
 package handler_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/heartgryphon/dsp/internal/billing"
 )
 
 // TestCampaign_Create verifies POST /api/v1/campaigns happy path against
@@ -203,5 +207,72 @@ func TestCampaign_List_IncludesMine(t *testing.T) {
 	if !found {
 		t.Fatalf("GET /campaigns: expected list to include campaign_id=%d, got %s",
 			campaignID, w.Body.String())
+	}
+}
+
+// failingBillingStub satisfies handler.BillingService. GetBalance always
+// returns a forced error. Used to test the F2 fail-closed path without
+// tampering with the advertisers table (FK constraints forbid that).
+type failingBillingStub struct{}
+
+func (failingBillingStub) GetBalance(_ context.Context, _ int64) (int64, string, error) {
+	return 0, "", errors.New("forced billing error for test")
+}
+
+func (failingBillingStub) TopUp(_ context.Context, _ int64, _ int64, _ string) (*billing.Transaction, error) {
+	return nil, errors.New("not used in this test")
+}
+
+func (failingBillingStub) GetTransactions(_ context.Context, _ int64, _, _ int) ([]billing.Transaction, error) {
+	return nil, errors.New("not used in this test")
+}
+
+// TestCampaign_StartReturns503WhenBalanceErrors covers the first F2
+// fail-closed path: BillingSvc.GetBalance returns a non-nil error.
+// Pre-fix: the handler's `if err == nil && balance < ...` swallowed
+// the error and fell through to TransitionStatus(active) — a fail-open.
+// Post-fix: 503 Service Unavailable.
+func TestCampaign_StartReturns503WhenBalanceErrors(t *testing.T) {
+	d := mustDeps(t)
+	advID, apiKey := newAdvertiser(t, d)
+	campaignID := newCampaign(t, d, advID)
+	_ = newCreative(t, d, campaignID)
+
+	// Swap in the failing stub for this test only.
+	originalSvc := d.BillingSvc
+	d.BillingSvc = failingBillingStub{}
+	t.Cleanup(func() { d.BillingSvc = originalSvc })
+
+	req := authedReq(t, http.MethodPost,
+		"/api/v1/campaigns/"+strconv.FormatInt(campaignID, 10)+"/start", nil, apiKey)
+	w := execAuthed(t, d, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 on GetBalance error, got %d: %s",
+			w.Code, w.Body.String())
+	}
+}
+
+// TestCampaign_StartReturns503WhenBillingSvcNil covers the second F2
+// fail-closed path (CEO Finding #2): non-sandbox campaign + BillingSvc
+// is nil. Pre-fix: the handler's `if d.BillingSvc != nil` guard silently
+// bypassed balance checking — a second fail-open surface. Post-fix: 503.
+func TestCampaign_StartReturns503WhenBillingSvcNil(t *testing.T) {
+	d := mustDeps(t)
+	advID, apiKey := newAdvertiser(t, d)
+	campaignID := newCampaign(t, d, advID)
+	_ = newCreative(t, d, campaignID)
+
+	originalSvc := d.BillingSvc
+	d.BillingSvc = nil
+	t.Cleanup(func() { d.BillingSvc = originalSvc })
+
+	req := authedReq(t, http.MethodPost,
+		"/api/v1/campaigns/"+strconv.FormatInt(campaignID, 10)+"/start", nil, apiKey)
+	w := execAuthed(t, d, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when BillingSvc is nil (non-sandbox), got %d: %s",
+			w.Code, w.Body.String())
 	}
 }
