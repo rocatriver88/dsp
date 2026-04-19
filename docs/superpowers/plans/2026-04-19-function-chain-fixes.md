@@ -1581,6 +1581,34 @@ All 6 Codex findings accepted per user "按推荐" (OK by recommendation):
 | #5 NotifyCampaignUpdate callers (3 vs 7) | MEDIUM | Task 5.6 enumerates all 7 sites explicitly |
 | #6 Task 3 "non-functional refactor" mislabeled | MEDIUM | Task 3.6 commit message rewritten to acknowledge combined refactor + F1 behavior change |
 
+## Phase 2 Boundary Follow-up Findings (filed, not blockers)
+
+Phase 2 adversarial review (Claude fallback, Codex rate-limited) surfaced 3 HIGH findings that are **not blockers** for Phase 2 landing but warrant future hardening:
+
+### F6 — Cross-handler token replay (pre-existing, High security)
+
+HMAC token signs `(campaign_id, request_id, creative_id, bid_price_cents)` with **no handler-type binding**. Observable in `cmd/simulate/main.go:185-201` which deliberately reuses the /win NURL token for /click and /convert. Attacker capturing a valid /win URL can replay within 5-min TTL on /click (charges CPC) and /convert (emits fraudulent conversion).
+
+**Not introduced by Phase 2.** Phase 2 extended sign scope (added creative_id + bid_price_cents) but replay vulnerability is pre-existing.
+
+**Mitigation**: sign a `handler` param (`"win"|"click"|"convert"`) in HMAC payload. ~5 lines per handler + decorator. **File as separate security PR post-ship.**
+
+### F7 — Legacy token fallback has no deploy-window gate (Phase 2-introduced, High security)
+
+handleWin/Click/Convert transitional validation accepts 4-param legacy tokens indefinitely. Attacker capturing a legacy token (logs, proxy, adx traffic) retains valid credential within TTL, even AFTER deploy window should have closed. Plan's "remove legacy branch in follow-up PR" relies on operator discipline, not code.
+
+**Accept (B) for this batch**; file explicit follow-up PR to remove legacy branches ≥10 min after deploy. Tracking: create issue post-ship.
+
+### F8 — Clearing-price cap assumes per-impression dollars (theoretical, High correctness)
+
+`cmd/bidder/main.go:477-485` treats URL `price` as per-impression dollars. `internal/exchange/custom.go:15` calls out "Different price units (yuan vs dollars, CPM vs per-impression)". If any registered exchange quotes `${AUCTION_PRICE}` in raw CPM, cap is 1000× too tight.
+
+**Current**: only `/bid/self` registered in default registry (internal/exchange adapters ready for custom wiring but nothing ships active). OpenRTB 2.5 spec says `${AUCTION_PRICE}` is per-impression — spec-compliant exchanges fine.
+
+**Mitigation**: before registering new exchange adapter, verify its `${AUCTION_PRICE}` unit and normalize to per-impression dollars in adapter's `ParseBidRequest`. Add `TestExchange_PriceUnitNormalization` per adapter. **File as exchange-onboarding checklist.**
+
+---
+
 ## Next Step
 
 Ready for `/plan-eng-review + /codex` (architecture challenge), then user approval, then implementation.
