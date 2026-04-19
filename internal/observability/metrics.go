@@ -123,4 +123,32 @@ var (
 		Name: "dsp_dlq_publish_total",
 		Help: "Total events published to dead-letter queue.",
 	})
+
+	// ── Phase 2 (HMAC rollover / clearing-price) metrics ─────────────
+
+	// BidderTokenLegacyAccepted counts win/click/convert token
+	// validations that fell back to the legacy 4-param HMAC signature
+	// during a deploy transition. Expected to spike briefly right after
+	// a Phase 2 deploy, then return to zero within the 5-minute token
+	// TTL. Sustained non-zero reading >15 min after deploy indicates
+	// stuck legacy-token traffic — investigate before removing the
+	// fallback branch.
+	// Labels: handler — {win, click, convert}
+	BidderTokenLegacyAccepted = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "bidder_token_legacy_accepted_total",
+		Help: "Count of HMAC token validations accepted via legacy 4-param signature during deploy transition.",
+	}, []string{"handler"})
+
+	// BidderClearingPriceCapped counts /win requests whose unsigned URL
+	// `price` exceeded the HMAC-signed bid_price_cents bound. Non-zero
+	// indicates either (a) a URL-tamper attempt or (b) an upstream
+	// exchange bug sending a clearing price above our bid. Either case
+	// is suspicious and the metric is the primary signal for a
+	// security runbook.
+	// Labels: handler — currently {win}; may extend if click/convert
+	// acquire their own pricing branches.
+	BidderClearingPriceCapped = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "bidder_clearing_price_capped_total",
+		Help: "Count of /win requests where clearing price exceeded the signed bid price and was capped.",
+	}, []string{"handler"})
 )
