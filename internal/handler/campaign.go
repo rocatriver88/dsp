@@ -323,10 +323,22 @@ func (d *Deps) HandleStartCampaign(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusUnprocessableEntity, "budget_total must be >= budget_daily")
 		return
 	}
-	// Check advertiser balance before starting (skip for sandbox campaigns)
-	if !c.Sandbox && d.BillingSvc != nil {
+	// Check advertiser balance before starting. Fail-closed on both
+	// surfaces: a query error and a missing BillingSvc. Sandbox
+	// campaigns are exempt from balance verification.
+	if !c.Sandbox {
+		if d.BillingSvc == nil {
+			log.Printf("[CAMPAIGN] BillingSvc nil at runtime campaign=%d adv=%d", id, advID)
+			WriteError(w, http.StatusServiceUnavailable, "unable to verify balance, please retry")
+			return
+		}
 		balance, _, err := d.BillingSvc.GetBalance(r.Context(), advID)
-		if err == nil && balance < c.BudgetDailyCents {
+		if err != nil {
+			log.Printf("[CAMPAIGN] balance check failed campaign=%d adv=%d: %v", id, advID, err)
+			WriteError(w, http.StatusServiceUnavailable, "unable to verify balance, please retry")
+			return
+		}
+		if balance < c.BudgetDailyCents {
 			WriteError(w, http.StatusUnprocessableEntity, "insufficient balance: please top up before starting campaign")
 			return
 		}
