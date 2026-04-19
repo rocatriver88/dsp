@@ -176,12 +176,28 @@ commit B: fix(<scope>): <actual fix>
 
 - **Commit A 单独可 push / 单独可跑**：在 A 上跑 `go test ./<pkg> -run <TestName>` 必须 FAIL，且失败原因是"功能缺失/行为错误"不是"编译错误/拼写错误"
 - **Commit B 让它绿**：在 B 上跑同一条命令必须 PASS
-- **不允许把 A 和 B squash**：审查要看到红的那一刻。PR merge 时用 "Rebase and merge" 或 "Create a merge commit"，**禁止 "Squash and merge"** 对 bug fix PR
+- **不允许把 A 和 B squash**：审查要看到红的那一刻。PR merge 时用 "Rebase and merge" 或 "Create a merge commit"，**禁止 "Squash and merge"** — 此规则对 bug fix PR 是硬性的，对任何显式保留两 commit evidence chain 的 PR（包括 `test(...)` sentinel、`feat(...)` 带 TDD 两段结构）同样适用
 - CI 可加一个可选 job：对 PR 的每个 commit 独立跑测试，commit A 失败是期望结果（用 label / commit trailer `Expect-Fail: <TestName>` 声明）
 
 **豁免**：
 - 纯文档 / CI / 构建脚本修复（无 `.go` / `.ts` / `.tsx` 变更）
 - 明确声明"无法写回归测试"的修复（例：外部 API 行为变更）— 需在 PR body 写清为什么不能测，reviewer 要认可
+
+### 规则 1b：Regression Sentinel 的 Break-Revert Dance
+
+当你给**已经正确的代码**加 regression sentinel（预防未来改坏），测试写完会立刻 PASS，
+规则 1 的 "watched it fail" 无法直接满足。这种情况下**必须**走 break-revert dance 证明 sentinel 非空壳：
+
+1. 在 clean main 上写测试 → 跑 → 期望 PASS（前置条件：代码本来就对）
+2. **临时**改生产代码，触发 sentinel 应该抓到的那类 bug（例：把 `AdvertiserID: c.AdvertiserID` 改成 `AdvertiserID: 999999`）
+3. 再跑测试 → 期望 FAIL，且失败原因对齐你写 sentinel 时设想的情景
+4. **立刻**还原生产代码，`git diff` 必须为空
+5. 再跑一次测试 → 期望 PASS
+
+上述 5 步必须**完整写进 commit message 或 PR body**，作为审查可复现的证据。
+参考模板：见本文件「TDD Evidence 标准格式」一节。
+
+不做 break-revert dance 的 sentinel 一律 reject — 因为你无法证明它真的抓得到那类 bug。
 
 ### 规则 2：Feature 的 TDD 证据由开发者自证 + reviewer 抽查
 
@@ -211,14 +227,59 @@ E2E 循环太慢（分钟级），不能做红绿重构。短期补救：
 - 组件级暂不强制 TDD，但涉及业务逻辑的 hook（`useXxx` 里做数据转换 / 状态机 / 缓存）落单测
 - 纯视觉 / 布局改动豁免单测，但必须走 `/browse` 四维验证 + `/qa`
 
+### TDD Evidence 标准格式
+
+所有带测试的 PR（包括 `fix`/`feat`/`test` 三类）必须在 PR body 里放一段 "TDD Evidence"，
+采用下列表格模板之一。审查时 reviewer 会照这个格式核对。
+
+**格式 A：Bug fix 两 commit 型（Rule 1）**
+
+```markdown
+## TDD Evidence
+
+| Step | Action | Result |
+|------|--------|--------|
+| 1 | Write failing test in commit A | FAIL: <one-line failure message> |
+| 2 | Implement fix in commit B | PASS |
+| 3 | Other tests unaffected | PASS |
+```
+
+**格式 B：Regression Sentinel 型（Rule 1b）**
+
+```markdown
+## TDD Evidence (break-revert dance)
+
+| Step | Action | Result |
+|------|--------|--------|
+| 1 | Wrote test, ran on clean main | PASS (code correct today) |
+| 2 | Temporarily edited `path/to/file.go:N` from `X` to `Y` | (prod broken) |
+| 3 | Re-ran test | FAIL — <paste exact error> |
+| 4 | Reverted file; `git diff <file>` empty | (prod restored) |
+| 5 | Re-ran test | PASS |
+```
+
+**格式 C：Feature 型（Rule 2）**
+
+```markdown
+## TDD Evidence
+
+- New test: `TestXxxYyyZzz` (path/to/file_test.go)
+- RED evidence: <describe the moment it was red, e.g. "before commit abc1234, running this test locally reported 'expected X, got <nil>'">
+- Reviewer can spot-check via: `git log --follow path/to/file_test.go`
+```
+
+这三种格式覆盖了 Rule 1 / 1b / 2 的所有场景。PR body 里**至少**放其中一种，缺失直接 request changes。
+
 ### Reviewer Checklist（接入 `superpowers:requesting-code-review`）
 
 每个 task / PR 审查时额外核对：
 
-- [ ] 若是 bug fix：是否有 test commit 在 fix commit 之前？
-- [ ] 若是 feature：PR body 是否填了 TDD Evidence？随机抽一个 Test 名，问开发者当时 RED 长什么样
+- [ ] 若是 bug fix：是否有 test commit 在 fix commit 之前？PR body 是否放了格式 A 的 TDD Evidence？
+- [ ] 若是 regression sentinel（test-only PR）：PR body 是否放了格式 B（break-revert dance）？5 步是否完整、错误消息是否粘贴？
+- [ ] 若是 feature：PR body 是否放了格式 C？随机抽一个 Test 名，问开发者当时 RED 长什么样
 - [ ] 新增 `_test.go` 是否避开了 nil-store / mock-only 反模式？涉及租户/权限/边界的，是否打了真 Store？
 - [ ] 前端改动：是否对应有单测（纯函数 / 业务 hook），还是能豁免（纯视觉）？
+- [ ] Merge 方式：两 commit 及以上的 PR 是否禁用了 Squash merge？
 
 以上任一项不达标 → reviewer 在 PR 上 request changes，不走"小事一桩"放水。
 
