@@ -12,7 +12,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/redis/go-redis/v9"
+
 	"github.com/heartgryphon/dsp/internal/billing"
+	"github.com/heartgryphon/dsp/internal/budget"
+	"github.com/heartgryphon/dsp/internal/campaign"
+	"github.com/heartgryphon/dsp/internal/observability"
 )
 
 // TestCampaign_Create verifies POST /api/v1/campaigns happy path against
@@ -274,5 +280,100 @@ func TestCampaign_StartReturns503WhenBillingSvcNil(t *testing.T) {
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503 when BillingSvc is nil (non-sandbox), got %d: %s",
 			w.Code, w.Body.String())
+	}
+}
+
+// TestCampaign_StartRecordsMetricOnPubSubFailure verifies that when Redis
+// pub/sub fails during activation, the metric
+// campaign_activation_pubsub_failures_total{action="activated"} increments
+// while /start still returns 200 (eventual-consistency contract per F3-B).
+//
+// We inject the failure by swapping d.Redis (pub/sub surface) for a client
+// pointing at a dead address while leaving BudgetSvc's Redis intact. This
+// is necessary because after the Phase 3 reorder, InitDailyBudget runs
+// BEFORE NotifyCampaignUpdate — using a single closed Redis would trip
+// InitDailyBudget first and return 503, not exercise the pub/sub failure
+// path we want to observe.
+func TestCampaign_StartRecordsMetricOnPubSubFailure(t *testing.T) {
+	d := mustDeps(t)
+	advID, apiKey := newAdvertiser(t, d)
+	campaignID := newCampaign(t, d, advID)
+	_ = newCreative(t, d, campaignID)
+
+	// Capture pre-call metric value for the "activated" label.
+	counter := observability.CampaignActivationPubSubFailures.WithLabelValues("activated")
+	beforeVal := testutil.ToFloat64(counter)
+
+	// Swap d.Redis for a client pointing at a dead address. BudgetSvc still
+	// holds the original live Redis client so InitDailyBudget succeeds. Only
+	// NotifyCampaignUpdate's Publish call hits the dead client.
+	deadRedis := redis.NewClient(&redis.Options{
+		Addr:     "localhost:1", // nothing listens here
+		Password: "irrelevant",
+	})
+	defer deadRedis.Close()
+	originalRedis := d.Redis
+	d.Redis = deadRedis
+	t.Cleanup(func() { d.Redis = originalRedis })
+
+	req := authedReq(t, http.MethodPost,
+		"/api/v1/campaigns/"+strconv.FormatInt(campaignID, 10)+"/start", nil, apiKey)
+	w := execAuthed(t, d, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 (eventual-consistency contract), got %d: %s",
+			w.Code, w.Body.String())
+	}
+
+	afterVal := testutil.ToFloat64(counter)
+	if afterVal != beforeVal+1 {
+		t.Fatalf("expected pubsub_failures{action=activated} to increment from %v to %v, got %v",
+			beforeVal, beforeVal+1, afterVal)
+	}
+}
+
+// TestCampaign_StartReturns503WhenInitDailyBudgetFails verifies the
+// InitDailyBudget fail-closed path (Codex Finding #3). Pre-fix:
+// InitDailyBudget error was log-and-continue, campaign committed active
+// with no daily key → bidder saw 0 budget → no-bids forever. Post-fix:
+// InitDailyBudget err returns 503 BEFORE TransitionStatus, no active row.
+//
+// We inject the failure by swapping BudgetSvc with one backed by a dead
+// Redis client. BillingSvc uses Postgres not Redis, so balance check still
+// works. Handler Redis (for pub/sub) is left live — though it never runs
+// because the 503 short-circuits before NotifyCampaignUpdate.
+func TestCampaign_StartReturns503WhenInitDailyBudgetFails(t *testing.T) {
+	d := mustDeps(t)
+	advID, apiKey := newAdvertiser(t, d)
+	campaignID := newCampaign(t, d, advID)
+	_ = newCreative(t, d, campaignID)
+
+	// Swap BudgetSvc for one backed by a dead Redis client.
+	deadRedis := redis.NewClient(&redis.Options{
+		Addr:     "localhost:1", // nothing listens here
+		Password: "irrelevant",
+	})
+	defer deadRedis.Close()
+	originalBudget := d.BudgetSvc
+	d.BudgetSvc = budget.New(deadRedis)
+	t.Cleanup(func() { d.BudgetSvc = originalBudget })
+
+	req := authedReq(t, http.MethodPost,
+		"/api/v1/campaigns/"+strconv.FormatInt(campaignID, 10)+"/start", nil, apiKey)
+	w := execAuthed(t, d, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 on InitDailyBudget failure, got %d: %s",
+			w.Code, w.Body.String())
+	}
+
+	// Verify the campaign was NOT transitioned to active — no orphan
+	// "active but 0 daily budget" row should exist.
+	c, err := d.Store.GetCampaign(context.Background(), campaignID)
+	if err != nil {
+		t.Fatalf("get campaign: %v", err)
+	}
+	if c.Status == campaign.StatusActive {
+		t.Fatalf("CONTRACT VIOLATION: campaign committed active despite 503 response")
 	}
 }
