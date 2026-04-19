@@ -52,7 +52,19 @@ func newHandlerFixture(t *testing.T) *handlerFixture {
 
 	loader := bidder.NewCampaignLoader(h.PG, h.RDB)
 	producer := events.NewProducer(h.Env.KafkaBrokers, t.TempDir())
-	t.Cleanup(producer.Close)
+	// Mirror the production shutdown ordering (cmd/bidder/main.go:255-260):
+	// drain inflight goroutines via WaitInflight before closing Kafka writers.
+	// Without this, a handler that spawns `producer.Go(SendClick)` can still
+	// be writing when Close() runs, which either drops the message (Async=true
+	// + unsynchronised close) or hangs the test on shutdown. See the long
+	// comment at handlers_integration_test.go:444 for the original P1-3
+	// fallout that motivated this ordering fix.
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = producer.WaitInflight(ctx)
+		producer.Close()
+	})
 
 	budgetSvc := budget.New(h.RDB)
 	strategySvc := bidder.NewBidStrategy(h.RDB)
