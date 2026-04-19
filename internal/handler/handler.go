@@ -9,7 +9,6 @@ import (
 
 	"github.com/heartgryphon/dsp/internal/auth"
 	"github.com/heartgryphon/dsp/internal/audit"
-	"github.com/heartgryphon/dsp/internal/billing"
 	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/guardrail"
@@ -23,7 +22,7 @@ import (
 type Deps struct {
 	Store       *campaign.Store
 	ReportStore *reporting.Store // nil if ClickHouse unavailable
-	BillingSvc  *billing.Service
+	BillingSvc  BillingService
 	RegSvc      *registration.Service
 	BudgetSvc   *budget.Service      // nil if Redis unavailable
 	Redis       *redis.Client        // nil if Redis unavailable

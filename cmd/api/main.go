@@ -117,6 +117,15 @@ func main() {
 	// Initialize services
 	store := campaign.NewStore(db)
 	billingSvc := billing.New(db)
+	// Fail fast before any billing-dependent goroutine launches (reconciliation
+	// below passes billingSvc into StartHourlySchedule / StartDailySchedule).
+	// A nil here would NPE on first tick instead of dying cleanly at boot.
+	// The handler-level assert further down catches a different failure mode
+	// (forgetting to assign into Deps.BillingSvc); both are kept as
+	// defense-in-depth.
+	if billingSvc == nil {
+		log.Fatal("billing.New returned nil; check DB wiring")
+	}
 	regSvc := registration.New(db)
 	auditLogger := audit.NewLogger(db)
 	var budgetSvc *budget.Service
@@ -178,6 +187,14 @@ func main() {
 		JWTSecret:      []byte(cfg.JWTSecret),
 	}
 	h.SetLoginGuard(loginGuard)
+
+	// Defense-in-depth (CEO Finding #2): handler layer will also 503 on a
+	// nil BillingSvc so a non-sandbox /start cannot silently skip the
+	// balance check. But catching nil at startup prevents the deploy from
+	// silently launching a non-billing server in the first place.
+	if h.BillingSvc == nil {
+		log.Fatal("BillingSvc required at startup; check wiring")
+	}
 
 	publicSrv := &http.Server{
 		Addr:              ":" + cfg.APIPort,
