@@ -71,6 +71,18 @@ func TestCircuitBreaker_FailOpen_OnRedisError(t *testing.T) {
 	}
 }
 
+// TestCircuitBreaker_FailClosed_OnRedisError verifies that a fail-closed
+// circuit breaker returns !IsOpen (blocking bids) when Redis is
+// unreachable. Point of failure would be a refactor that drops the
+// FailClosed branch, or inverts the return value.
+//
+// REGRESSION SENTINEL: P0-3 guardrail fail-closed discipline
+// (docs/testing-strategy-bidder.md §3 P0-3). Originally landed as fix
+// commit a32ac0f. Break-revert verified 2026-04-19: editing
+// circuitbreaker.go:66 from `if cb.FailClosed` to `if false` triggers
+// "fail-closed circuit breaker should block bids when Redis is
+// unreachable" — exactly the bug this sentinel is designed to catch.
+// Revert restores GREEN.
 func TestCircuitBreaker_FailClosed_OnRedisError(t *testing.T) {
 	// A client pointing at a non-existent Redis will produce errors on Get.
 	rdb := redis.NewClient(&redis.Options{Addr: "localhost:1"}) // no Redis here

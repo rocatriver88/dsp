@@ -215,6 +215,15 @@ func TestStats_PublicMux_Returns404(t *testing.T) {
 
 // TestStats_InternalMux_RequiresAdminToken verifies that /internal/stats
 // returns 401 when no X-Admin-Token header is provided.
+//
+// REGRESSION SENTINEL: P0-2 admin-token discipline on the internal mux
+// (docs/testing-strategy-bidder.md §3 P0-2). Also guards the V5.2C
+// migration that moved /stats from the public port to the internal port
+// behind bidderAdminAuth (commit 68406de). Break-revert verified 2026-
+// 04-19: removing the token check in cmd/bidder/routes.go:93 causes this
+// test to fail loudly (panic when request reaches handleStats with nil
+// Loader, or 200 if the handler is stubbed) — either way, RED is
+// unmistakable. Revert restores GREEN.
 func TestStats_InternalMux_RequiresAdminToken(t *testing.T) {
 	const testToken = "v5-2c-test-admin-token"
 	t.Setenv("ADMIN_TOKEN", testToken)
@@ -288,6 +297,11 @@ func TestStats_InternalMux_SuccessWithToken(t *testing.T) {
 // ADMIN_TOKEN is not configured (empty), the endpoint returns 401 even
 // if the client sends an empty X-Admin-Token header (defense in depth
 // against matching "" == "").
+//
+// REGRESSION SENTINEL: defense-in-depth for P0-2. Specifically guards
+// the `if token == ""` branch in bidderAdminAuth (cmd/bidder/routes.go:89)
+// — without it, an attacker who knows ADMIN_TOKEN is unset could bypass
+// with an empty header. See docs/testing-strategy-bidder.md §3 P0-2.
 func TestStats_InternalMux_FailsClosed_NoAdminToken(t *testing.T) {
 	t.Setenv("ADMIN_TOKEN", "")
 
