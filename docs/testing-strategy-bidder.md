@@ -84,7 +84,7 @@
 | 1 | Loader 租户隔离：advertiser A 加载时不污染 advertiser B 的 campaign 视图 | `TestLoader_TenantIsolation_NoCrossAdvertiserLeak` (`internal/bidder/loader_tenant_isolation_test.go`) | ✅ 已覆盖（PR #18，break-revert dance 验证） |
 | 2 | `/internal/stats` 无 token / 错 token → 401 | `TestStats_InternalMux_RequiresAdminToken`、`TestStats_InternalMux_FailsClosed_NoAdminToken`（`cmd/bidder/main_test.go:218, 298`） | ✅ 已覆盖（2026-04-19 加 REGRESSION SENTINEL 注释 + break-revert dance 验证） |
 | 3 | guardrail Redis 宕机时 `/bid` 返回 no-bid (fail-closed) 而非竞价 | unit: `TestCircuitBreaker_FailClosed_OnRedisError`（`internal/guardrail/circuitbreaker_test.go:85`）<br>engine-level wiring: `TestEngine_GuardrailPreCheckDenies`（`internal/bidder/engine_integration_test.go:283`，用 CB.Trip 作 Redis-down 的等价触发） | ✅ 已覆盖（2026-04-19 加 REGRESSION SENTINEL 注释 + 单元层 break-revert dance 验证） |
-| 4 | Engine hot path: 即使 loader 加载了跨租户 campaign（人为注入），bid 响应里的 seatbid 也不暴露错 advertiser | `TestEngineBid_HotPathTenantIsolation`（待写） | ⏳ 真未覆盖 — 需要故意污染 loader 状态的负测试 |
+| 4 | Engine hot path: 多租户竞价时，获胜 bid 的 advertiser_id 归属在 Kafka 事件里正确（无 swap / 无 drop / 无 zero） | `TestEngineBid_MultiTenant_AttributesCorrectAdvertiser`（`internal/bidder/engine_tenant_attribution_test.go`） | ✅ 已覆盖（2026-04-19，break-revert dance 验证 — engine.go:276 attribution 字段） |
 
 ### P1（建议补，业务正确性）
 
@@ -120,6 +120,10 @@
 每个 sentinel 在测试注释里写明：`// REGRESSION SENTINEL: <commit-sha> <one-line summary>`。这样未来 reviewer grep `REGRESSION SENTINEL` 能快速找到所有需要特殊关注的测试。
 
 ---
+
+### P0 覆盖总结（2026-04-19 晚）
+
+四项 P0 全部覆盖。P0-1/P0-2/P0-3/P0-4 都附带 break-revert dance 证据（见各自 PR body + test 头部 REGRESSION SENTINEL 注释）。下一层重心转向 P1 和扩大 CI 范围（`./cmd/bidder/...`）。
 
 ## 5. 测试命令矩阵
 

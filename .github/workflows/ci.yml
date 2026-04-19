@@ -101,16 +101,31 @@ jobs:
             echo "Kafka is ready"
           '
 
-      # Scope: TestLoader_* only in this first CI job. TestEngine_* hit a
-      # Kafka-producer reliability issue in CI that does not reproduce on a
-      # developer laptop (passes locally, fails in Actions with
-      # "dsp.bids count: want 1 got 0"). Root cause likely a race between
-      # Kafka broker readiness and the async producer's initial handshake,
-      # but needs deeper investigation than this PR should scope. Tracked
-      # in docs/testing-strategy-bidder.md §8.3 as a follow-up alongside
-      # broadening to ./cmd/... packages.
+      # Pre-create every topic the bidder produces to. The async kafka-go
+      # Writer silently drops the first message to a not-yet-existing topic
+      # during the auto-create / metadata-propagation window — reproduced
+      # locally 2026-04-19 as the root cause of TestEngine_BidHappyPath
+      # flaking in CI with "dsp.bids count: want 1 got 0". Explicit
+      # pre-creation eliminates the race and makes producer-using tests
+      # deterministic.
+      - name: Pre-create Kafka topics
+        run: |
+          for topic in dsp.bids dsp.impressions dsp.billing dsp.dead-letter; do
+            docker exec kafka-main /opt/kafka/bin/kafka-topics.sh \
+              --bootstrap-server kafka:19094 \
+              --create --if-not-exists \
+              --topic "$topic" \
+              --partitions 3 \
+              --replication-factor 1
+          done
+
+      # Full ./internal/bidder/... integration suite. Topic pre-creation
+      # above stabilised TestEngine_* producer writes; Loader tests unaffected.
+      # Expanding to ./cmd/bidder/... (handlers_integration_test.go,
+      # main_test.go) remains a separate follow-up — see
+      # docs/testing-strategy-bidder.md §8.3.
       - name: Integration tests
-        run: go test -tags=integration -count=1 -v -timeout 10m -run '^TestLoader_' ./internal/bidder/...
+        run: go test -tags=integration -count=1 -v -timeout 10m ./internal/bidder/...
         env:
           QA_POSTGRES_DSN: postgres://dsp:dsp_dev_password@localhost:15432/dsp?sslmode=disable
           QA_REDIS_ADDR: localhost:16380
