@@ -282,6 +282,16 @@ func TestIsCreativeSecure_NativeHTTP(t *testing.T) {
 	}
 }
 
+// TestMatchCreativeToImp_SecureFilters guards the "HTTP creative does
+// not match HTTPS-required impression" invariant. A secure impression
+// paired with only non-secure creatives MUST yield no match (no bid),
+// never silently return the HTTP creative.
+//
+// REGRESSION SENTINEL: P2-11 creative secure-flag mismatch
+// (docs/testing-strategy-bidder.md §3 P2). Pairs with
+// TestIsCreativeSecure_* (unit predicates) above. First landed as
+// commit 1fa48b9 after a production near-miss where a secure-required
+// impression was served an HTTP creative.
 func TestMatchCreativeToImp_SecureFilters(t *testing.T) {
 	imp := &openrtb2.Imp{
 		Native: &openrtb2.Native{Request: "{}"},
