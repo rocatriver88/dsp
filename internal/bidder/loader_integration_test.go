@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/heartgryphon/dsp/internal/bidder"
+	"github.com/heartgryphon/dsp/internal/budget"
 	"github.com/heartgryphon/dsp/internal/campaign"
 	"github.com/heartgryphon/dsp/internal/qaharness"
 )
@@ -257,6 +258,93 @@ func TestLoader_MalformedPubSub(t *testing.T) {
 	h.PublishCampaignUpdate(id, "activated")
 
 	waitForCache(t, cl, id, true, 1*time.Second)
+}
+
+// TestLoader_FullLoad_DoesNotResetSpentDaily regresses against the Phase 3
+// T5 critical bug where InitDailyBudget via SET (not NX) reset running
+// counters on every 30s refresh, functionally disabling daily budget
+// enforcement.
+//
+// Setup: seed a campaign with BudgetDailyCents=10_000, then force the
+// budget:daily:{id}:{today} key down to 100 to simulate 9_900 already
+// spent. Start the loader with a 200ms refresh interval plugged into a
+// real budget.Service, wait for at least two refresh ticks, and assert
+// the counter is STILL 100 — proving InitDailyBudgetNX did not overwrite
+// the running spent counter.
+//
+// Pre-fix behavior: InitDailyBudget (SET) would rewrite the key back to
+// 10_000 within the first tick, and this test would fail with
+// "expected 100, got 10000".
+//
+// Post-fix behavior: InitDailyBudgetNX (SetNX) is a no-op because the key
+// already exists, so the counter stays at 100.
+func TestLoader_FullLoad_DoesNotResetSpentDaily(t *testing.T) {
+	h := qaharness.New(t)
+	advID := h.SeedAdvertiser("loader-daily-no-reset")
+
+	id := h.SeedCampaign(qaharness.CampaignSpec{
+		AdvertiserID:     advID,
+		Name:             "qa-loader-daily-no-reset",
+		BidCPMCents:      1000,
+		BudgetDailyCents: 10_000,
+	})
+	h.SeedCreative(id, "", "")
+
+	// Simulate partial spend: 9_900 already deducted, 100 remaining.
+	// SeedCampaign initialized the Redis daily key to 10_000; override it.
+	h.SetBudgetRemaining(id, 100)
+	if got := h.GetBudgetRemaining(id); got != 100 {
+		t.Fatalf("setup: expected 100 after SetBudgetRemaining, got %d", got)
+	}
+
+	// Start the loader with a fast refresh interval + a real budget.Service
+	// so the fullLoad path invokes InitDailyBudgetNX against live Redis.
+	budgetSvc := budget.New(h.RDB)
+	cl := bidder.NewCampaignLoader(h.PG, h.RDB,
+		bidder.WithRefreshInterval(200*time.Millisecond),
+		bidder.WithBudgetService(budgetSvc),
+	)
+	ctx, cancel := context.WithCancel(h.Ctx)
+	if err := cl.Start(ctx); err != nil {
+		cancel()
+		t.Fatalf("loader start: %v", err)
+	}
+	t.Cleanup(func() {
+		cl.Stop()
+		cancel()
+	})
+
+	// Sanity: campaign is loaded by the initial fullLoad.
+	waitForCache(t, cl, id, true, 1*time.Second)
+
+	// Immediately after Start, fullLoad has already run once. If the bug
+	// is present (SET semantics), the counter is already back to 10_000.
+	if got := h.GetBudgetRemaining(id); got != 100 {
+		t.Fatalf("after initial fullLoad: expected running counter preserved at 100, got %d "+
+			"(regression: InitDailyBudget via SET reset the running spent counter; "+
+			"loader must use InitDailyBudgetNX)", got)
+	}
+
+	// Let at least 3 more periodic refresh ticks fire (600ms at 200ms/tick).
+	// Each tick calls fullLoad → InitDailyBudgetNX. All must be no-ops
+	// because the key already exists.
+	time.Sleep(700 * time.Millisecond)
+
+	if got := h.GetBudgetRemaining(id); got != 100 {
+		t.Fatalf("after ~3 periodic refresh ticks: expected running counter preserved at 100, got %d "+
+			"(regression: loader's periodic refresh is overwriting the daily counter; "+
+			"InitDailyBudgetNX must be a no-op when the key already exists)", got)
+	}
+
+	// Also exercise the pub/sub activated path (same NX guarantee).
+	h.PublishCampaignUpdate(id, "activated")
+	time.Sleep(300 * time.Millisecond)
+
+	if got := h.GetBudgetRemaining(id); got != 100 {
+		t.Fatalf("after pub/sub activated: expected running counter preserved at 100, got %d "+
+			"(regression: pub/sub handler is overwriting the daily counter; "+
+			"InitDailyBudgetNX must be a no-op when the key already exists)", got)
+	}
 }
 
 // Scenario 7 — unknown action must be ignored; the cache must be unchanged.
