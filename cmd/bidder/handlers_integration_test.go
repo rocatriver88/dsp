@@ -218,9 +218,15 @@ func TestHandlers_WinNormalCPM(t *testing.T) {
 	// The strategy package uses Asia/Shanghai time (see internal/bidder/strategy.go:144).
 	winKey := fmt.Sprintf("strategy:wins:%d:%s", campID,
 		time.Now().In(config.CSTLocation).Format("2006-01-02"))
-	// Poll briefly — the goroutine may take a few ms to run even with bgCtx.
+	// Poll — the bare `go d.StrategySvc.RecordWin(...)` in cmd/bidder/main.go:505
+	// is not wrapped in producer.inflight, so Go-runtime scheduling is the only
+	// delay bound. On a local developer box a few ms is enough, but on a shared
+	// CI runner (ubuntu-latest, ~2 cores under load from postgres+redis+kafka+
+	// clickhouse containers + integration test itself) the goroutine can get
+	// starved for hundreds of ms. 10 seconds is generous but still fails fast
+	// if the regression actually triggers.
 	var strategyWinCount int64
-	for i := 0; i < 50; i++ {
+	for i := 0; i < 500; i++ {
 		v, err := f.RDB.Get(f.Ctx, winKey).Int64()
 		if err == nil && v >= 1 {
 			strategyWinCount = v
