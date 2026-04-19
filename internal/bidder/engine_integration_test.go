@@ -271,6 +271,15 @@ func TestEngine_BidFloorFilter(t *testing.T) {
 // TestEngine_GuardrailPreCheckDenies (Scenario 18) — when the circuit breaker
 // is tripped, PreCheck denies and the engine returns nil without iterating
 // any candidates.
+//
+// REGRESSION SENTINEL: P0-3 engine-layer honoring of guardrail denial
+// (docs/testing-strategy-bidder.md §3 P0-3). The guardrail unit test
+// TestCircuitBreaker_FailClosed_OnRedisError guards the fail-closed return
+// value; this integration test guards the WIRING — that the engine's Bid()
+// actually respects !PreCheck.Allowed by short-circuiting. The test uses
+// CB.Trip() as a proxy trigger; the Redis-down scenario produces the same
+// downstream path (Allowed=false), so covering one covers the wiring for
+// both.
 func TestEngine_GuardrailPreCheckDenies(t *testing.T) {
 	f := newEngineFixtureWithGuard(t, guardrail.Config{})
 	advID := f.SeedAdvertiser("precheck")

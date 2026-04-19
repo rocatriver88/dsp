@@ -79,12 +79,12 @@
 
 ### P0（必补，安全/租户隔离相关）
 
-| # | Gap | 建议 test 名 | 类型 |
-|---|-----|-------------|------|
-| 1 | Loader 租户隔离：advertiser A 加载时不污染 advertiser B 的 campaign 视图 | `TestLoader_TenantIsolation_NoCrossAdvertiserLeak` | Integration + 真 pg |
-| 2 | `/internal/stats` 无 token / 错 token → 401 | `TestInternalStatsEndpoint_RequiresAdminToken` | Integration |
-| 3 | guardrail Redis 宕机时 `/bid` 返回 no-bid (fail-closed) 而非竞价 | `TestBid_GuardrailFailClosed_OnRedisError` | Integration |
-| 4 | Engine hot path: 即使 loader 加载了跨租户 campaign（人为注入），bid 响应里的 seatbid 也不暴露错 advertiser | `TestEngineBid_HotPathTenantIsolation` | Integration（需要故意污染 loader 状态） |
+| # | Gap | Test | 状态 |
+|---|-----|------|------|
+| 1 | Loader 租户隔离：advertiser A 加载时不污染 advertiser B 的 campaign 视图 | `TestLoader_TenantIsolation_NoCrossAdvertiserLeak` (`internal/bidder/loader_tenant_isolation_test.go`) | ✅ 已覆盖（PR #18，break-revert dance 验证） |
+| 2 | `/internal/stats` 无 token / 错 token → 401 | `TestStats_InternalMux_RequiresAdminToken`、`TestStats_InternalMux_FailsClosed_NoAdminToken`（`cmd/bidder/main_test.go:218, 298`） | ✅ 已覆盖（2026-04-19 加 REGRESSION SENTINEL 注释 + break-revert dance 验证） |
+| 3 | guardrail Redis 宕机时 `/bid` 返回 no-bid (fail-closed) 而非竞价 | unit: `TestCircuitBreaker_FailClosed_OnRedisError`（`internal/guardrail/circuitbreaker_test.go:85`）<br>engine-level wiring: `TestEngine_GuardrailPreCheckDenies`（`internal/bidder/engine_integration_test.go:283`，用 CB.Trip 作 Redis-down 的等价触发） | ✅ 已覆盖（2026-04-19 加 REGRESSION SENTINEL 注释 + 单元层 break-revert dance 验证） |
+| 4 | Engine hot path: 即使 loader 加载了跨租户 campaign（人为注入），bid 响应里的 seatbid 也不暴露错 advertiser | `TestEngineBid_HotPathTenantIsolation`（待写） | ⏳ 真未覆盖 — 需要故意污染 loader 状态的负测试 |
 
 ### P1（建议补，业务正确性）
 
