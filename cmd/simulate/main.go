@@ -9,10 +9,13 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/heartgryphon/dsp/internal/auth"
 )
 
 const (
@@ -23,7 +26,25 @@ const (
 	clickRate   = 0.10 // 10% CTR (of impressions, not wins)
 	convertRate = 0.30 // 30% of clicks convert
 	fillRate    = 0.50 // 50% of wins actually render (fill rate)
+
+	// F6 (#27): the bidder's dev-default HMAC secret — matches
+	// defaultBidderHMACSecret in internal/config/config.go. Simulate
+	// needs the secret to mint per-handler tokens for /click and /convert
+	// (the NURL it receives back only carries the /win token, and
+	// post-F6 /win tokens do NOT validate on other endpoints).
+	// Override via BIDDER_HMAC_SECRET env var when hitting a non-dev
+	// bidder.
+	defaultSimHMACSecret = "dev-hmac-secret-change-in-production"
 )
+
+// hmacSecret is resolved at package init so simulate can mint tokens that
+// match the bidder it targets.
+var hmacSecret = func() string {
+	if v := os.Getenv("BIDDER_HMAC_SECRET"); v != "" {
+		return v
+	}
+	return defaultSimHMACSecret
+}()
 
 var (
 	geos    = []string{"CN", "CN", "CN", "US", "JP", "KR"} // weighted toward CN
@@ -182,22 +203,40 @@ func simulateBid(i int) {
 
 	// Simulate click (10% CTR of impressions)
 	if rand.Float64() < clickRate {
-		// Build click URL from win URL params
+		// Build click URL from win URL params. F6 (#27): post-handler-
+		// binding the token extracted from NURL (signed for "win") does
+		// NOT validate on /click — mint a fresh "click"-scoped token
+		// using the same bid-time params that were signed into the /win
+		// token (campID, reqID, creativeID, bidPriceCents). The
+		// decorator's NURL carries bid_price_cents but the existing
+		// simulate code did not parse it — read it back now so the
+		// click token's HMAC payload lines up with what handleClick
+		// reads from its URL.
 		u, _ := url.Parse(winURL)
 		q := u.Query()
-		clickURL := fmt.Sprintf("%s/click?campaign_id=%s&request_id=%s&token=%s&geo=%s&os=%s&dest=%s",
-			bidderURL, q.Get("campaign_id"), q.Get("request_id"), q.Get("token"),
-			q.Get("geo"), q.Get("os"), url.QueryEscape("https://example.com"))
+		campaignIDParam := q.Get("campaign_id")
+		requestIDParam := q.Get("request_id")
+		creativeIDParam := q.Get("creative_id")         // may be "" for simulate's lightweight flow
+		bidPriceCentsParam := q.Get("bid_price_cents") // signed in NURL by decorator
+		clickToken := auth.GenerateToken(hmacSecret, "click",
+			campaignIDParam, requestIDParam, creativeIDParam, bidPriceCentsParam)
+		clickURL := fmt.Sprintf("%s/click?campaign_id=%s&request_id=%s&creative_id=%s&bid_price_cents=%s&token=%s&geo=%s&os=%s",
+			bidderURL, campaignIDParam, requestIDParam, creativeIDParam, bidPriceCentsParam, clickToken,
+			q.Get("geo"), q.Get("os"))
 		clickResp, err := http.Get(clickURL)
 		if err == nil {
 			clickResp.Body.Close()
 			if clickResp.StatusCode == 200 || clickResp.StatusCode == 302 {
 				atomic.AddInt64(&clickCount, 1)
 
-				// Simulate conversion (30% of clicks)
+				// Simulate conversion (30% of clicks).
+				// Again, mint a fresh "convert"-scoped token — /win
+				// and /click tokens no longer validate here post-F6.
 				if rand.Float64() < convertRate {
-					convertURL := fmt.Sprintf("%s/convert?campaign_id=%s&request_id=%s&token=%s&geo=%s&os=%s",
-						bidderURL, q.Get("campaign_id"), q.Get("request_id"), q.Get("token"),
+					convertToken := auth.GenerateToken(hmacSecret, "convert",
+						campaignIDParam, requestIDParam, creativeIDParam, bidPriceCentsParam)
+					convertURL := fmt.Sprintf("%s/convert?campaign_id=%s&request_id=%s&creative_id=%s&bid_price_cents=%s&token=%s&geo=%s&os=%s",
+						bidderURL, campaignIDParam, requestIDParam, creativeIDParam, bidPriceCentsParam, convertToken,
 						q.Get("geo"), q.Get("os"))
 					convResp, err := http.Get(convertURL)
 					if err == nil {

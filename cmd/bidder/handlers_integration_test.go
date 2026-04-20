@@ -121,13 +121,13 @@ func (f *handlerFixture) Start(t *testing.T) {
 }
 
 // buildWinURL constructs the /win query string the way an exchange would,
-// with a valid HMAC token. Post-decorator refactor the signature is
-// (campaignID, requestID, creativeID, bidPriceCents); existing tests that
-// don't carry creative metadata sign with empty strings and the handler's
-// ValidateToken naturally reads "" back from URL for the same params.
+// with a valid HMAC token. Post-F6 the first variadic param is the
+// "win" handler-type discriminator; trailing creative_id / bid_price_cents
+// are "" both in URL and in signature for tests that don't carry the
+// creative metadata.
 func (f *handlerFixture) buildWinURL(campaignID int64, requestID string, price float64, geo, osName string) string {
 	campIDStr := fmt.Sprintf("%d", campaignID)
-	token := auth.GenerateToken(qaHMACSecret, campIDStr, requestID, "", "")
+	token := auth.GenerateToken(qaHMACSecret, "win", campIDStr, requestID, "", "")
 	q := url.Values{}
 	q.Set("campaign_id", campIDStr)
 	q.Set("price", fmt.Sprintf("%f", price))
@@ -142,13 +142,13 @@ func (f *handlerFixture) buildWinURL(campaignID int64, requestID string, price f
 
 func (f *handlerFixture) buildClickURL(campaignID int64, requestID string) string {
 	campIDStr := fmt.Sprintf("%d", campaignID)
-	// Token signature matches handleClick's 4-param ValidateToken
-	// (campaignID, requestID, creativeID, bidPriceCents). creative_id
-	// is placed in the URL as "" so the handler validates against the
-	// same empty string signed here. bid_price_cents is NOT in the URL
-	// (handleClick reads "" unconditionally), and the generator above
-	// uses "" so the HMACs line up.
-	token := auth.GenerateToken(qaHMACSecret, campIDStr, requestID, "", "")
+	// F6 (#27): sign "click" as the first variadic param. The remaining
+	// 4 params match handleClick's (campaignID, requestID, creativeID,
+	// bidPriceCents). creative_id is placed in the URL as "" so the
+	// handler validates against the same empty string signed here.
+	// bid_price_cents is NOT in the URL (handleClick reads "" by default),
+	// and the generator uses "" so the HMACs line up.
+	token := auth.GenerateToken(qaHMACSecret, "click", campIDStr, requestID, "", "")
 	q := url.Values{}
 	q.Set("campaign_id", campIDStr)
 	q.Set("request_id", requestID)
@@ -159,11 +159,12 @@ func (f *handlerFixture) buildClickURL(campaignID int64, requestID string) strin
 
 func (f *handlerFixture) buildConvertURL(campaignID int64, requestID string) string {
 	campIDStr := fmt.Sprintf("%d", campaignID)
-	// Convert URLs are not produced by the decorator. handleConvert
-	// validates with (campaignID, requestID, creativeID, "") — read
-	// creative_id from the URL (absent = ""), bid_price_cents hardcoded
-	// to "". Sign with empty strings on both sides.
-	token := auth.GenerateToken(qaHMACSecret, campIDStr, requestID, "", "")
+	// F6 (#27): sign "convert" as the first variadic param. Convert URLs
+	// are not produced by the decorator — handleConvert validates with
+	// (campaignID, requestID, creativeID, ""). creative_id is read from
+	// the URL (absent = ""), bid_price_cents hardcoded to "". Sign with
+	// empty strings on both sides.
+	token := auth.GenerateToken(qaHMACSecret, "convert", campIDStr, requestID, "", "")
 	q := url.Values{}
 	q.Set("campaign_id", campIDStr)
 	q.Set("request_id", requestID)
@@ -712,7 +713,8 @@ func TestHandleWin_UsesCreativeIDAndBidPriceFromURL(t *testing.T) {
 	campIDStr := fmt.Sprintf("%d", campID)
 	creativeIDStr := fmt.Sprintf("%d", truthfulCreativeID)
 	bidPriceCentsStr := fmt.Sprintf("%d", truthfulBidPriceCents)
-	token := auth.GenerateToken(qaHMACSecret, campIDStr, reqID, creativeIDStr, bidPriceCentsStr)
+	// F6 (#27): handleWin validates with "win" as the first variadic param.
+	token := auth.GenerateToken(qaHMACSecret, "win", campIDStr, reqID, creativeIDStr, bidPriceCentsStr)
 
 	q := url.Values{}
 	q.Set("campaign_id", campIDStr)
@@ -818,7 +820,8 @@ func TestHandleWin_CapsClearingPriceByBidPrice(t *testing.T) {
 	reqID := fmt.Sprintf("qa-winpricecap-%d", time.Now().UnixNano())
 	campIDStr := fmt.Sprintf("%d", campID)
 	const signedBidCents = int64(150) // signed cap: 150 cents → $0.00150 CPM
-	token := auth.GenerateToken(qaHMACSecret, campIDStr, reqID, "1",
+	// F6 (#27): handleWin validates with "win" as the first variadic param.
+	token := auth.GenerateToken(qaHMACSecret, "win", campIDStr, reqID, "1",
 		fmt.Sprintf("%d", signedBidCents))
 
 	q := url.Values{}
