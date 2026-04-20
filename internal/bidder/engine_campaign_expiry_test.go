@@ -39,7 +39,11 @@ func TestEngine_CampaignExpiry_ExcludedFromBid(t *testing.T) {
 	})
 	f.SeedCreative(campID, "", "")
 
-	pastEnd := time.Now().Add(-1 * time.Hour)
+	// campaigns.end_date is compared in Postgres via `end_date >= NOW()` during
+	// loader full-load. The column is timezone-naive, so seed the past value in
+	// UTC to avoid local-time offsets making a logically expired campaign appear
+	// future-dated on a UTC-configured test database.
+	pastEnd := time.Now().UTC().Add(-1 * time.Hour)
 	_, err := f.PG.Exec(f.Ctx,
 		`UPDATE campaigns SET end_date = $1 WHERE id = $2`, pastEnd, campID)
 	if err != nil {

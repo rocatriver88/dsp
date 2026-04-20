@@ -116,16 +116,17 @@ func (h *TestHarness) Reset() error {
 		return err
 	}
 
-	// ClickHouse DELETE is async. Queue the delete then poll system.mutations
-	// until no in-progress mutations on bid_log remain. Without this wait,
-	// tests that run in sequence race each other: a queued DELETE from the
-	// previous test can fire while the next test is writing rows, causing
-	// the new test's inserts to be wiped before it can query them.
-	if err := h.CH.Exec(ctx, `ALTER TABLE bid_log DELETE WHERE advertiser_id >= 900000`); err != nil {
+	// Force the mutation to complete before Reset returns. The default async
+	// ALTER TABLE DELETE can race the next test: the previous test's cleanup
+	// mutation may still be materializing while the next test inserts fresh QA
+	// rows, which then get swept away. `mutations_sync = 1` makes the delete
+	// appear synchronous for the harness.
+	if err := h.CH.Exec(ctx, `
+		ALTER TABLE bid_log
+		DELETE WHERE advertiser_id >= 900000
+		SETTINGS mutations_sync = 1
+	`); err != nil {
 		h.TestT.Logf("qaharness: CH delete warning: %v", err)
-	}
-	if err := h.waitForCHMutations(ctx, 10*time.Second); err != nil {
-		h.TestT.Logf("qaharness: CH mutation wait: %v", err)
 	}
 	return nil
 }

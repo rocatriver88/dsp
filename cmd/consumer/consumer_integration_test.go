@@ -49,6 +49,19 @@ func ensureTopic(t *testing.T, brokers []string, topic string) {
 	if err != nil {
 		t.Logf("ensureTopic(%s): %v (ignoring — may already exist)", topic, err)
 	}
+
+	// Topic creation on the controller can take a short moment to propagate to
+	// the broker metadata path the async producer uses. Poll until the topic is
+	// visible so the very next write does not race into UnknownTopicOrPartition.
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		partitions, err := conn.ReadPartitions(topic)
+		if err == nil && len(partitions) > 0 {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	t.Fatalf("ensureTopic(%s): topic not visible after 10s", topic)
 }
 
 // consumerFixture bundles a running in-process consumer wired to the harness.

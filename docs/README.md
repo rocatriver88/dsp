@@ -9,6 +9,12 @@
 - [评审工作流](./REVIEW_WORKFLOW.md):Codex 与 Claude Code 的评审闭环
 - [发布检查清单](./RELEASE_CHECKLIST.md):合并与发版检查门槛
 - [商业化路线图](./COMMERCIALIZATION_ROADMAP.md):商业化推进与里程碑
+- [函数链梳理](./function-chains.md):从 API 到 bidder、从 bid 到 ClickHouse 的关键调用链
+- [函数链评审](./function-chain-review.md):当前函数链的主要风险与改进建议
+- [函数链测试评审](./function-chain-test-review.md):现有测试缺口与补测建议
+- [当前测试概览](./current-testing-overview.md):项目现有测试分层与运行方式
+- [全功能全链路测试计划](./full-function-full-chain-test-plan-2026-04-20.md):面向 AI Coding 验收的完整测试计划
+- [测试任务拆解](./test-task-breakdown-2026-04-20.md):按优先级拆开的补测任务清单
 - [../CONTRIBUTING.md](../CONTRIBUTING.md):贡献入口文档
 
 ## API 契约
@@ -46,6 +52,8 @@
 - 除非生成源发生变化,不要手工修改 OpenAPI 生成产物
 - 浏览报告、一次性计划和临时过程文档统一放在 `archive/`
 - 新增重大工作流或子系统时,请同步更新本索引和架构说明
+- Windows 本地可用 `powershell -ExecutionPolicy Bypass -File .\scripts\verify-all.ps1`
+- 跨平台统一入口可用 `make verify-all`; 如需跳过 `autopilot verify`,设置 `SKIP_AUTOPILOT=1`
 
 ---
 
