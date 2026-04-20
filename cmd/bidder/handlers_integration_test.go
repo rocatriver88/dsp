@@ -942,3 +942,213 @@ func TestHandleConvert_RejectsLegacyToken(t *testing.T) {
 			httpResp.StatusCode, body)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// F6 cross-handler token replay guard (issue #27).
+//
+// Pre-F6, auth.GenerateToken signed the same payload for /win, /click, and
+// /convert — so a token captured from any one endpoint validated on the
+// other two. An attacker who observed a valid /win URL (ad exchange logs,
+// on-wire capture, proxy) could, within the 5-minute TTL, replay the token
+// on /click to charge CPC (budget drain) and on /convert to emit a
+// fraudulent conversion (attribution poisoning).
+//
+// F6 binds a handler-type discriminator ("win" / "click" / "convert") as
+// the first variadic param in auth.GenerateToken / ValidateToken. A token
+// signed for one handler no longer validates on another.
+//
+// These three tests exercise the cross-handler replay paths. They FAIL on
+// pre-F6 code (where the same token validates everywhere) and PASS after
+// the handler-type binding is applied.
+// ---------------------------------------------------------------------------
+
+// TestHandleClick_RejectsWinToken verifies F6 fix: a token signed for /win
+// cannot be replayed on /click. Pre-F6 the same (campID, reqID, crID,
+// priceCents) payload served both endpoints; post-F6 the HMAC payload
+// includes "win" vs "click" as the leading discriminator, so cross-handler
+// replay yields 403.
+//
+// Attack path this test prevents: attacker captures a valid /win URL,
+// extracts the token, crafts a /click URL with the same token. Within the
+// 5-min TTL, the token would otherwise pass /click's HMAC check and
+// trigger CPC budget deduction (budget drain).
+func TestHandleClick_RejectsWinToken(t *testing.T) {
+	f := newHandlerFixture(t)
+	advID := f.SeedAdvertiser("click-rejects-win-token")
+	campID := f.SeedCampaign(qaharness.CampaignSpec{
+		AdvertiserID:     advID,
+		Name:             "qa-click-rejects-win",
+		BillingModel:     campaign.BillingCPC,
+		BidCPCCents:      100,
+		BudgetDailyCents: 1_000_000,
+	})
+	f.SeedCreative(campID, "", "")
+	f.Start(t)
+
+	beforeBudget := f.GetBudgetRemaining(campID)
+	reqID := fmt.Sprintf("qa-clickrepwin-%d", time.Now().UnixNano())
+
+	// Build a valid /win URL — buildWinURL signs with the "win" handler
+	// type (post-F6). Extract the token.
+	winURL := f.buildWinURL(campID, reqID, 0.05, "CN", "iOS")
+	u, err := url.Parse(winURL)
+	if err != nil {
+		t.Fatalf("parse winURL: %v", err)
+	}
+	winToken := u.Query().Get("token")
+	if winToken == "" {
+		t.Fatalf("buildWinURL produced no token query param")
+	}
+
+	// Build a /click URL that reuses the /win token. Same (campID, reqID,
+	// crID="", priceCents="") params — pre-F6 this would validate; post-F6
+	// the handler expects a "click" discriminator, so validation fails.
+	campIDStr := fmt.Sprintf("%d", campID)
+	q := url.Values{}
+	q.Set("campaign_id", campIDStr)
+	q.Set("request_id", reqID)
+	q.Set("creative_id", "")
+	q.Set("token", winToken)
+	clickURL := f.srv.URL + "/click?" + q.Encode()
+
+	resp, err := http.Get(clickURL)
+	if err != nil {
+		t.Fatalf("GET /click: %v", err)
+	}
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("F6 regression: /win token replayed on /click should be 403, got %d body=%s",
+			resp.StatusCode, body)
+	}
+
+	// Budget must be untouched on rejected click.
+	afterBudget := f.GetBudgetRemaining(campID)
+	if beforeBudget != afterBudget {
+		t.Errorf("budget changed on rejected cross-handler replay: before=%d after=%d",
+			beforeBudget, afterBudget)
+	}
+}
+
+// TestHandleConvert_RejectsWinToken verifies F6 fix on /convert. A /win
+// token must not pass /convert's HMAC check.
+//
+// Attack path this test prevents: attacker replays a valid /win token on
+// /convert, which emits a fraudulent conversion Kafka event (attribution
+// poisoning). No budget impact but corrupts CVR metrics and per-advertiser
+// attribution data.
+func TestHandleConvert_RejectsWinToken(t *testing.T) {
+	f := newHandlerFixture(t)
+	advID := f.SeedAdvertiser("convert-rejects-win-token")
+	campID := f.SeedCampaign(qaharness.CampaignSpec{
+		AdvertiserID:     advID,
+		Name:             "qa-convert-rejects-win",
+		BidCPMCents:      2000,
+		BudgetDailyCents: 1_000_000,
+	})
+	f.SeedCreative(campID, "", "")
+	f.Start(t)
+
+	reqID := fmt.Sprintf("qa-convrepwin-%d", time.Now().UnixNano())
+
+	// Valid /win URL → extract token signed for "win".
+	winURL := f.buildWinURL(campID, reqID, 0.05, "CN", "iOS")
+	u, err := url.Parse(winURL)
+	if err != nil {
+		t.Fatalf("parse winURL: %v", err)
+	}
+	winToken := u.Query().Get("token")
+	if winToken == "" {
+		t.Fatalf("buildWinURL produced no token query param")
+	}
+
+	// Replay on /convert. Same param shape handleConvert would accept
+	// for a genuine convert-token; only the HMAC discriminator differs.
+	campIDStr := fmt.Sprintf("%d", campID)
+	q := url.Values{}
+	q.Set("campaign_id", campIDStr)
+	q.Set("request_id", reqID)
+	q.Set("token", winToken)
+	convertURL := f.srv.URL + "/convert?" + q.Encode()
+
+	resp, err := http.Get(convertURL)
+	if err != nil {
+		t.Fatalf("GET /convert: %v", err)
+	}
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("F6 regression: /win token replayed on /convert should be 403, got %d body=%s",
+			resp.StatusCode, body)
+	}
+
+	// No conversion event on rejected request.
+	convCount := f.CountMessages("dsp.conversions", reqID, 5*time.Second)
+	if convCount != 0 {
+		t.Errorf("dsp.conversions count on rejected cross-handler replay: want 0, got %d", convCount)
+	}
+}
+
+// TestHandleWin_RejectsClickToken verifies F6 fix in the other direction:
+// a /click token must not pass /win's HMAC check.
+//
+// The attack is less impactful this way (capturing a click token
+// presupposes some access to the click-tracked AdM markup), but F6 is
+// bidirectional — all three handler types live in distinct token
+// namespaces. Guard both directions so future regressions in either
+// handler's validation path are caught.
+func TestHandleWin_RejectsClickToken(t *testing.T) {
+	f := newHandlerFixture(t)
+	advID := f.SeedAdvertiser("win-rejects-click-token")
+	campID := f.SeedCampaign(qaharness.CampaignSpec{
+		AdvertiserID:     advID,
+		Name:             "qa-win-rejects-click",
+		BidCPMCents:      2000,
+		BudgetDailyCents: 1_000_000,
+	})
+	f.SeedCreative(campID, "", "")
+	f.Start(t)
+
+	beforeBudget := f.GetBudgetRemaining(campID)
+	reqID := fmt.Sprintf("qa-winrepclick-%d", time.Now().UnixNano())
+
+	// Valid /click URL → extract token signed for "click".
+	clickURL := f.buildClickURL(campID, reqID)
+	u, err := url.Parse(clickURL)
+	if err != nil {
+		t.Fatalf("parse clickURL: %v", err)
+	}
+	clickToken := u.Query().Get("token")
+	if clickToken == "" {
+		t.Fatalf("buildClickURL produced no token query param")
+	}
+
+	// Replay on /win. Same params /win expects, only token
+	// discriminator is wrong.
+	campIDStr := fmt.Sprintf("%d", campID)
+	q := url.Values{}
+	q.Set("campaign_id", campIDStr)
+	q.Set("price", "0.05")
+	q.Set("request_id", reqID)
+	q.Set("creative_id", "")
+	q.Set("bid_price_cents", "")
+	q.Set("geo", "CN")
+	q.Set("os", "iOS")
+	q.Set("token", clickToken)
+	winURL := f.srv.URL + "/win?" + q.Encode()
+
+	resp, err := http.Get(winURL)
+	if err != nil {
+		t.Fatalf("GET /win: %v", err)
+	}
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("F6 regression: /click token replayed on /win should be 403, got %d body=%s",
+			resp.StatusCode, body)
+	}
+
+	// Budget must be untouched on rejected win.
+	afterBudget := f.GetBudgetRemaining(campID)
+	if beforeBudget != afterBudget {
+		t.Errorf("budget changed on rejected cross-handler replay: before=%d after=%d",
+			beforeBudget, afterBudget)
+	}
+}
