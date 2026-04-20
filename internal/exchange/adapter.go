@@ -12,7 +12,22 @@ import (
 // Each exchange implements ParseBidRequest/FormatBidResponse to normalize
 // its protocol variant into standard OpenRTB used internally by the bidder.
 //
-//   Exchange (non-standard) → ParseBidRequest → Engine.Bid() → FormatBidResponse → Exchange
+//	Exchange (non-standard) → ParseBidRequest → Engine.Bid() → FormatBidResponse → Exchange
+//
+// # Price-unit contract (F8, issue #29)
+//
+// ParseBidRequest MUST return a BidRequest whose `imp[i].bidfloor` is
+// **per-impression, in bid currency units** — matching the OpenRTB 2.5
+// spec. Likewise, FormatBidResponse MUST emit a clearing-price
+// (`${AUCTION_PRICE}` substituted into NURL) in the same per-impression
+// unit. This is the unit convention the /win handler assumes when it
+// caps the URL `price` by the signed `bid_price_cents` at
+// cmd/bidder/main.go (see bidder_clearing_price_capped_total metric).
+//
+// If an exchange quotes price in CPM dollars, the adapter MUST divide
+// by 1000 inside ParseBidRequest (and multiply by 1000 in
+// FormatBidResponse). Onboarding checklist:
+// docs/contracts/exchange-onboarding.md.
 type Adapter interface {
 	// ID returns a unique identifier for this exchange.
 	ID() string
@@ -23,8 +38,10 @@ type Adapter interface {
 	// Enabled returns whether this exchange is active.
 	Enabled() bool
 	// ParseBidRequest normalizes an exchange-specific bid request into standard OpenRTB.
+	// Price fields MUST be per-impression in bid currency units (see price-unit contract above).
 	ParseBidRequest(raw []byte) (*openrtb2.BidRequest, error)
 	// FormatBidResponse converts a standard OpenRTB bid response into exchange-specific format.
+	// Price fields MUST be per-impression in bid currency units (see price-unit contract above).
 	FormatBidResponse(resp *openrtb2.BidResponse) ([]byte, error)
 }
 
