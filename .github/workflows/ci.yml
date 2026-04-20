@@ -119,17 +119,8 @@ jobs:
               --replication-factor 1
           done
 
-      # Full integration suite covering ./internal/bidder/... AND
-      # ./cmd/bidder/... (handlers_integration_test.go + main_test.go).
-      # Topic pre-creation above stabilised TestEngine_* producer writes.
-      # cmd/bidder tests additionally exercise Producer.Close ordering
-      # (WaitInflight before Close, mirroring production shutdown) and
-      # the HandleClick P1-3 open-redirect regression sentinel, which
-      # needs a reachable Redis with a password. The REDIS_ADDR /
-      # REDIS_PASSWORD env vars below redirect main_test.go's
-      # previously-hardcoded localhost:7380 lookup to our qaharness stack.
       - name: Integration tests
-        run: go test -tags=integration -count=1 -timeout 15m -skip '^TestHandlers_WinNormalCPM$' ./internal/bidder/... ./cmd/bidder/...
+        run: bash scripts/test-integration-serial.sh
         env:
           QA_POSTGRES_DSN: postgres://dsp:dsp_dev_password@localhost:15432/dsp?sslmode=disable
           QA_REDIS_ADDR: localhost:16380
@@ -139,12 +130,6 @@ jobs:
           QA_CLICKHOUSE_USER: default
           QA_CLICKHOUSE_PASSWORD: dsp_dev_password
           QA_KAFKA_BROKERS: localhost:19094
-          # cmd/bidder/main_test.go honours REDIS_ADDR / REDIS_PASSWORD to
-          # override its localhost:7380 default. Point at the qaharness
-          # stack so TestHandleClick_RejectsArbitraryDest_NoRedirect runs
-          # instead of skipping.
-          REDIS_ADDR: localhost:16380
-          REDIS_PASSWORD: dsp_dev_password
 
       - name: Service logs on failure
         if: failure()
@@ -191,6 +176,10 @@ jobs:
       - name: Build
         working-directory: web
         run: npm run build
+
+      - name: Lint
+        working-directory: web
+        run: npm run lint
 
   docs-check:
     runs-on: ubuntu-latest

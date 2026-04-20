@@ -1,4 +1,4 @@
-.PHONY: api-gen build clean test docs-check
+.PHONY: api-gen build clean test test-e2e test-integration-serial docs-check verify-all
 
 BIN_DIR := bin
 DOCS_GEN_DIR := docs/generated
@@ -32,6 +32,15 @@ clean:
 test:
 	go test ./... -short -count=1
 
+test-e2e:
+	go test -tags e2e ./internal/handler/... -count=1
+
+test-integration-serial:
+	bash scripts/test-integration-serial.sh
+
 # Verify generated OpenAPI + TS types are up to date
 docs-check:
 	bash scripts/docs-check.sh
+
+verify-all:
+	bash scripts/verify-all.sh
