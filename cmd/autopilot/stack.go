@@ -32,7 +32,7 @@ func NewTestStackManager(cfg *AutopilotConfig, logDir string) *TestStackManager 
 func (m *TestStackManager) EnsureRunning(client *DSPClient) error {
 	missing := m.missingServices(client)
 	if len(missing) == 0 {
-		return nil
+		return m.ensureMonitoringStack()
 	}
 
 	if _, ok := missing["API"]; ok {
@@ -48,6 +48,9 @@ func (m *TestStackManager) EnsureRunning(client *DSPClient) error {
 	}
 
 	if err := m.ensureAppServices(client); err != nil {
+		return err
+	}
+	if err := m.ensureMonitoringStack(); err != nil {
 		return err
 	}
 
@@ -99,7 +102,25 @@ func (m *TestStackManager) retargetToIsolatedTestStack() {
 	m.cfg.BidderURL = "http://localhost:9180"
 	m.cfg.FrontendURL = "http://localhost:5000"
 	m.cfg.ExchangeSimURL = "http://localhost:10090"
+	m.cfg.GrafanaURL = "http://localhost:14100"
 	m.cfg.AdminToken = "test-admin-token"
+}
+
+func (m *TestStackManager) ensureMonitoringStack() error {
+	if m.cfg.GrafanaURL == "" {
+		return nil
+	}
+	if err := waitForHTTP200(m.cfg.GrafanaURL, 3*time.Second); err == nil {
+		return nil
+	}
+	log.Println("[PRE-FLIGHT] Starting monitoring stack (api, bidder, consumer, prometheus, grafana)...")
+	if err := runCommandQuiet("", "docker", "compose", "up", "-d", "api", "bidder", "consumer", "prometheus", "grafana"); err != nil {
+		return fmt.Errorf("start monitoring stack: %w", err)
+	}
+	if err := waitForHTTP200(m.cfg.GrafanaURL, 90*time.Second); err != nil {
+		return fmt.Errorf("grafana not healthy after startup: %w", err)
+	}
+	return nil
 }
 
 func (m *TestStackManager) ensureInfrastructure() error {
@@ -177,7 +198,7 @@ func (m *TestStackManager) applyMigrations() error {
 	}
 
 	for _, topic := range []string{"dsp.bids", "dsp.impressions", "dsp.billing", "dsp.dead-letter"} {
-		if err := runCommand("", "docker", "compose", "-p", "dsp-test", "-f", "docker-compose.test.yml", "exec", "-T", "kafka",
+		if err := runCommandQuiet("", "docker", "compose", "-p", "dsp-test", "-f", "docker-compose.test.yml", "exec", "-T", "kafka",
 			"/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:10094", "--create", "--if-not-exists",
 			"--topic", topic, "--partitions", "3", "--replication-factor", "1"); err != nil {
 			return fmt.Errorf("ensure kafka topic %s: %w", topic, err)
@@ -306,6 +327,21 @@ func runCommand(dir string, name string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func runCommandQuiet(dir string, name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if len(output) > 0 {
+			_, _ = os.Stderr.Write(output)
+		}
+		return err
+	}
+	return nil
 }
 
 func portsReachable(ports ...int) bool {
