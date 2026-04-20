@@ -101,7 +101,14 @@ func TestValidate_ProductionEmailAlertChannel_NoError(t *testing.T) {
 
 func TestValidate_ProductionDefaultHMAC_Errors(t *testing.T) {
 	t.Setenv("ENV", "production")
-	// Intentionally do NOT set BIDDER_HMAC_SECRET so Load picks the dev default.
+	// Force BOTH HMAC envs to the baked-in dev default. Without this, a
+	// parent-shell env that has BIDDER_HMAC_SECRET set to anything (e.g.
+	// CI runner with a real secret) would let the BIDDER check pass and
+	// the API check fire next, producing an error that mentions API_HMAC
+	// instead of BIDDER_HMAC and breaking the assertion below. t.Setenv
+	// guarantees the env value for the duration of the test.
+	t.Setenv("BIDDER_HMAC_SECRET", defaultBidderHMACSecret)
+	t.Setenv("API_HMAC_SECRET", defaultAPIHMACSecret)
 	t.Setenv("ADMIN_TOKEN", "test-admin-token")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
 	cfg := Load()
