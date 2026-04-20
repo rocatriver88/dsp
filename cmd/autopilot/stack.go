@@ -20,10 +20,9 @@ import (
 // against an empty workstation. It uses the same ports as scripts/test-env.sh
 // but avoids shell-specific glue so Windows can self-heal reliably.
 type TestStackManager struct {
-	cfg      *AutopilotConfig
-	logDir   string
-	started  []*exec.Cmd
-	builtAny bool
+	cfg     *AutopilotConfig
+	logDir  string
+	started []*exec.Cmd
 }
 
 func NewTestStackManager(cfg *AutopilotConfig, logDir string) *TestStackManager {
