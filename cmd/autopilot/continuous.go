@@ -16,11 +16,11 @@ import (
 )
 
 type ContinuousSimulator struct {
-	client         *DSPClient
-	exchangeSimURL string
-	browser        *Browser
-	grafanaURL     string
-	alerter        alert.Sender
+	client              *DSPClient
+	exchangeSimURL      string
+	browser             *Browser
+	grafanaURL          string
+	alerter             alert.Sender
 	apiURL              string
 	adminURL            string
 	bidderURL           string
@@ -334,6 +334,20 @@ func runContinuous(cfg *AutopilotConfig) {
 	client := NewDSPClient(cfg.APIURL, "")
 	client.AdminToken = cfg.AdminToken
 
+	stackMgr := NewTestStackManager(cfg, filepath.Join(cfg.ScreenshotDir, "..", "logs"))
+	if err := stackMgr.EnsureRunning(client); err != nil {
+		log.Fatalf("[CONTINUOUS] Unable to ensure test stack: %v", err)
+	}
+	defer stackMgr.Stop()
+
+	frontendMgr := NewFrontendManager(cfg.FrontendURL, cfg.APIURL, filepath.Join(cfg.ScreenshotDir, "..", "logs"))
+	if err := frontendMgr.EnsureRunning(); err != nil {
+		log.Printf("[WARN] Frontend not available, browser evidence disabled: %v", err)
+		frontendMgr = nil
+	} else if frontendMgr.started {
+		defer frontendMgr.Stop()
+	}
+
 	var browser *Browser
 	browser = NewBrowser(cfg.FrontendURL, "", cfg.ScreenshotDir)
 	if err := browser.Start(); err != nil {
@@ -344,22 +358,22 @@ func runContinuous(cfg *AutopilotConfig) {
 	}
 
 	sim := &ContinuousSimulator{
-		client:         client,
-		exchangeSimURL: cfg.ExchangeSimURL,
-		browser:        browser,
-		grafanaURL:     cfg.GrafanaURL,
-		alerter:        alerter,
+		client:              client,
+		exchangeSimURL:      cfg.ExchangeSimURL,
+		browser:             browser,
+		grafanaURL:          cfg.GrafanaURL,
+		alerter:             alerter,
 		apiURL:              cfg.APIURL,
 		adminURL:            cfg.AdminURL,
 		bidderURL:           cfg.BidderURL,
 		lowBalanceThreshold: cfg.LowBalanceThreshold,
-		dayStartHour:   cfg.DayStartHour,
-		dayEndHour:     cfg.DayEndHour,
-		dayQPS:         cfg.DayQPS,
-		nightQPS:       cfg.NightQPS,
-		healthInterval: cfg.HealthInterval,
-		reportHour:     cfg.ReportHour,
-		reportDir:      cfg.ReportDir,
+		dayStartHour:        cfg.DayStartHour,
+		dayEndHour:          cfg.DayEndHour,
+		dayQPS:              cfg.DayQPS,
+		nightQPS:            cfg.NightQPS,
+		healthInterval:      cfg.HealthInterval,
+		reportHour:          cfg.ReportHour,
+		reportDir:           cfg.ReportDir,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

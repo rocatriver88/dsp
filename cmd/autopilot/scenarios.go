@@ -99,6 +99,9 @@ func (s *ScenarioRunner) RunNormalFlow() []StepResult {
 		s.advertiserID = adv.ID
 		s.apiKey = adv.APIKey
 		s.client.APIKey = adv.APIKey
+		if s.browser != nil {
+			s.browser.apiKey = adv.APIKey
+		}
 		return fmt.Sprintf("Advertiser id=%d, api_key=%s (invite=%s, reg=%d)", adv.ID, adv.APIKey, code, regID), nil
 	})
 	step.Screenshot = s.screenshot("01-dashboard-empty", "/")
@@ -242,7 +245,7 @@ func (s *ScenarioRunner) RunFaultScenarios(faultInjector *FaultInjector) []StepR
 	step := s.runStep("Fault: Budget Exhaustion", func() (string, error) {
 		err := s.client.UpdateCampaign(s.campaignID, map[string]any{
 			"budget_daily_cents": 100,
-			"targeting":         map[string]any{},
+			"targeting":          map[string]any{},
 		})
 		if err != nil {
 			return "", fmt.Errorf("set low budget: %w", err)

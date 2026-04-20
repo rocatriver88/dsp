@@ -55,8 +55,15 @@ func runVerify(cfg *AutopilotConfig) {
 
 	// Pre-flight: check services are running
 	log.Println("[PRE-FLIGHT] Checking services...")
+	stackMgr := NewTestStackManager(cfg, filepath.Join(cfg.ScreenshotDir, "..", "logs"))
+	if err := stackMgr.EnsureRunning(client); err != nil {
+		log.Fatalf("[PRE-FLIGHT] Unable to ensure test stack: %v", err)
+	}
+	defer stackMgr.Stop()
+
 	services := map[string]string{
 		"API":          cfg.APIURL,
+		"Bidder":       cfg.BidderURL,
 		"Exchange-Sim": cfg.ExchangeSimURL,
 	}
 	for name, url := range services {
@@ -64,6 +71,14 @@ func runVerify(cfg *AutopilotConfig) {
 			log.Fatalf("[PRE-FLIGHT] %s at %s is not reachable: %v", name, url, err)
 		}
 		log.Printf("[PRE-FLIGHT] %s OK", name)
+	}
+
+	frontendMgr := NewFrontendManager(cfg.FrontendURL, cfg.APIURL, filepath.Join(cfg.ScreenshotDir, "..", "logs"))
+	if err := frontendMgr.EnsureRunning(); err != nil {
+		log.Printf("[WARN] Frontend not available, browser evidence disabled: %v", err)
+		frontendMgr = nil
+	} else if frontendMgr.started {
+		defer frontendMgr.Stop()
 	}
 
 	// Start browser
@@ -96,11 +111,6 @@ func runVerify(cfg *AutopilotConfig) {
 	log.Println("=== Normal Flow ===")
 	normalSteps := runner.RunNormalFlow()
 	report.Steps = append(report.Steps, normalSteps...)
-
-	// Update browser with the new API key
-	if browser != nil && runner.apiKey != "" {
-		browser.apiKey = runner.apiKey
-	}
 
 	// Run fault scenarios (steps 7-9)
 	log.Println("")
