@@ -51,5 +51,4 @@ Clients MUST NOT assume a 200 on `/start` means the bidder is instantly serving.
 ### Monitoring
 
 - `campaign_activation_pubsub_failures_total{action="activated"|"paused"|"updated"}` — pub/sub delivery failures. Sustained non-zero rate → users hitting the 30s fallback path.
-- `bidder_token_legacy_accepted_total{handler="win"|"click"|"convert"}` — transitional HMAC token validations. Expected to spike briefly after a Phase 2 deploy, then return to zero within 5-min token TTL. Sustained non-zero = stuck legacy path, investigate (deploy-window removal pending — see Phase 2 follow-up F7).
 - `bidder_clearing_price_capped_total{handler="win"}` — URL `price` param exceeded signed `bid_price_cents`. Non-zero indicates URL tampering attempt or upstream exchange bug — investigate.
