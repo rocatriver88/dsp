@@ -122,19 +122,19 @@ func TestBatchConstants(t *testing.T) {
 }
 
 func TestFailingStoreCompatibility(t *testing.T) {
-	// The existing failingStore from integration tests must still satisfy
+	// The existing single-event failing store shape used by integration tests must still satisfy
 	// BidLogStore (single-event path). Verify the interface hasn't changed.
-	s := &failingStore{}
+	s := &unitFailingStore{}
 	err := s.InsertEvent(context.Background(), reporting.BidEvent{})
 	if err == nil {
 		t.Fatal("failingStore should always error")
 	}
 }
 
-// failingStore duplicated from integration test file for unit test use.
+// unitFailingStore is duplicated from the integration test file for unit test use.
 // (integration test file has build tag, so we need our own copy here.)
-type failingStore struct{}
+type unitFailingStore struct{}
 
-func (f *failingStore) InsertEvent(_ context.Context, _ reporting.BidEvent) error {
+func (f *unitFailingStore) InsertEvent(_ context.Context, _ reporting.BidEvent) error {
 	return fmt.Errorf("qa: forced failure for DLQ test")
 }

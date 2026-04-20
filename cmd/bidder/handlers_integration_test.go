@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -29,7 +31,50 @@ import (
 	"github.com/heartgryphon/dsp/internal/qaharness"
 	"github.com/prebid/openrtb/v20/openrtb2"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/segmentio/kafka-go"
 )
+
+// ensureKafkaTopic creates `topic` on the broker if it does not already exist
+// and waits until it's visible on the broker metadata path. Without this poll,
+// the very first integration test in a fresh stack races into
+// UnknownTopicOrPartition because async-producer writes outrun topic
+// propagation. Mirrors the same helper in cmd/consumer/consumer_integration_test.go.
+func ensureKafkaTopic(t *testing.T, brokers []string, topic string) {
+	t.Helper()
+	conn, err := kafka.Dial("tcp", brokers[0])
+	if err != nil {
+		t.Fatalf("ensureKafkaTopic dial: %v", err)
+	}
+	defer conn.Close()
+
+	controller, err := conn.Controller()
+	if err != nil {
+		t.Fatalf("ensureKafkaTopic controller: %v", err)
+	}
+	ctrlConn, err := kafka.Dial("tcp", net.JoinHostPort(controller.Host, strconv.Itoa(controller.Port)))
+	if err != nil {
+		t.Fatalf("ensureKafkaTopic dial controller: %v", err)
+	}
+	defer ctrlConn.Close()
+
+	if err := ctrlConn.CreateTopics(kafka.TopicConfig{
+		Topic:             topic,
+		NumPartitions:     1,
+		ReplicationFactor: 1,
+	}); err != nil {
+		t.Logf("ensureKafkaTopic(%s): %v (ignoring — may already exist)", topic, err)
+	}
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		partitions, err := conn.ReadPartitions(topic)
+		if err == nil && len(partitions) > 0 {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	t.Fatalf("ensureKafkaTopic(%s): topic not visible after 10s", topic)
+}
 
 const (
 	qaHMACSecret = "qa-test-secret"
@@ -54,6 +99,13 @@ type handlerFixture struct {
 func newHandlerFixture(t *testing.T) *handlerFixture {
 	t.Helper()
 	h := qaharness.New(t)
+
+	// Create + propagation-poll the topics every handler test produces to.
+	// Without this, the first-after-fresh-stack test races into
+	// UnknownTopicOrPartition (cf. comment on ensureKafkaTopic above).
+	for _, topic := range []string{"dsp.bids", "dsp.impressions", "dsp.billing"} {
+		ensureKafkaTopic(t, h.Env.KafkaBrokers, topic)
+	}
 
 	loader := bidder.NewCampaignLoader(h.PG, h.RDB)
 	producer := events.NewProducer(h.Env.KafkaBrokers, t.TempDir())

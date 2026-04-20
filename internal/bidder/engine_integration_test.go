@@ -43,7 +43,12 @@ func newEngineFixtureWithGuard(t *testing.T, guardCfg guardrail.Config) *engineF
 	fraudFilter := antifraud.NewFilter(h.RDB)
 	guard := guardrail.New(h.RDB, guardCfg)
 	producer := events.NewProducer(h.Env.KafkaBrokers, t.TempDir())
-	t.Cleanup(producer.Close)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = producer.WaitInflight(ctx)
+		producer.Close()
+	})
 
 	eng := bidder.NewEngine(loader, budgetSvc, strategySvc, statsCache, producer, fraudFilter, guard)
 
