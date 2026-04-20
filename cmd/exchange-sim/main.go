@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,7 +21,7 @@ import (
 // and simulates the full auction lifecycle.
 
 var (
-	bidderURL = "http://localhost:8180"
+	bidderURL = envOrDefault("BIDDER_URL", "http://localhost:8180")
 	client    = &http.Client{Timeout: 200 * time.Millisecond}
 
 	totalRequests  atomic.Int64
@@ -32,6 +33,8 @@ var (
 )
 
 func main() {
+	port := envOrDefault("EXCHANGE_SIM_PORT", "9090")
+
 	log.Println("Exchange Simulator starting...")
 	log.Printf("Bidder URL: %s", bidderURL)
 	log.Println("")
@@ -52,12 +55,19 @@ func main() {
 	mux.HandleFunc("GET /stats", handleExchangeStats)
 	mux.HandleFunc("GET /bidder-stats", handleBidderStats)
 
-	addr := ":9090"
+	addr := ":" + port
 	log.Printf("Exchange sim listening on %s", addr)
-	log.Println("Try: curl http://localhost:9090/single")
+	log.Printf("Try: curl http://localhost:%s/single", port)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func envOrDefault(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }
 
 func handleSingle(w http.ResponseWriter, r *http.Request) {
@@ -72,8 +82,8 @@ func handleSingle(w http.ResponseWriter, r *http.Request) {
 	latency := time.Since(start)
 
 	result := map[string]any{
-		"request":  json.RawMessage(reqJSON),
-		"latency":  latency.String(),
+		"request":    json.RawMessage(reqJSON),
+		"latency":    latency.String(),
 		"latency_us": latency.Microseconds(),
 	}
 
@@ -151,14 +161,14 @@ func handleBurst(w http.ResponseWriter, r *http.Request) {
 	avg := sum / int64(len(latencies))
 
 	result := map[string]any{
-		"total":     n,
-		"bids":      bids.Load(),
-		"no_bids":   noBids.Load(),
-		"errors":    errors.Load(),
-		"elapsed":   elapsed.String(),
-		"qps":       float64(n) / elapsed.Seconds(),
-		"avg_us":    avg,
-		"avg_ms":    float64(avg) / 1000.0,
+		"total":   n,
+		"bids":    bids.Load(),
+		"no_bids": noBids.Load(),
+		"errors":  errors.Load(),
+		"elapsed": elapsed.String(),
+		"qps":     float64(n) / elapsed.Seconds(),
+		"avg_us":  avg,
+		"avg_ms":  float64(avg) / 1000.0,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -224,22 +234,22 @@ func handleLoad(w http.ResponseWriter, r *http.Request) {
 			passed := p99Ms <= thresholdP99Ms
 
 			result := map[string]any{
-				"duration":          elapsed.String(),
-				"total":             total,
-				"bids":              totalBids.Load(),
-				"no_bids":           totalNoBids.Load(),
-				"errors":            totalErrors.Load(),
-				"actual_qps":        float64(total) / elapsed.Seconds(),
-				"avg_latency_us":    avgUs,
-				"avg_latency_ms":    float64(avgUs) / 1000.0,
-				"p50_us":            p50,
-				"p50_ms":            float64(p50) / 1000.0,
-				"p95_us":            p95,
-				"p95_ms":            float64(p95) / 1000.0,
-				"p99_us":            p99,
-				"p99_ms":            p99Ms,
-				"threshold_p99_ms":  thresholdP99Ms,
-				"passed":            passed,
+				"duration":         elapsed.String(),
+				"total":            total,
+				"bids":             totalBids.Load(),
+				"no_bids":          totalNoBids.Load(),
+				"errors":           totalErrors.Load(),
+				"actual_qps":       float64(total) / elapsed.Seconds(),
+				"avg_latency_us":   avgUs,
+				"avg_latency_ms":   float64(avgUs) / 1000.0,
+				"p50_us":           p50,
+				"p50_ms":           float64(p50) / 1000.0,
+				"p95_us":           p95,
+				"p95_ms":           float64(p95) / 1000.0,
+				"p99_us":           p99,
+				"p99_ms":           p99Ms,
+				"threshold_p99_ms": thresholdP99Ms,
+				"passed":           passed,
 			}
 
 			verdict := "PASS"

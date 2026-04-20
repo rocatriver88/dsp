@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/chromedp/chromedp"
@@ -61,8 +62,10 @@ func (b *Browser) Screenshot(name, path string) (string, error) {
 
 	filename := filepath.Join(b.screenshotDir, name+".png")
 	var buf []byte
+	var bodyText string
 
 	url := b.frontendURL + path
+	expectedText := expectedTextForPath(path)
 
 	err := chromedp.Run(ctx,
 		// First navigate to set localStorage
@@ -77,10 +80,14 @@ func (b *Browser) Screenshot(name, path string) (string, error) {
 		// Wait for content to render
 		chromedp.WaitReady("body"),
 		chromedp.Sleep(1*time.Second),
+		chromedp.Text("body", &bodyText, chromedp.ByQuery),
 		chromedp.FullScreenshot(&buf, 90),
 	)
 	if err != nil {
 		return "", fmt.Errorf("screenshot %s: %w", name, err)
+	}
+	if expectedText != "" && !strings.Contains(bodyText, expectedText) {
+		return "", fmt.Errorf("screenshot %s: expected page text %q not found", name, expectedText)
 	}
 
 	if err := os.WriteFile(filename, buf, 0o644); err != nil {
@@ -89,6 +96,25 @@ func (b *Browser) Screenshot(name, path string) (string, error) {
 
 	log.Printf("[SCREENSHOT] %s -> %s (%d bytes)", name, filename, len(buf))
 	return filename, nil
+}
+
+func expectedTextForPath(path string) string {
+	switch {
+	case path == "/":
+		return "仪表板"
+	case strings.HasPrefix(path, "/billing"):
+		return "账户"
+	case strings.HasPrefix(path, "/campaigns/"):
+		return "基本信息"
+	case strings.HasPrefix(path, "/campaigns"):
+		return "广告系列管理"
+	case strings.HasPrefix(path, "/analytics"):
+		return "数据分析"
+	case strings.HasPrefix(path, "/reports"):
+		return "报表"
+	default:
+		return ""
+	}
 }
 
 // ScreenshotGrafana takes a screenshot of a Grafana dashboard.
