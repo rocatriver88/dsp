@@ -51,4 +51,4 @@ Clients MUST NOT assume a 200 on `/start` means the bidder is instantly serving.
 ### Monitoring
 
 - `campaign_activation_pubsub_failures_total{action="activated"|"paused"|"updated"}` — pub/sub delivery failures. Sustained non-zero rate → users hitting the 30s fallback path.
-- `bidder_clearing_price_capped_total{handler="win"}` — URL `price` param exceeded signed `bid_price_cents`. Non-zero indicates URL tampering attempt or upstream exchange bug — investigate.
+- `bidder_clearing_price_capped_total{handler="win"}` — URL `price` param exceeded signed `bid_price_cents`. Non-zero indicates URL tampering attempt or upstream exchange bug — investigate. If a new exchange adapter saturates this metric, check its price-unit normalization against [exchange-onboarding.md](exchange-onboarding.md).
