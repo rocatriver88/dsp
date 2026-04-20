@@ -126,19 +126,6 @@ var (
 
 	// ── Phase 2 (HMAC rollover / clearing-price) metrics ─────────────
 
-	// BidderTokenLegacyAccepted counts win/click/convert token
-	// validations that fell back to the legacy 4-param HMAC signature
-	// during a deploy transition. Expected to spike briefly right after
-	// a Phase 2 deploy, then return to zero within the 5-minute token
-	// TTL. Sustained non-zero reading >15 min after deploy indicates
-	// stuck legacy-token traffic — investigate before removing the
-	// fallback branch.
-	// Labels: handler — {win, click, convert}
-	BidderTokenLegacyAccepted = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "bidder_token_legacy_accepted_total",
-		Help: "Count of HMAC token validations accepted via legacy 4-param signature during deploy transition.",
-	}, []string{"handler"})
-
 	// BidderClearingPriceCapped counts /win requests whose unsigned URL
 	// `price` exceeded the HMAC-signed bid_price_cents bound. Non-zero
 	// indicates either (a) a URL-tamper attempt or (b) an upstream

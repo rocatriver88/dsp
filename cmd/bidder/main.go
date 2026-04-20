@@ -402,37 +402,14 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 	requestID := r.URL.Query().Get("request_id")
 	token := r.URL.Query().Get("token")
 
-	// URL-carried metadata (signed in the new-format token). Kept as
-	// mutable strings because the legacy-token fallback zeroes them
-	// below — legacy tokens didn't sign these params, so the URL
-	// values are untrusted on that path and must not feed the event.
+	// URL-carried metadata signed in the 6-param HMAC token.
 	urlCrIDStr := r.URL.Query().Get("creative_id")
 	urlPriceCentsStr := r.URL.Query().Get("bid_price_cents")
 
-	// Transitional HMAC validation (CEO Finding #3). Try 6-param first
-	// (new format signed by the post-deploy binary); fall back to
-	// 4-param legacy if that fails so tokens issued by the pre-deploy
-	// binary still validate during the 5-minute token TTL window.
-	// After ~10 min past deploy, a follow-up PR should remove the
-	// legacy branch.
-	validNew := auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
-		urlCrIDStr, urlPriceCentsStr)
-	validLegacy := !validNew && auth.ValidateToken(d.HMACSecret, token,
-		campaignIDStr, requestID)
-
-	if !validNew && !validLegacy {
+	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
+		urlCrIDStr, urlPriceCentsStr) {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
 		return
-	}
-	if validLegacy {
-		observability.BidderTokenLegacyAccepted.WithLabelValues("win").Inc()
-		log.Printf("[WIN] legacy token accepted during deploy transition: request_id=%s", requestID)
-		// Legacy tokens cannot have trusted URL metadata (the pre-deploy
-		// binary did not sign creative_id / bid_price_cents). Clear the
-		// strings so the parse-and-fallback-recompute logic below reads
-		// 0 and takes the campaign-state branch.
-		urlCrIDStr = ""
-		urlPriceCentsStr = ""
 	}
 
 	// Win dedup: prevent double budget deduction from exchange retries
@@ -638,39 +615,16 @@ func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 	requestID := r.URL.Query().Get("request_id")
 	token := r.URL.Query().Get("token")
 
-	// URL-carried metadata. bid_price_cents is now part of the
-	// decorator-built click URL (Task 4 correction — without it the
-	// signed token couldn't be validated). Legacy fallback zeroes
-	// these below since the pre-deploy binary didn't sign them.
+	// URL-carried metadata signed in the 6-param HMAC token.
+	// bid_price_cents is part of the decorator-built click URL (Task 4
+	// correction — without it the signed token couldn't be validated).
 	urlCrIDStr := r.URL.Query().Get("creative_id")
 	urlPriceCentsStr := r.URL.Query().Get("bid_price_cents")
 
-	// Transitional HMAC validation (CEO Finding #3, Codex Finding #4
-	// extension to /click). Try 6-param first; fall back to 4-param
-	// legacy so pre-deploy tokens still validate during the 5-min
-	// token TTL window.
-	validNew := auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
-		urlCrIDStr, urlPriceCentsStr)
-	validLegacy := !validNew && auth.ValidateToken(d.HMACSecret, token,
-		campaignIDStr, requestID)
-
-	if !validNew && !validLegacy {
+	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
+		urlCrIDStr, urlPriceCentsStr) {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
 		return
-	}
-	if validLegacy {
-		observability.BidderTokenLegacyAccepted.WithLabelValues("click").Inc()
-		log.Printf("[CLICK] legacy token accepted during deploy transition: request_id=%s", requestID)
-		// Legacy path: untrust URL metadata. handleClick currently
-		// doesn't use bid_price_cents for billing (CPC rate comes from
-		// the campaign record), but clearing urlCrIDStr keeps the
-		// contract uniform with handleWin so a future extension that
-		// relies on URL creative_id for event enrichment doesn't leak
-		// untrusted values.
-		urlCrIDStr = ""
-		urlPriceCentsStr = ""
-		_ = urlCrIDStr
-		_ = urlPriceCentsStr
 	}
 
 	// Click dedup: prevent double budget deduction and double event emission
@@ -754,35 +708,14 @@ func (d *Deps) handleConvert(w http.ResponseWriter, r *http.Request) {
 	requestID := r.URL.Query().Get("request_id")
 	token := r.URL.Query().Get("token")
 
-	// URL-carried metadata. The decorator does not build /convert URLs,
-	// but Codex Finding #4 still asks for transitional validation here
-	// so upstream conversion-tracking callers can migrate to 6-param
-	// tokens on the same deploy window as /win and /click.
+	// URL-carried metadata signed in the 6-param HMAC token.
 	urlCrIDStr := r.URL.Query().Get("creative_id")
 	urlPriceCentsStr := r.URL.Query().Get("bid_price_cents")
 
-	// Transitional HMAC validation. Try 6-param first; fall back to
-	// 4-param legacy so pre-deploy tokens still validate.
-	validNew := auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
-		urlCrIDStr, urlPriceCentsStr)
-	validLegacy := !validNew && auth.ValidateToken(d.HMACSecret, token,
-		campaignIDStr, requestID)
-
-	if !validNew && !validLegacy {
+	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
+		urlCrIDStr, urlPriceCentsStr) {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
 		return
-	}
-	if validLegacy {
-		observability.BidderTokenLegacyAccepted.WithLabelValues("convert").Inc()
-		log.Printf("[CONVERT] legacy token accepted during deploy transition: request_id=%s", requestID)
-		// Legacy tokens did not sign creative_id / bid_price_cents;
-		// clear for parity with handleWin / handleClick (conversion
-		// events currently don't use them, but keeps the policy
-		// uniform).
-		urlCrIDStr = ""
-		urlPriceCentsStr = ""
-		_ = urlCrIDStr
-		_ = urlPriceCentsStr
 	}
 
 	campaignID, _ := strconv.ParseInt(campaignIDStr, 10, 64)
