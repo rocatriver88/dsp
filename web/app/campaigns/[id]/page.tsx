@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { api, Campaign, CampaignStats, Creative } from "@/lib/api";
 import { StatCard } from "../../_components/StatCard";
 import PageHeader from "../../_components/PageHeader";
@@ -19,7 +20,9 @@ export default function CampaignDetailPage() {
   const [creatives, setCreatives] = useState<Creative[]>([]);
   const [showAddCreative, setShowAddCreative] = useState(false);
 
-  const loadCreatives = () => api.listCreatives(id).then(setCreatives).catch(() => {});
+  const loadCreatives = useCallback(() => {
+    return api.listCreatives(id).then(setCreatives).catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     Promise.all([
@@ -30,7 +33,7 @@ export default function CampaignDetailPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
     loadCreatives();
-  }, [id]);
+  }, [id, loadCreatives]);
 
   const handleAction = async (action: "start" | "pause") => {
     setActionError(null);
@@ -321,7 +324,15 @@ function AddCreativeForm({ campaignId, onCreated }: { campaignId: number; onCrea
           <div className="rounded-lg p-4" style={{ border: "2px dashed var(--border)" }}>
             {imageUrl ? (
               <div className="flex items-center gap-4">
-                <img src={imageUrl} alt="preview" className="max-h-24 rounded" />
+                <Image
+                  src={imageUrl}
+                  alt="preview"
+                  width={96}
+                  height={96}
+                  unoptimized
+                  className="max-h-24 w-auto rounded"
+                  style={{ height: "auto" }}
+                />
                 <div className="flex-1">
                   <p className="text-sm mb-1" style={{ color: "var(--success)" }}>上传成功</p>
                   <p className="text-xs break-all" style={{ color: "var(--text-muted)" }}>{imageUrl}</p>
@@ -399,7 +410,14 @@ function CreativeCard({ creative: cr, onUpdated }: { creative: Creative; onUpdat
       {/* Summary row */}
       <div className="flex items-center px-4 py-3 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setExpanded(!expanded)}>
         {previewImgUrl && (
-          <img src={previewImgUrl} alt={cr.name} className="w-12 h-12 object-cover rounded mr-3 flex-shrink-0" />
+          <Image
+            src={previewImgUrl}
+            alt={cr.name}
+            width={48}
+            height={48}
+            unoptimized
+            className="w-12 h-12 object-cover rounded mr-3 flex-shrink-0"
+          />
         )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium truncate" style={{ color: "var(--text-primary)" }}>{cr.name || `素材 #${cr.id}`}</p>
@@ -425,7 +443,15 @@ function CreativeCard({ creative: cr, onUpdated }: { creative: Creative; onUpdat
             <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>素材预览</p>
             {previewImgUrl ? (
               <div className="p-3 rounded inline-block" style={{ background: "var(--bg-card-elevated)" }}>
-                <img src={previewImgUrl} alt={cr.name} className="max-w-full max-h-60 rounded" />
+                <Image
+                  src={previewImgUrl}
+                  alt={cr.name}
+                  width={600}
+                  height={300}
+                  unoptimized
+                  className="max-w-full max-h-60 rounded"
+                  style={{ width: "auto", height: "auto" }}
+                />
               </div>
             ) : cr.ad_markup ? (
               <div className="p-3 rounded" style={{ background: "var(--bg-card-elevated)" }}>

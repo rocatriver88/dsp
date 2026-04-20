@@ -34,6 +34,8 @@ export INTERNAL_PORT=9182
 export CORS_ALLOWED_ORIGINS=http://localhost:5000
 export BIDDER_PUBLIC_URL=http://localhost:9180
 export BIDDER_HMAC_SECRET=test-hmac-secret-not-for-production
+export BIDDER_URL=http://localhost:9180
+export EXCHANGE_SIM_PORT=10090
 export ADMIN_TOKEN=test-admin-token
 export ENV=development
 

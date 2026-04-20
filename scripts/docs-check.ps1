@@ -3,26 +3,10 @@ $ErrorActionPreference = "Stop"
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $root
 
-function Invoke-Native {
-  param(
-    [Parameter(ValueFromRemainingArguments = $true)]
-    [string[]]$Command
-  )
-
-  $exe = $Command[0]
-  $args = @()
-  if ($Command.Length -gt 1) {
-    $args = $Command[1..($Command.Length - 1)]
-  }
-  & $exe @args
-  if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
-  }
-}
-
 Write-Host "Regenerating OpenAPI + TS types..."
 
-Invoke-Native go mod download
+go mod download
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $moduleDiff = git diff --name-only -- go.mod go.sum
 if ($moduleDiff) {
@@ -31,10 +15,12 @@ if ($moduleDiff) {
   exit 1
 }
 
-Invoke-Native swag init -g cmd/api/main.go -o docs/generated --parseDependency --parseInternal
+swag init -g cmd/api/main.go -o docs/generated --parseDependency --parseInternal
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Push-Location web
 try {
-  Invoke-Native npm run generate:api
+  npm run generate:api
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 } finally {
   Pop-Location
 }

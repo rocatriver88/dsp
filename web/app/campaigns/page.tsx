@@ -21,12 +21,6 @@ function formatCurrency(cents: number): string {
   return `¥${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function formatBid(c: Campaign): string {
-  if (c.billing_model === "cpc") return `¥${(c.bid_cpc_cents / 100).toFixed(2)} CPC`;
-  if (c.billing_model === "ocpm") return `¥${(c.ocpm_target_cpa_cents / 100).toFixed(2)} oCPM`;
-  return `¥${(c.bid_cpm_cents / 100).toFixed(2)} CPM`;
-}
-
 function progressPercent(spent: number, budget: number): number {
   if (budget <= 0) return 0;
   return Math.min(100, Math.round((spent / budget) * 100));

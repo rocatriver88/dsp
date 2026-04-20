@@ -515,19 +515,17 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 	}())
 
 	// Record win + spend for bid strategy (pacing + win-rate tracking).
-	// Use context.Background() — r.Context() is cancelled the moment the
-	// handler returns its 200, which races the goroutine's Redis INCR and
-	// can silently drop most RecordWin / RecordSpend calls. Same class of
-	// bug as Round 2's internal/bidder/engine.go:210 fix for RecordBid;
-	// Round 2 missed this handler-level instance. Carried from engine
-	// branch's equivalent handleWin which had already fixed it.
-	// M5 Round 3 regression caught by cmd/bidder/handlers_integration_test.go
-	// TestHandlers_WinNormalCPM "C1 regression sentinel".
+	// Keep these writes synchronous. The prior fire-and-forget goroutines
+	// raced Go scheduling under integration load, so strategy:wins could
+	// be missing even though /win had already returned 200. Using
+	// context.Background avoids request-cancellation issues while keeping
+	// the observable /win side effects complete before the handler exits.
+	// Guarded by TestHandlers_WinNormalCPM's C1 regression sentinel.
 	if d.StrategySvc != nil {
-		go d.StrategySvc.RecordWin(context.Background(), campaignID)
+		d.StrategySvc.RecordWin(context.Background(), campaignID)
 		if !isCPC {
 			spendCents := advertiserChargeCents(price)
-			go d.StrategySvc.RecordSpend(context.Background(), campaignID, spendCents)
+			d.StrategySvc.RecordSpend(context.Background(), campaignID, spendCents)
 		}
 	}
 

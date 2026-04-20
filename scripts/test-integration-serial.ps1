@@ -22,4 +22,8 @@ $packages = @(
   "./internal/reconciliation/..."
 )
 
-go test -p 1 -tags integration -count=1 $packages
+$command = @("go", "test", "-p", "1", "-tags", "integration", "-count=1") + $packages
+& $command[0] $command[1..($command.Length - 1)]
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
