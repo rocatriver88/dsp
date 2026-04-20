@@ -146,7 +146,7 @@ func (s *Store) GetCampaignStats(ctx context.Context, campaignID uint64, from, t
 			sumIf(charge_cents, event_type IN ('win', 'click')) AS spend_cents,
 			sumIf(clear_price_cents, event_type = 'win') AS adx_cost_cents
 		FROM bid_log
-		WHERE campaign_id = ? AND event_date >= ? AND event_date <= ?
+		WHERE campaign_id = ? AND event_date >= toDate(?) AND event_date <= toDate(?)
 	`, campaignID, from, to)
 
 	if err := row.Scan(&stats.Impressions, &stats.Clicks, &stats.Conversions, &stats.Wins, &stats.Bids, &stats.SpendCents, &stats.AdxCostCents); err != nil {
@@ -193,7 +193,7 @@ func (s *Store) GetHourlyStats(ctx context.Context, campaignID uint64, date time
 			countIf(event_type = 'click') AS clicks,
 			sumIf(clear_price_cents, event_type = 'win') AS spend_cents
 		FROM bid_log
-		WHERE campaign_id = ? AND event_date = ?
+		WHERE campaign_id = ? AND event_date = toDate(?)
 		GROUP BY hour ORDER BY hour
 	`, campaignID, date)
 	if err != nil {
@@ -204,9 +204,11 @@ func (s *Store) GetHourlyStats(ctx context.Context, campaignID uint64, date time
 	var result []HourlyStats
 	for rows.Next() {
 		var h HourlyStats
-		if err := rows.Scan(&h.Hour, &h.Impressions, &h.Clicks, &h.SpendCents); err != nil {
+		var hour uint8
+		if err := rows.Scan(&hour, &h.Impressions, &h.Clicks, &h.SpendCents); err != nil {
 			return nil, err
 		}
+		h.Hour = int(hour)
 		result = append(result, h)
 	}
 	return result, nil
@@ -233,7 +235,7 @@ func (s *Store) GetBidTransparency(ctx context.Context, campaignID uint64, from,
 		SELECT event_time, request_id, event_type, bid_price_cents, clear_price_cents,
 		       geo_country, device_os, loss_reason
 		FROM bid_log
-		WHERE campaign_id = ? AND event_date >= ? AND event_date <= ?
+		WHERE campaign_id = ? AND event_date >= toDate(?) AND event_date <= toDate(?)
 		ORDER BY event_time DESC
 		LIMIT ? OFFSET ?
 	`, campaignID, from, to, limit, offset)
@@ -274,7 +276,7 @@ func (s *Store) GetGeoBreakdown(ctx context.Context, campaignID uint64, from, to
 			countIf(event_type = 'click') AS clicks,
 			sumIf(clear_price_cents, event_type = 'win') AS spend_cents
 		FROM bid_log
-		WHERE campaign_id = ? AND event_date >= ? AND event_date <= ? AND geo_country != ''
+		WHERE campaign_id = ? AND event_date >= toDate(?) AND event_date <= toDate(?) AND geo_country != ''
 		GROUP BY geo_country ORDER BY impressions DESC
 	`, campaignID, from, to)
 	if err != nil {

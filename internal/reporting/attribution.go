@@ -67,7 +67,7 @@ func (s *Store) GetAttributionReport(ctx context.Context, campaignID uint64, fro
 		SELECT event_time, device_id, request_id
 		FROM bid_log
 		WHERE campaign_id = ? AND event_type = 'conversion'
-		  AND event_date >= ? AND event_date <= ?
+		  AND event_date >= toDate(?) AND event_date <= toDate(?)
 		  AND device_id != ''
 		ORDER BY event_time DESC
 		LIMIT ?
@@ -100,7 +100,7 @@ func (s *Store) GetAttributionReport(ctx context.Context, campaignID uint64, fro
 			FROM bid_log
 			WHERE campaign_id = ? AND device_id = ?
 			  AND event_type IN ('impression', 'click')
-			  AND event_date >= ? AND event_time < ?
+			  AND event_date >= toDate(?) AND event_time < ?
 			ORDER BY event_time ASC
 		`, campaignID, deviceID, lookback, convTime)
 		if err != nil {
