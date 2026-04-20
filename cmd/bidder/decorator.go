@@ -41,11 +41,20 @@ func decorateBidResponse(resp *openrtb2.BidResponse, req *openrtb2.BidRequest, b
 	// Truncation systematically under-counts pennies at the cent boundary.
 	bidPriceCents := strconv.FormatInt(int64(math.Round(bid.Price*100)), 10)
 
-	token := auth.GenerateToken(hmacSecret, bid.CID, req.ID, creativeID, bidPriceCents)
+	// F6 (#27): sign a handler-type discriminator as the FIRST variadic
+	// param so a token captured from /win can't be replayed on /click or
+	// /convert (budget drain + attribution poisoning). The bid-time params
+	// (campID, reqID, creativeID, bidPriceCents) are otherwise identical
+	// across win/click, and pre-F6 a single token validated on all three
+	// endpoints — an attacker with URL visibility (ADX logs, proxy)
+	// could charge CPC and emit fraudulent conversions within the 5-min
+	// TTL. Post-F6, each handler validates with its own type string.
+	winToken := auth.GenerateToken(hmacSecret, "win", bid.CID, req.ID, creativeID, bidPriceCents)
+	clickToken := auth.GenerateToken(hmacSecret, "click", bid.CID, req.ID, creativeID, bidPriceCents)
 
 	bid.NURL = fmt.Sprintf(
 		"%s/win?campaign_id=%s&price=${AUCTION_PRICE}&request_id=%s&creative_id=%s&bid_price_cents=%s&geo=%s&os=%s&token=%s",
-		baseURL, bid.CID, req.ID, creativeID, bidPriceCents, geo, osName, token,
+		baseURL, bid.CID, req.ID, creativeID, bidPriceCents, geo, osName, winToken,
 	)
 	// Click URL carries bid_price_cents so handleClick can round-trip the
 	// HMAC-signed value for validation. Without it the token (which is
@@ -54,7 +63,7 @@ func decorateBidResponse(resp *openrtb2.BidResponse, req *openrtb2.BidRequest, b
 	// correction note.
 	clickURL := fmt.Sprintf(
 		"%s/click?campaign_id=%s&request_id=%s&creative_id=%s&bid_price_cents=%s&token=%s",
-		baseURL, bid.CID, req.ID, creativeID, bidPriceCents, token,
+		baseURL, bid.CID, req.ID, creativeID, bidPriceCents, clickToken,
 	)
 	bid.AdM = injectClickTracker(bid.AdM, clickURL)
 }

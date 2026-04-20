@@ -406,7 +406,9 @@ func (d *Deps) handleWin(w http.ResponseWriter, r *http.Request) {
 	urlCrIDStr := r.URL.Query().Get("creative_id")
 	urlPriceCentsStr := r.URL.Query().Get("bid_price_cents")
 
-	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
+	// F6 (#27): "win" handler-type discriminator is the first variadic
+	// param so a /click or /convert token cannot replay here.
+	if !auth.ValidateToken(d.HMACSecret, token, "win", campaignIDStr, requestID,
 		urlCrIDStr, urlPriceCentsStr) {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
 		return
@@ -621,7 +623,10 @@ func (d *Deps) handleClick(w http.ResponseWriter, r *http.Request) {
 	urlCrIDStr := r.URL.Query().Get("creative_id")
 	urlPriceCentsStr := r.URL.Query().Get("bid_price_cents")
 
-	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
+	// F6 (#27): "click" handler-type discriminator is the first variadic
+	// param so a /win or /convert token cannot replay here (budget drain
+	// attack path).
+	if !auth.ValidateToken(d.HMACSecret, token, "click", campaignIDStr, requestID,
 		urlCrIDStr, urlPriceCentsStr) {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
 		return
@@ -712,7 +717,12 @@ func (d *Deps) handleConvert(w http.ResponseWriter, r *http.Request) {
 	urlCrIDStr := r.URL.Query().Get("creative_id")
 	urlPriceCentsStr := r.URL.Query().Get("bid_price_cents")
 
-	if !auth.ValidateToken(d.HMACSecret, token, campaignIDStr, requestID,
+	// F6 (#27): "convert" handler-type discriminator is the first variadic
+	// param so a /win or /click token cannot replay here (attribution
+	// poisoning attack path). The decorator does NOT currently emit
+	// /convert URLs; any future convert-tracking generator must sign
+	// auth.GenerateToken(secret, "convert", ...) with the same params.
+	if !auth.ValidateToken(d.HMACSecret, token, "convert", campaignIDStr, requestID,
 		urlCrIDStr, urlPriceCentsStr) {
 		http.Error(w, `{"error":"invalid or expired token"}`, http.StatusForbidden)
 		return
