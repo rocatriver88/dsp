@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -131,24 +130,3 @@ func (h *TestHarness) Reset() error {
 	return nil
 }
 
-// waitForCHMutations polls system.mutations until no in-progress mutations
-// on bid_log remain, or the timeout fires. Called from Reset to make the
-// async ALTER TABLE DELETE appear synchronous for the next test.
-func (h *TestHarness) waitForCHMutations(ctx context.Context, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		var inProgress uint64
-		err := h.CH.QueryRow(ctx, `
-			SELECT count() FROM system.mutations
-			WHERE database = 'default' AND table = 'bid_log' AND is_done = 0
-		`).Scan(&inProgress)
-		if err != nil {
-			return err
-		}
-		if inProgress == 0 {
-			return nil
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return fmt.Errorf("CH mutations on bid_log did not finish within %v", timeout)
-}
