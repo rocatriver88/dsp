@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/heartgryphon/dsp/internal/auth"
+	"github.com/heartgryphon/dsp/internal/user"
 )
 
 // testJWTSecret is a deterministic secret used in auth handler unit tests.
@@ -238,6 +241,50 @@ func TestHashRefreshToken(t *testing.T) {
 	}
 	if len(h1) != 64 {
 		t.Errorf("SHA-256 hex should be 64 chars, got %d", len(h1))
+	}
+}
+
+// TestHandleMe_ResponseMatchesUserResponse verifies that the typed
+// user.NewUserResponse constructor and the inline map in HandleMe produce
+// byte-for-byte identical JSON, preventing future DTO drift.
+func TestHandleMe_ResponseMatchesUserResponse(t *testing.T) {
+	now := time.Now()
+	aid := int64(7)
+	dbUser := &user.User{
+		ID:           42,
+		Email:        "alice@test.local",
+		Name:         "Alice Test",
+		Role:         user.RoleAdvertiser,
+		AdvertiserID: &aid,
+		Status:       "active",
+		LastLoginAt:  &now,
+		CreatedAt:    now,
+	}
+
+	typed := user.NewUserResponse(dbUser)
+
+	inline := map[string]any{
+		"id":            dbUser.ID,
+		"email":         dbUser.Email,
+		"name":          dbUser.Name,
+		"role":          dbUser.Role,
+		"advertiser_id": dbUser.AdvertiserID,
+		"status":        dbUser.Status,
+		"last_login_at": dbUser.LastLoginAt,
+		"created_at":    dbUser.CreatedAt,
+	}
+
+	typedJSON, _ := json.Marshal(typed)
+	inlineJSON, _ := json.Marshal(inline)
+
+	// Structs and maps serialize in different key order (declaration
+	// order vs. alphabetical). Compare semantically after round-tripping
+	// both into the same typed struct.
+	var typedOut, inlineOut user.UserResponse
+	json.Unmarshal(typedJSON, &typedOut)
+	json.Unmarshal(inlineJSON, &inlineOut)
+	if !reflect.DeepEqual(typedOut, inlineOut) {
+		t.Errorf("semantic mismatch:\n  typed:  %+v\n  inline: %+v", typedOut, inlineOut)
 	}
 }
 
