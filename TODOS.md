@@ -76,9 +76,10 @@
 
 ### Open GitHub issues for the three tech-debt items above
 
-**What:** The TODO comments in code today don't link to tracked issues; they'll rot. Create GH issues with labels `tech-debt` and `infra`.
-
-**Depends on:** Nothing.
+**Status:** ✅ Done (2026-05-07)
+- [x] Redis SetNX migration → [#39](https://github.com/rocatriver88/dsp/issues/39)
+- [x] SetNX fail-open policy → [#41](https://github.com/rocatriver88/dsp/issues/41)
+- [x] autopilot errcheck → [#40](https://github.com/rocatriver88/dsp/issues/40)
 
 ### Review SetNX dedup fail-open policy under Redis outage
 
