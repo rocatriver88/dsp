@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/heartgryphon/dsp/internal/auth"
+	"github.com/heartgryphon/dsp/internal/user"
 )
 
 // HandleLogin godoc
@@ -208,16 +209,7 @@ func (d *Deps) HandleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, map[string]any{
-		"id":            dbUser.ID,
-		"email":         dbUser.Email,
-		"name":          dbUser.Name,
-		"role":          dbUser.Role,
-		"advertiser_id": dbUser.AdvertiserID,
-		"status":        dbUser.Status,
-		"last_login_at": dbUser.LastLoginAt,
-		"created_at":    dbUser.CreatedAt,
-	})
+	WriteJSON(w, http.StatusOK, user.NewUserResponse(dbUser))
 }
 
 // HandleChangePassword godoc
